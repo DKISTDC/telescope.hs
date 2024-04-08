@@ -1,0 +1,37 @@
+name:                telescope
+version:             0.1.0
+synopsis:            Astronomical Observations (FITS, ASDF, WCS, etc)
+description:         Work with data from modern telescopes
+homepage:            https://github.com/dkistdc/telescope.hs
+license:             BSD3
+author:              Sean Hess
+maintainer:          Sean Hess <shess@gnso.edu>
+copyright:           Copyright (c) 2024 Sean Hess
+category:            Science, Astronomy
+extra-source-files:
+  - README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - fits-parse
+  - exceptions
+  - massiv
+  - text
+
+library:
+  source-dirs: src
+  dependencies: []
+
+
+tests:
+  tests:
+    source-dirs: test
+    main: Main.hs
+    dependencies:
+    - telescope
+    - binary
+    - containers
+    - tasty
+    - tasty-hunit
+
+
