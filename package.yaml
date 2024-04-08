@@ -11,27 +11,53 @@ category:            Science, Astronomy
 extra-source-files:
   - README.md
 
+language: GHC2021
+
+ghc-options:
+  - -Wall
+
+default-extensions:
+  - DataKinds
+  - DefaultSignatures
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - LambdaCase
+  - NoFieldSelectors
+  - OverloadedRecordDot
+  - OverloadedStrings
+  - QuasiQuotes
+  - StrictData
+  - TypeApplications
+  - TypeFamilies
+
 dependencies:
   - base >= 4.7 && < 5
-  - fits-parse
+  - binary
+  - bytestring
   - exceptions
+  - fits-parse
   - massiv
+  - megaparsec
   - text
 
 library:
   source-dirs: src
-  dependencies: []
 
 
 tests:
-  tests:
-    source-dirs: test
-    main: Main.hs
+  spec:
+    main: Spec.hs
+    source-dirs: test/
+    build-tools: sydtest-discover
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - telescope
+    - sydtest >= 0.15
     - binary
     - containers
-    - tasty
-    - tasty-hunit
 
 

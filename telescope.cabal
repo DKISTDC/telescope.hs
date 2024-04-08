@@ -21,35 +21,76 @@ extra-source-files:
 
 library
     exposed-modules:
-        Telescope
+        Telescope.Fits
+        Telescope.Fits.DataArray
+        Telescope.Fits.Encoding
+        Telescope.Fits.Types
     other-modules:
         Paths_telescope
-    build-depends:
-        base >=4.7 && <5,
-        exceptions,
-        fits-parse,
-        massiv,
-        text
-    hs-source-dirs:
-        src
-    default-language: Haskell2010
-
-test-suite tests
-    type: exitcode-stdio-1.0
-    main-is: Main.hs
-    other-modules:
-        Paths_telescope
-    hs-source-dirs:
-        test
     build-depends:
         base >=4.7 && <5,
         binary,
+        bytestring,
+        exceptions,
+        fits-parse,
+        massiv,
+        megaparsec,
+        text
+    hs-source-dirs:
+        src
+    default-extensions:
+        DataKinds
+        DefaultSignatures
+        DeriveAnyClass
+        DerivingStrategies
+        DuplicateRecordFields
+        LambdaCase
+        NoFieldSelectors
+        OverloadedRecordDot
+        OverloadedStrings
+        QuasiQuotes
+        StrictData
+        TypeApplications
+        TypeFamilies
+    ghc-options: -Wall
+    default-language: GHC2021
+
+test-suite spec
+    type: exitcode-stdio-1.0
+    main-is: Spec.hs
+    other-modules:
+        Test.ArraySpec
+        Test.WriteSpec
+        Paths_telescope
+    hs-source-dirs:
+        test/
+    default-extensions:
+        DataKinds
+        DefaultSignatures
+        DeriveAnyClass
+        DerivingStrategies
+        DuplicateRecordFields
+        LambdaCase
+        NoFieldSelectors
+        OverloadedRecordDot
+        OverloadedStrings
+        QuasiQuotes
+        StrictData
+        TypeApplications
+        TypeFamilies
+    ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+    build-tool-depends:
+        sydtest-discover:sydtest-discover
+    build-depends:
+        base >=4.7 && <5,
+        binary,
+        bytestring,
         containers,
         exceptions,
         fits-parse,
         massiv,
-        tasty,
-        tasty-hunit,
+        megaparsec,
+        sydtest >=0.15,
         telescope,
         text
-    default-language: Haskell2010
+    default-language: GHC2021
