@@ -9,7 +9,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Massiv.Array as M
 import Data.Word (Word8)
 import GHC.Int
-import Telescope.Fits.DataArray
+import Telescope.Fits.Encoding.DataArray
 import Telescope.Fits.Types
 import Test.Syd
 
@@ -118,11 +118,11 @@ testDecodeArray = do
     computeAs P a `shouldBe` [0, 1, 2]
 
   it "should decode Ix2" $ do
-    a <- decodeArray' @Ix2 @Int BPInt8 (Axes [3, 2]) $ BS.take 6 input
+    a <- decodeArrayData @Ix2 @Int BPInt8 (Axes [3, 2]) $ BS.take 6 input
     computeAs P a `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
   it "should decode Ix3" $ do
-    a <- decodeArray' @Ix3 @Int BPInt8 (Axes [2, 2, 2]) $ BS.take 8 input
+    a <- decodeArrayData @Ix3 @Int BPInt8 (Axes [2, 2, 2]) $ BS.take 8 input
     computeAs P a `shouldBe` [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]
 
 
@@ -130,7 +130,7 @@ testDecodeImage :: Spec
 testDecodeImage = do
   let input = genInput 0
   it "should decode image" $ do
-    a <- decodeArray' @Ix2 @Int BPInt8 (Axes [3, 2]) $ BS.take 6 input
+    a <- decodeArrayData @Ix2 @Int BPInt8 (Axes [3, 2]) $ BS.take 6 input
     computeAs P a `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
 
@@ -139,17 +139,17 @@ testEncode = do
   let array = delay @Ix2 @P $ M.fromLists' Seq [[1, 2, 3], [4, 5, 6]] :: Array D Ix2 Int8
 
   it "should encode to 6 items" $ do
-    BS.length (encodeArray' array) `shouldBe` 6
+    BS.length (encodeArrayData array) `shouldBe` 6
 
   it "int8 should round-trip to original array" $ do
-    let enc = encodeArray' array :: BS.ByteString
-    arr <- decodeArray' @Ix2 @Int8 BPInt8 (Axes [3, 2]) enc
+    let enc = encodeArrayData array :: BS.ByteString
+    arr <- decodeArrayData @Ix2 @Int8 BPInt8 (Axes [3, 2]) enc
     arr `shouldBe` array
 
   let arrayFloat = delay @Ix2 @P $ M.fromLists' Seq [[1, 2, 3], [4, 5, 6]] :: Array D Ix2 Float
   it "float should round-trip to original array" $ do
-    let enc = encodeArray' arrayFloat :: BS.ByteString
-    arr <- decodeArray' @Ix2 @Float BPFloat (Axes [3, 2]) enc
+    let enc = encodeArrayData arrayFloat :: BS.ByteString
+    arr <- decodeArrayData @Ix2 @Float BPFloat (Axes [3, 2]) enc
     arr `shouldBe` arrayFloat
 
 -- TODO: reimplement

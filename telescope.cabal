@@ -22,8 +22,8 @@ extra-source-files:
 library
     exposed-modules:
         Telescope.Fits
-        Telescope.Fits.DataArray
         Telescope.Fits.Encoding
+        Telescope.Fits.Encoding.DataArray
         Telescope.Fits.Types
     other-modules:
         Paths_telescope
@@ -60,7 +60,7 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
         Test.ArraySpec
-        Test.WriteSpec
+        Test.EncodingSpec
         Paths_telescope
     hs-source-dirs:
         test/

@@ -56,7 +56,7 @@ data Extension
 
 type Axis = Int
 newtype Axes a = Axes {axes :: [Axis]}
-  deriving (Show)
+  deriving (Show, Eq)
 data Row
 data Column
 
@@ -82,7 +82,7 @@ data BitPix
   | BPInt64
   | BPFloat
   | BPDouble
-  deriving (Show)
+  deriving (Show, Eq)
 
 
 bitPixBits :: BitPix -> Int

@@ -1,11 +1,11 @@
-module Telescope.Fits.DataArray
+module Telescope.Fits.Encoding.DataArray
   ( -- * Encoding Images
     decodeArray
   , encodeArray
 
     -- * Encoding as ByteStrings
-  , decodeArray'
-  , encodeArray'
+  , decodeArrayData
+  , encodeArrayData
 
     -- * Handling Axes
   , totalPix
@@ -61,9 +61,9 @@ Array D Seq (Sz (2 :. 3))
   , [ 4.0, 5.0, 6.0 ]
   ]
 -}
-decodeArray :: (MonadThrow m) => (Index ix, AxesIndex ix, Prim a, GetPix a) => DataArray -> m (Array D ix a)
+decodeArray :: forall ix a m. (MonadThrow m) => (Index ix, AxesIndex ix, Prim a, GetPix a) => DataArray -> m (Array D ix a)
 decodeArray DataArray{bitpix, axes, rawData} = do
-  decodeArray' bitpix axes rawData
+  decodeArrayData bitpix axes rawData
 
 
 {- | Decode data into an Array of arbitrary dimensions 'ix' specifying 'BitPixFormat' and 'Axes'
@@ -74,14 +74,14 @@ Array P Seq (Sz (2 :. 3))
   , [ 4.0, 5.0, 6.0 ]
   ]
 -}
-decodeArray'
+decodeArrayData
   :: forall ix a m
    . (AxesIndex ix, Prim a, GetPix a, Index ix, MonadThrow m)
   => BitPix
   -> Axes Column
   -> BS.ByteString
   -> m (Array D ix a)
-decodeArray' f as inp = do
+decodeArrayData f as inp = do
   let v = parseVector @a Par f inp
   fromVector as v
 
@@ -134,6 +134,8 @@ runGetThrow get inp =
     Right (_, _, a) -> pure a
 
 
+----- ENCODING -----------------------------------------------------------------
+
 {- | Encode an Array as an Image
 
 >>> encodeImage array
@@ -147,7 +149,7 @@ encodeArray :: forall r ix a. (Source r a, Stream r Ix1 a, Size r, PutArray ix, 
 encodeArray arr =
   let axes = sizeAxes $ size arr
       bitpix = bitPixFormat @a Proxy
-      rawData = encodeArray' arr -- O(n)
+      rawData = encodeArrayData arr -- O(n)
    in DataArray{bitpix, axes, rawData}
 
 
@@ -156,8 +158,8 @@ encodeArray arr =
 >>> myArray = decodeArray @Ix2 @Float BPFloat [3, 2] input
 >>> output = encodeArray myArray
 -}
-encodeArray' :: (Source r a, Stream r Ix1 a, PutArray ix, Index ix, PutPix a, Prim a) => Array r ix a -> BS.ByteString
-encodeArray' = BL.toStrict . runPut . putArray
+encodeArrayData :: (Source r a, Stream r Ix1 a, PutArray ix, Index ix, PutPix a, Prim a) => Array r ix a -> BS.ByteString
+encodeArrayData = BL.toStrict . runPut . putArray
 
 
 -- | The total number of pixels to read from the input ByteString
@@ -209,8 +211,7 @@ axesIndexN as = throwM $ AxesMismatch as
 indexAxesN :: (AxesIndex (Lower (IxN n))) => IxN n -> Axes Row
 indexAxesN (d :> ix) =
   let Axes ax = indexAxes ix
-   in -- outermost axis goes last
-      Axes $ ax <> [d]
+   in Axes $ ax <> [d] -- outermost axis goes last
 
 
 sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column

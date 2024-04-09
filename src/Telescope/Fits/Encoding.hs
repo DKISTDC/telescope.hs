@@ -3,23 +3,16 @@ module Telescope.Fits.Encoding where
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString qualified as BS
+import Data.ByteString.Builder
+import Data.ByteString.Lazy qualified as BL
+import Data.Char (toUpper)
 import Data.Fits qualified as Fits
 import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
+import Data.String (IsString (..))
+import Data.Text (isPrefixOf, pack, unpack)
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
-
-import Control.Monad (replicateM_)
-import Data.ByteString.Builder
-import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy qualified as BL
-import Data.ByteString.Lazy.Char8 qualified as C8
-import Data.Char (toUpper)
-import Data.String (IsString (..))
-import Data.Text (Text, pack, unpack)
-import Data.Text qualified as T
-import Telescope.Fits.DataArray
-import Telescope.Fits.Types
 
 
 decode :: forall m. (MonadThrow m) => BS.ByteString -> m Fits
@@ -53,6 +46,8 @@ decode inp = do
       , rawData = hdu._mainData
       }
 
+  -- decodePrimary :: BS.ByteString -> m PrimaryHDU
+  -- decodePrimary inp =
   -- toImage :: Fits.HeaderDataUnit -> m ImageHDU
 
   bitpix :: Fits.BitPixFormat -> BitPix
@@ -74,18 +69,13 @@ data HDUError
   deriving (Show, Exception)
 
 
--- encode :: Fits -> BS.ByteString
--- encode = _
---
---
+encode :: Fits -> BS.ByteString
+encode f = BS.toStrict . runRender $ do
+  renderPrimaryHDU f.primaryHDU
 
--- {-# LANGUAGE ImportQualifiedPost #-}
--- {-# LANGUAGE NoFieldSelectors #-}
--- {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE OverloadedRecordDot #-}
--- {-# LANGUAGE NamedFieldPuns #-}
--- module Data.Fits.Write where
---
+
+-- encodeExtensionHDU :: Extension -> BS.ByteString
+-- encodeExtensionHDU = _
 
 {- | Encode HeaderDataUnits into a FITS file
 
@@ -103,9 +93,18 @@ runRender bb = toLazyByteString bb.builder
 
 -- renderHDU :: HeaderDataUnit -> BuilderBlock
 -- renderHDU hdu = renderHeader hdu <> renderData hdu._mainData
+--
+--
+renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
+renderPrimaryHDU hdu =
+  mconcat
+    [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header
+    , renderData hdu.dataArray.rawData
+    ]
 
-renderData :: BL.ByteString -> BuilderBlock
-renderData s = fillBlock $ BuilderBlock (fromIntegral $ BL.length s) $ lazyByteString s
+
+renderData :: BS.ByteString -> BuilderBlock
+renderData s = fillBlock $ BuilderBlock (fromIntegral $ BS.length s) $ byteString s
 
 
 -- renderHeader :: HeaderDataUnit -> BuilderBlock
@@ -129,25 +128,37 @@ renderData s = fillBlock $ BuilderBlock (fromIntegral $ BL.length s) $ lazyByteS
 --
 --   renderEnd = pad 80 "END"
 
-renderImageHeader :: BitPix -> Axes Column -> BuilderBlock
-renderImageHeader bp as =
-  mconcat
-    [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
-    , renderImageKeywords bp as
-    ]
+renderImageHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
+renderImageHeader bp as h =
+  fillBlock $
+    mconcat
+      [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
+      , renderDataKeywords bp as
+      , renderOtherKeywords h
+      , renderEnd
+      ]
 
 
-renderPrimaryHeader :: BitPix -> Axes Column -> BuilderBlock
-renderPrimaryHeader bp as =
-  mconcat
-    [ renderKeywordLine "SIMPLE" (Logic T) (Just "Conforms to the FITS standard")
-    , renderImageKeywords bp as
-    , renderKeywordLine "EXTEND" (Logic T) Nothing
-    ]
+renderPrimaryHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
+renderPrimaryHeader bp as h =
+  fillBlock $
+    mconcat
+      [ renderKeywordLine "SIMPLE" (Logic T) (Just "Conforms to the FITS standard")
+      , renderDataKeywords bp as
+      , renderKeywordLine "EXTEND" (Logic T) Nothing
+      , -- , renderKeywordLine "CHECKSUM" (String "TODO") Nothing
+        -- , renderKeywordLine "DATASUM" (String "TODO") Nothing
+        renderOtherKeywords h
+      , renderEnd
+      ]
 
 
-renderImageKeywords :: BitPix -> Axes Column -> BuilderBlock
-renderImageKeywords bp (Axes as) =
+renderEnd :: BuilderBlock
+renderEnd = pad 80 "END"
+
+
+renderDataKeywords :: BitPix -> Axes Column -> BuilderBlock
+renderDataKeywords bp (Axes as) =
   mconcat
     [ bitpix
     , naxis_
@@ -156,7 +167,7 @@ renderImageKeywords bp (Axes as) =
  where
   bitpix = renderKeywordLine "BITPIX" (Integer $ bitpixCode bp) (Just "array data type")
   naxis_ = renderKeywordLine "NAXIS" (Integer $ length as) Nothing
-  naxes = mconcat $ zipWith naxisN [1 ..] as
+  naxes = mconcat $ zipWith @Int naxisN [1 ..] as
   naxisN n a =
     renderKeywordLine (Keyword $ "NAXIS" <> pack (show n)) (Integer a) Nothing
 
@@ -164,14 +175,20 @@ renderImageKeywords bp (Axes as) =
 -- | 'Header' should contain only extra keywords. The system will generate all mandatory keywords
 renderOtherKeywords :: Header -> BuilderBlock
 renderOtherKeywords (Header ks) =
-  mconcat $ map (\(k, v) -> renderKeywordLine k v Nothing) ks
+  mconcat $ map toLine $ filter (not . isMetaKeyword . fst) ks
+ where
+  toLine (k, v) = renderKeywordLine k v Nothing
+  isMetaKeyword (Keyword k) =
+    k == "BITPIX"
+      || k == "EXTEND"
+      || "NAXIS" `isPrefixOf` k
 
 
 -- | Fill out the header or data block to the nearest 2880 bytes
 fillBlock :: BuilderBlock -> BuilderBlock
 fillBlock b =
-  let rem = hduBlockSize - b.length `mod` hduBlockSize
-   in b <> extraSpaces rem
+  let rm = hduBlockSize - b.length `mod` hduBlockSize
+   in b <> extraSpaces rm
  where
   extraSpaces n
     | n == hduBlockSize = mempty

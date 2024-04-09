@@ -1,23 +1,59 @@
-module Test.WriteSpec where
+{-# LANGUAGE TypeApplications #-}
 
+module Test.EncodingSpec where
+
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as C8
+import Data.Massiv.Array qualified as M
 import Data.Text (pack)
+import Telescope.Fits qualified as Fits
 import Telescope.Fits.Encoding hiding (justify, pad, spaces)
+import Telescope.Fits.Encoding.DataArray
 import Telescope.Fits.Types
 import Test.Syd
 
 
 spec :: Spec
 spec = do
-  -- describe "gen header" testGenHeader
+  describe "decode fits" testDecodeFits
   describe "render header" testRenderHeader
   describe "render data" testRenderData
+  describe "encode primary" testEncodePrimary
+  describe "round trip" testRoundTrip
 
 
--- testGenHeader :: Test ()
+-- describe "round trip" testRoundTrip
+
+testDecodeFits :: Spec
+testDecodeFits = do
+  describe "simple2x3.fits" $ do
+    it "should load load metadata" $ do
+      f <- decode =<< BS.readFile "samples/simple2x3.fits"
+      let dat = f.primaryHDU.dataArray
+          hds = f.primaryHDU.header
+      dat.axes `shouldBe` Axes [3, 2]
+      dat.bitpix `shouldBe` BPInt64
+      Fits.lookup "CUSTOM" hds `shouldBe` Just (Integer 123456)
+
+    it "should load data array" $ do
+      f <- decode =<< BS.readFile "samples/simple2x3.fits"
+      arr <- decodeArray @Ix2 @Int f.primaryHDU.dataArray
+      M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
+
+
+-- hdu.dataArray.rawData `shouldBe` Axes [3, 2]
+
+-- let raw = BL.fromStrict f.primaryHDU.dataArray.rawData
+-- f.primaryHDU.dataArray.rawData
+-- print ("woot", f.primaryHDU.dataArray.rawData)
+-- 2 `shouldBe` 3
+
+-- f.primaryHDU.dataArray.rawData `shouldBe` (BS.pack [0, 1, 2, 3, 4, 5, 6])
+
+-- testGenHeader :: Spec
 -- testGenHeader = do
 --   describe "mandatory" $ do
---     let h = headerMandatory (Dimensions EightBitInt [3,2])
+--     let h = headerMandatory (Dimensions EightBitInt [3, 2])
 --
 --     it "main" $ do
 --       keywordEquals "SIMPLE" (Logic T) h
@@ -29,14 +65,13 @@ spec = do
 --     it "NAXISn" $ do
 --       keywordEquals (naxis 1) (Integer 3) h
 --       keywordEquals (naxis 2) (Integer 2) h
+--  where
+--   naxis n = Keyword $ "NAXIS" <> pack (show n)
 --
---   where
---     naxis n = Keyword $ "NAXIS" <> pack (show n)
---
---     keywordEquals :: Keyword -> Value -> Header -> IO ()
---     keywordEquals k v h = do
---       vx <- getKeyword' k h
---       vx `shouldBe` v
+--   keywordEquals :: Keyword -> Value -> Header -> IO ()
+--   keywordEquals k v h = do
+--     vx <- getKeyword' k h
+--     vx `shouldBe` v
 
 testRenderHeader :: Spec
 testRenderHeader = do
@@ -119,14 +154,17 @@ testRenderHeader = do
   runValue :: Value -> String
   runValue = run . renderValue
 
-  justify :: Int -> String -> String
-  justify n s = spaces (n - length s) <> s
 
-  pad :: Int -> String -> String
-  pad n s = s <> spaces (n - length s)
+justify :: Int -> String -> String
+justify n s = spaces (n - length s) <> s
 
-  spaces :: Int -> String
-  spaces n = replicate n ' '
+
+pad :: Int -> String -> String
+pad n s = s <> spaces (n - length s)
+
+
+spaces :: Int -> String
+spaces n = replicate n ' '
 
 
 testRenderData :: Spec
@@ -141,3 +179,69 @@ testRenderData = do
 
   it "should pad to nearest block" $ do
     (renderData "asdf").length `shouldBe` 2880
+
+
+testEncodePrimary :: Spec
+testEncodePrimary = do
+  aroundAll provEncoded $ describe "encoded primary hdu" $ do
+    itWithOuter "encodes a header and data hdu" $ \enc -> do
+      BS.length enc == hduBlockSize * 2
+
+    itWithOuter "starts with SIMPLE" $ \enc -> do
+      BS.take 40 enc `shouldBe` "SIMPLE  =                              T"
+
+  aroundAll provDecoded $ describe "decoded encoded primary hdu" $ do
+    itWithOuter "Has custom header" $ \f -> do
+      Fits.lookup "WOOT" f.primaryHDU.header `shouldBe` Just (Integer 123)
+
+    itWithOuter "Has required headers" $ \f -> do
+      Fits.lookup "EXTEND" f.primaryHDU.header `shouldBe` Just (Logic T)
+
+    itWithOuter "Matches data metadata" $ \f -> do
+      f.primaryHDU.dataArray.bitpix `shouldBe` BPInt8
+      f.primaryHDU.dataArray.axes `shouldBe` Axes [3, 2]
+
+    itWithOuter "Matches raw data" $ \f -> do
+      f.primaryHDU.dataArray.rawData `shouldBe` BS.pack [0 .. 5]
+ where
+  primary =
+    let heads = Header [("WOOT", Integer 123)]
+        dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
+        hdu = PrimaryHDU heads dat
+     in hdu
+
+  provEncoded m = do
+    m $ encode (Fits primary [])
+
+  provDecoded m = do
+    let enc = encode (Fits primary [])
+    f <- decode enc
+    m f
+
+
+testRoundTrip :: Spec
+testRoundTrip =
+  aroundAll simple2x3 $ describe "simple2x3.fits" $ do
+    itWithOuter "should match metadata" $ \fs -> do
+      f2 <- decode $ encode fs
+      f2.primaryHDU.dataArray.axes `shouldBe` Axes [3, 2]
+      f2.primaryHDU.dataArray.bitpix `shouldBe` fs.primaryHDU.dataArray.bitpix
+
+    itWithOuter "should match raw data" $ \fs -> do
+      f2 <- decode $ encode fs
+      f2.primaryHDU.dataArray.rawData `shouldBe` fs.primaryHDU.dataArray.rawData
+
+    itWithOuter "should encode headers only once" $ \fs -> do
+      f2 <- decode $ encode fs
+      let Header hs = fs.primaryHDU.header
+          Header h2 = f2.primaryHDU.header
+      filter (\(k, _) -> k == "NAXIS") h2 `shouldBe` [("NAXIS", Integer 2)]
+      length hs `shouldBe` length h2
+      hs `shouldBe` h2
+
+
+simple2x3 :: (Fits -> IO a) -> IO a
+simple2x3 m = do
+  inp <- BS.readFile "samples/simple2x3.fits"
+  fits <- decode inp
+  m fits
