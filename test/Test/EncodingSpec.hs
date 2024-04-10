@@ -115,6 +115,19 @@ testRenderHeader = do
 
     it "should be padded" $ do
       run (renderKeywordLine "HELLO" (Integer 1) Nothing) `shouldBe` "HELLO   = " <> justify 30 "1" <> spaces 40
+
+  describe "renderOtherKeywords" $ do
+    it "should render comments" $ do
+      let h = Header [Comment "hello world"]
+      run (renderOtherKeywords h) `shouldBe` pad 80 "COMMENT hello world"
+
+    it "should render blanks" $ do
+      let h = Header [BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
+      run (renderOtherKeywords h) `shouldBe` mconcat (map (pad 80) ["", "WOOT    = " <> justify 30 "12345"])
+
+    it "should render all blanks" $ do
+      let h = Header [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
+      run (renderOtherKeywords h) `shouldBe` mconcat (map (pad 80) ["COMMENT comment", "", "WOOT    = " <> justify 30 "12345"])
  where
   run :: BuilderBlock -> String
   run = C8.unpack . runRender
