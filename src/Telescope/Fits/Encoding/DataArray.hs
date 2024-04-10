@@ -27,6 +27,12 @@ module Telescope.Fits.Encoding.DataArray
   , Ix3
   , Ix4
   , Ix5
+  , (!>)
+  , (!?>)
+  , (<!)
+  , (<!?)
+  , (<!>)
+  , Dim (..)
   ) where
 
 import Control.Exception

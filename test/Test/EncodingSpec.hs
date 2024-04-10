@@ -123,17 +123,21 @@ testRenderHeader = do
 
     it "should render blanks" $ do
       let h = Header [BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` mconcat (map (pad 80) ["", "WOOT    = " <> justify 30 "12345"])
+      run (renderOtherKeywords h) `shouldBe` headers ["", "WOOT    = " <> justify 30 "12345"]
 
-    it "should render all blanks" $ do
+    it "should render blanks between" $ do
       let h = Header [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` mconcat (map (pad 80) ["COMMENT comment", "", "WOOT    = " <> justify 30 "12345"])
+      run (renderOtherKeywords h) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 30 "12345"]
  where
   run :: BuilderBlock -> String
   run = C8.unpack . runRender
 
   runValue :: Value -> String
   runValue = run . renderValue
+
+
+headers :: [String] -> String
+headers = mconcat . map (pad 80)
 
 
 justify :: Int -> String -> String
