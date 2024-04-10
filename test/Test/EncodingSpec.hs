@@ -22,8 +22,6 @@ spec = do
   describe "round trip" testRoundTrip
 
 
--- describe "round trip" testRoundTrip
-
 testDecodeFits :: Spec
 testDecodeFits = do
   describe "simple2x3.fits" $ do
@@ -40,38 +38,6 @@ testDecodeFits = do
       arr <- decodeArray @Ix2 @Int f.primaryHDU.dataArray
       M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
-
--- hdu.dataArray.rawData `shouldBe` Axes [3, 2]
-
--- let raw = BL.fromStrict f.primaryHDU.dataArray.rawData
--- f.primaryHDU.dataArray.rawData
--- print ("woot", f.primaryHDU.dataArray.rawData)
--- 2 `shouldBe` 3
-
--- f.primaryHDU.dataArray.rawData `shouldBe` (BS.pack [0, 1, 2, 3, 4, 5, 6])
-
--- testGenHeader :: Spec
--- testGenHeader = do
---   describe "mandatory" $ do
---     let h = headerMandatory (Dimensions EightBitInt [3, 2])
---
---     it "main" $ do
---       keywordEquals "SIMPLE" (Logic T) h
---       keywordEquals "BITPIX" (Integer 8) h
---
---     it "NAXIS" $ do
---       keywordEquals "NAXIS" (Integer 2) h
---
---     it "NAXISn" $ do
---       keywordEquals (naxis 1) (Integer 3) h
---       keywordEquals (naxis 2) (Integer 2) h
---  where
---   naxis n = Keyword $ "NAXIS" <> pack (show n)
---
---   keywordEquals :: Keyword -> Value -> Header -> IO ()
---   keywordEquals k v h = do
---     vx <- getKeyword' k h
---     vx `shouldBe` v
 
 testRenderHeader :: Spec
 testRenderHeader = do
@@ -97,6 +63,8 @@ testRenderHeader = do
     it "string" $ do
       runValue (String "Hello World") `shouldBe` "'Hello World'"
 
+  -- describe "render entire header" $ do
+
   -- TODO: does it matter if e-06 vs e-6? We output e-6.
 
   describe "renderKeyword" $ do
@@ -121,10 +89,10 @@ testRenderHeader = do
 
   describe "renderComment" $ do
     it "should render comment" $ do
-      run (renderComment 100 (Comment "Hello World")) `shouldBe` " / Hello World"
+      run (renderComment 100 "Hello World") `shouldBe` " / Hello World"
 
     it "should truncate comment" $ do
-      run (renderComment 10 (Comment "Hello World")) `shouldBe` " / Hello W"
+      run (renderComment 10 "Hello World") `shouldBe` " / Hello W"
 
   describe "renderKeywordComments" $ do
     it "should render comment in line" $ do
@@ -142,7 +110,7 @@ testRenderHeader = do
       b.length `shouldBe` 80
 
     it "should be 80 characters maximum" $ do
-      let b = renderKeywordLine "HELLO" (Integer 1) (Just $ Comment $ pack $ replicate 100 'a')
+      let b = renderKeywordLine "HELLO" (Integer 1) (Just $ pack $ replicate 100 'a')
       b.length `shouldBe` 80
 
     it "should be padded" $ do
@@ -205,7 +173,7 @@ testEncodePrimary = do
       f.primaryHDU.dataArray.rawData `shouldBe` BS.pack [0 .. 5]
  where
   primary =
-    let heads = Header [("WOOT", Integer 123)]
+    let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
         dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
         hdu = PrimaryHDU heads dat
      in hdu
@@ -233,12 +201,21 @@ testRoundTrip =
 
     itWithOuter "should encode headers only once" $ \fs -> do
       f2 <- decode $ encode fs
-      let Header hs = fs.primaryHDU.header
-          Header h2 = f2.primaryHDU.header
-      filter (\(k, _) -> k == "NAXIS") h2 `shouldBe` [("NAXIS", Integer 2)]
-      length hs `shouldBe` length h2
-      hs `shouldBe` h2
+      let hs = fs.primaryHDU.header
+          h2 = f2.primaryHDU.header
+      Fits.lookup "NAXIS" h2 `shouldBe` Just (Integer 2)
 
+      let ks = getKeywords hs
+          k2 = getKeywords h2
+
+      filter (isKeyword "BITPIX") k2 `shouldBe` filter (isKeyword "BITPIX") ks
+
+      length hs._records `shouldBe` length h2._records
+ where
+  isKeyword k (k2, _) = k == k2
+
+
+-- hs `shouldBe` h2
 
 simple2x3 :: (Fits -> IO a) -> IO a
 simple2x3 m = do

@@ -13,15 +13,16 @@ module Telescope.Fits.Types
   , BitPix (..)
   , bitPixBits
   , Header (..)
-  , Keyword (..)
+  , getKeywords
+  , HeaderRecord (..)
+  , KeywordRecord (..)
   , Value (..)
-  , Comment (..)
   , LogicalConstant (..)
   , hduBlockSize
   ) where
 
 import Data.ByteString as BS
-import Data.Fits (Comment (..), Header (..), Keyword (..), LogicalConstant (..), Value (..), hduBlockSize)
+import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), hduBlockSize, getKeywords)
 import Data.List qualified as L
 
 

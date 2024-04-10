@@ -10,7 +10,7 @@ import Data.Fits qualified as Fits
 import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
 import Data.String (IsString (..))
-import Data.Text (isPrefixOf, pack, unpack)
+import Data.Text (Text, isPrefixOf, pack, unpack)
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
 
@@ -169,19 +169,23 @@ renderDataKeywords bp (Axes as) =
   naxis_ = renderKeywordLine "NAXIS" (Integer $ length as) Nothing
   naxes = mconcat $ zipWith @Int naxisN [1 ..] as
   naxisN n a =
-    renderKeywordLine (Keyword $ "NAXIS" <> pack (show n)) (Integer a) Nothing
+    renderKeywordLine ("NAXIS" <> pack (show n)) (Integer a) Nothing
 
 
 -- | 'Header' should contain only extra keywords. The system will generate all mandatory keywords
 renderOtherKeywords :: Header -> BuilderBlock
 renderOtherKeywords (Header ks) =
-  mconcat $ map toLine $ filter (not . isMetaKeyword . fst) ks
+  mconcat $ map toLine $ filter (not . isMetaKeyword) ks
  where
-  toLine (k, v) = renderKeywordLine k v Nothing
-  isMetaKeyword (Keyword k) =
-    k == "BITPIX"
-      || k == "EXTEND"
-      || "NAXIS" `isPrefixOf` k
+  toLine (Keyword kr) = renderKeywordLine kr._keyword kr._value kr._comment
+  toLine (Comment c) = pad 80 $ string $ "COMMENT " <> unpack c
+  toLine BlankLine = pad 80 ""
+  isMetaKeyword (Keyword kr) =
+    let k = kr._keyword
+     in k == "BITPIX"
+          || k == "EXTEND"
+          || "NAXIS" `isPrefixOf` k
+  isMetaKeyword _ = False
 
 
 -- | Fill out the header or data block to the nearest 2880 bytes
@@ -206,7 +210,7 @@ bitpixCode BPDouble = -64
 
 -- Keyword Lines -----------------------------------------------------
 
-renderKeywordLine :: Keyword -> Value -> Maybe Comment -> BuilderBlock
+renderKeywordLine :: Text -> Value -> Maybe Text -> BuilderBlock
 renderKeywordLine k v mc =
   let kv = renderKeywordValue k v
    in pad 80 $ addComment kv mc
@@ -217,7 +221,7 @@ renderKeywordLine k v mc =
      in kv <> renderComment mx c
 
 
-renderKeywordValue :: Keyword -> Value -> BuilderBlock
+renderKeywordValue :: Text -> Value -> BuilderBlock
 renderKeywordValue k v =
   mconcat
     [ renderKeyword k
@@ -226,12 +230,12 @@ renderKeywordValue k v =
     ]
 
 
-renderKeyword :: Keyword -> BuilderBlock
-renderKeyword (Keyword k) = pad 8 $ string $ map toUpper $ take 8 $ unpack k
+renderKeyword :: Text -> BuilderBlock
+renderKeyword k = pad 8 $ string $ map toUpper $ take 8 $ unpack k
 
 
-renderComment :: Int -> Comment -> BuilderBlock
-renderComment mx (Comment c) = string $ take mx $ " / " <> unpack c
+renderComment :: Int -> Text -> BuilderBlock
+renderComment mx c = string $ take mx $ " / " <> unpack c
 
 
 renderValue :: Value -> BuilderBlock
