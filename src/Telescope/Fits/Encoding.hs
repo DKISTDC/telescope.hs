@@ -70,31 +70,17 @@ data HDUError
 
 
 encode :: Fits -> BS.ByteString
-encode f = BS.toStrict . runRender $ do
-  renderPrimaryHDU f.primaryHDU
+encode f =
+  let primary = renderPrimaryHDU f.primaryHDU
+      exts = fmap renderExtensionHDU f.extensions
+   in BS.toStrict . runRender $ primary <> mconcat exts
 
-
--- encodeExtensionHDU :: Extension -> BS.ByteString
--- encodeExtensionHDU = _
-
-{- | Encode HeaderDataUnits into a FITS file
-
->>> import qualified Data.ByteString.Lazy as BL
->>> BL.writeFile "myfile.fits" $ encodeHDUs hdus
-encodeHDUs :: [HeaderDataUnit] -> BL.ByteString
-encodeHDUs [] = error "encodeHDUs: []"
-encodeHDUs hdus = _
--}
 
 -- | Execute a BuilderBlock and create a bytestring
 runRender :: BuilderBlock -> BL.ByteString
 runRender bb = toLazyByteString bb.builder
 
 
--- renderHDU :: HeaderDataUnit -> BuilderBlock
--- renderHDU hdu = renderHeader hdu <> renderData hdu._mainData
---
---
 renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
 renderPrimaryHDU hdu =
   mconcat
@@ -103,30 +89,21 @@ renderPrimaryHDU hdu =
     ]
 
 
+renderExtensionHDU :: Extension -> BuilderBlock
+renderExtensionHDU (Image hdu) = renderImageHDU hdu
+
+
+renderImageHDU :: ImageHDU -> BuilderBlock
+renderImageHDU hdu =
+  mconcat
+    [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header
+    , renderData hdu.dataArray.rawData
+    ]
+
+
 renderData :: BS.ByteString -> BuilderBlock
 renderData s = fillBlock $ BuilderBlock (fromIntegral $ BS.length s) $ byteString s
 
-
--- renderHeader :: HeaderDataUnit -> BuilderBlock
--- renderHeader hdu =
---   fillBlock $
---     mconcat
---       [ renderHDUType hdu._extension
---       , -- what if I don't set these. They are optional. Not sure if astro.py will be angry. I'm not sure they have very much valeu
---         -- TODO: DATASUM - update first
---         -- TODO: CHECKSUM - update very last
---         renderKeywordLine "CHECKSUM" (String "TODO") Nothing
---       , renderKeywordLine "DATASUM" (String "TODO") Nothing
---       , renderOtherKeywords hdu._header
---       , renderEnd
---       ]
---  where
---   renderHDUType Primary = renderPrimaryHeader hdu._dimensions
---   renderHDUType Image = renderImageHeader hdu._dimensions
---   -- WARNING: not supported yet
---   renderHDUType _ = ""
---
---   renderEnd = pad 80 "END"
 
 renderImageHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
 renderImageHeader bp as h =
@@ -252,6 +229,11 @@ renderValue (String s) = string $ "'" <> unpack s <> "'"
 data BuilderBlock = BuilderBlock {length :: Int, builder :: Builder}
 
 
+-- | Smart constructor, don't allow negative lengths
+builderBlock :: Int -> Builder -> BuilderBlock
+builderBlock n = BuilderBlock (max n 0)
+
+
 instance IsString BuilderBlock where
   fromString = string
 
@@ -273,8 +255,8 @@ pad n b = b <> spaces (n - b.length)
 
 
 spaces :: Int -> BuilderBlock
-spaces n = BuilderBlock n $ mconcat $ replicate n $ charUtf8 ' '
+spaces n = builderBlock n $ mconcat $ replicate n $ charUtf8 ' '
 
 
 string :: String -> BuilderBlock
-string s = BuilderBlock (length s) (stringUtf8 s)
+string s = builderBlock (length s) (stringUtf8 s)

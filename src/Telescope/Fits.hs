@@ -20,7 +20,7 @@ module Telescope.Fits
   , Axes
   , Row
   , Column
-  , BitPix
+  , BitPix (..)
 
     -- * Exports from Data.Massiv.Array
   , Array

@@ -19,10 +19,11 @@ module Telescope.Fits.Types
   , Value (..)
   , LogicalConstant (..)
   , hduBlockSize
+  , emptyDataArray
   ) where
 
 import Data.ByteString as BS
-import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), hduBlockSize, getKeywords)
+import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
 import Data.List qualified as L
 
 
@@ -44,6 +45,10 @@ data DataArray = DataArray
   , axes :: Axes Column
   , rawData :: BS.ByteString
   }
+
+
+emptyDataArray :: DataArray
+emptyDataArray = DataArray BPInt8 (Axes []) ""
 
 
 -- data BinaryTable = BinaryTable

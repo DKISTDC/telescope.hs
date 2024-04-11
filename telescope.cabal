@@ -24,6 +24,7 @@ library
         Telescope.Fits
         Telescope.Fits.Encoding
         Telescope.Fits.Encoding.DataArray
+        Telescope.Fits.Header
         Telescope.Fits.Types
     other-modules:
         Paths_telescope

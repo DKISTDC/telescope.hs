@@ -87,6 +87,10 @@ testRenderHeader = do
     it "should string" $ do
       run (renderKeywordValue "WHATEVER" (String "dude")) `shouldBe` pad 40 "WHATEVER= 'dude'"
 
+    it "should correctly count long values" $ do
+      let render = renderKeywordValue "KEYWORD" (String "0123456789012345678901234567890123456789")
+      render.length `shouldBe` length (run render)
+
   describe "renderComment" $ do
     it "should render comment" $ do
       run (renderComment 100 "Hello World") `shouldBe` " / Hello World"
@@ -112,6 +116,11 @@ testRenderHeader = do
     it "should be 80 characters maximum" $ do
       let b = renderKeywordLine "HELLO" (Integer 1) (Just $ pack $ replicate 100 'a')
       b.length `shouldBe` 80
+
+    it "should be 80 characters maximum with long strings" $ do
+      let b = renderKeywordLine "HELLO" (String "this is a really long value that exceeds 30") (Just $ pack $ replicate 100 'a')
+      b.length `shouldBe` 80
+      length (run b) `shouldBe` 80
 
     it "should be padded" $ do
       run (renderKeywordLine "HELLO" (Integer 1) Nothing) `shouldBe` "HELLO   = " <> justify 30 "1" <> spaces 40
