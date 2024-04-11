@@ -138,11 +138,12 @@ testRenderHeader = do
       let h = Header [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
       run (renderOtherKeywords h) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 30 "12345"]
  where
-  run :: BuilderBlock -> String
-  run = C8.unpack . runRender
-
   runValue :: Value -> String
   runValue = run . renderValue
+
+
+run :: BuilderBlock -> String
+run = C8.unpack . runRender
 
 
 headers :: [String] -> String
@@ -174,14 +175,21 @@ testRenderData = do
   it "should pad to nearest block" $ do
     (renderData "asdf").length `shouldBe` 2880
 
+  it "should render some data" $ do
+    run (renderData "12345") `shouldBe` ("12345" <> replicate 2875 ' ')
+
 
 testEncodePrimary :: Spec
 testEncodePrimary = do
   aroundAll provEncoded $ describe "encoded primary hdu" $ do
-    itWithOuter "encodes a header and data hdu" $ \enc -> do
+    itWithOuter "encodes both a header and data hdu" $ \enc -> do
       BS.length enc == hduBlockSize * 2
 
+    itWithOuter "encodes the data" $ \enc -> do
+      BS.take 6 (BS.drop 2880 enc) `shouldBe` rawData
+
     itWithOuter "starts with SIMPLE" $ \enc -> do
+      print enc
       BS.take 40 enc `shouldBe` "SIMPLE  =                              T"
 
   aroundAll provDecoded $ describe "decoded encoded primary hdu" $ do
@@ -203,6 +211,8 @@ testEncodePrimary = do
         dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
         hdu = PrimaryHDU heads dat
      in hdu
+
+  rawData = BS.pack [0 .. 5]
 
   provEncoded m = do
     m $ encode (Fits primary [])

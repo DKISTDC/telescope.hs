@@ -102,7 +102,7 @@ renderImageHDU hdu =
 
 
 renderData :: BS.ByteString -> BuilderBlock
-renderData s = fillBlock $ BuilderBlock (fromIntegral $ BS.length s) $ byteString s
+renderData s = fillBlock $ BuilderBlock (BS.length s) $ byteString s
 
 
 renderImageHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
