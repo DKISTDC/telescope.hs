@@ -6,8 +6,8 @@ module Telescope.Fits
 
     -- * Headers
   , lookup
-  , Header
-  , Value
+  , Header (..)
+  , Value (..)
   , LogicalConstant
 
     -- * Types
@@ -21,6 +21,11 @@ module Telescope.Fits
   , Row
   , Column
   , BitPix (..)
+
+    -- * Generate
+  , addComment
+  , keyword
+  , emptyDataArray
 
     -- * Exports from Data.Massiv.Array
   , Array
@@ -40,6 +45,7 @@ module Telescope.Fits
 import Data.Fits (lookup)
 import Telescope.Fits.Encoding
 import Telescope.Fits.Encoding.DataArray
+import Telescope.Fits.Header (addComment, keyword)
 import Telescope.Fits.Types
 import Prelude hiding (lookup)
 

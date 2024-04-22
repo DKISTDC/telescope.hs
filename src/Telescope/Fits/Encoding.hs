@@ -1,5 +1,6 @@
 module Telescope.Fits.Encoding where
 
+import Control.Applicative ((<|>))
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString qualified as BS
@@ -9,6 +10,7 @@ import Data.Char (toUpper)
 import Data.Fits qualified as Fits
 import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
+import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Telescope.Fits.Types
@@ -134,6 +136,7 @@ renderEnd :: BuilderBlock
 renderEnd = pad 80 "END"
 
 
+-- | Render required keywords for a data array
 renderDataKeywords :: BitPix -> Axes Column -> BuilderBlock
 renderDataKeywords bp (Axes as) =
   mconcat
@@ -142,27 +145,29 @@ renderDataKeywords bp (Axes as) =
     , naxes
     ]
  where
-  bitpix = renderKeywordLine "BITPIX" (Integer $ bitpixCode bp) (Just "array data type")
-  naxis_ = renderKeywordLine "NAXIS" (Integer $ length as) Nothing
+  bitpix = renderKeywordLine "BITPIX" (Integer $ bitPixCode bp) (Just $ "(" <> bitPixType bp <> ") array data type")
+  naxis_ = renderKeywordLine "NAXIS" (Integer $ length as) (Just "number of axes in data array")
   naxes = mconcat $ zipWith @Int naxisN [1 ..] as
   naxisN n a =
-    renderKeywordLine ("NAXIS" <> pack (show n)) (Integer a) Nothing
+    let nt = pack (show n)
+     in renderKeywordLine ("NAXIS" <> nt) (Integer a) (Just $ "axis " <> nt <> " length")
+  bitPixType = pack . drop 2 . show
 
 
--- | 'Header' should contain only extra keywords. The system will generate all mandatory keywords
+-- | 'Header' contains all other keywords. Filter out any that match system keywords so they aren't rendered twice
 renderOtherKeywords :: Header -> BuilderBlock
 renderOtherKeywords (Header ks) =
-  mconcat $ map toLine $ filter (not . isMetaKeyword) ks
+  mconcat $ map toLine $ filter (not . isSystemKeyword) ks
  where
   toLine (Keyword kr) = renderKeywordLine kr._keyword kr._value kr._comment
   toLine (Comment c) = pad 80 $ string $ "COMMENT " <> unpack c
   toLine BlankLine = pad 80 ""
-  isMetaKeyword (Keyword kr) =
+  isSystemKeyword (Keyword kr) =
     let k = kr._keyword
      in k == "BITPIX"
           || k == "EXTEND"
           || "NAXIS" `isPrefixOf` k
-  isMetaKeyword _ = False
+  isSystemKeyword _ = False
 
 
 -- | Fill out the header or data block to the nearest 2880 bytes
@@ -176,13 +181,13 @@ fillBlock b =
     | otherwise = spaces n
 
 
-bitpixCode :: BitPix -> Int
-bitpixCode BPInt8 = 8
-bitpixCode BPInt16 = 16
-bitpixCode BPInt32 = 32
-bitpixCode BPInt64 = 64
-bitpixCode BPFloat = -32
-bitpixCode BPDouble = -64
+bitPixCode :: BitPix -> Int
+bitPixCode BPInt8 = 8
+bitPixCode BPInt16 = 16
+bitPixCode BPInt32 = 32
+bitPixCode BPInt64 = 64
+bitPixCode BPFloat = -32
+bitPixCode BPDouble = -64
 
 
 -- Keyword Lines -----------------------------------------------------
