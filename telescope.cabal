@@ -22,8 +22,8 @@ extra-source-files:
 library
     exposed-modules:
         Telescope.Fits
+        Telescope.Fits.Checksum
         Telescope.Fits.Encoding
-        Telescope.Fits.Encoding.Checksum
         Telescope.Fits.Encoding.DataArray
         Telescope.Fits.Header
         Telescope.Fits.Types
@@ -55,6 +55,8 @@ library
         TypeApplications
         TypeFamilies
     ghc-options: -Wall
+    c-sources:
+        src/checksum.c
     default-language: GHC2021
 
 test-suite spec

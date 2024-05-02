@@ -3,6 +3,7 @@
 module Test.EncodingSpec where
 
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
 import Data.ByteString.Lazy.Char8 qualified as C8
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
@@ -165,9 +166,9 @@ spaces n = replicate n ' '
 testRenderData :: Spec
 testRenderData = do
   it "fill block should fill" $ do
-    (fillBlock "a").length `shouldBe` 2880
-    (fillBlock "hello world").length `shouldBe` 2880
-    (fillBlock "").length `shouldBe` 0
+    (fillBlock zeros "a").length `shouldBe` 2880
+    (fillBlock zeros "hello world").length `shouldBe` 2880
+    (fillBlock zeros "").length `shouldBe` 0
 
   it "should be empty" $ do
     runRender (renderData "") `shouldBe` ""
@@ -176,7 +177,7 @@ testRenderData = do
     (renderData "asdf").length `shouldBe` 2880
 
   it "should render some data" $ do
-    run (renderData "12345") `shouldBe` ("12345" <> replicate 2875 ' ')
+    runRender (renderData "12345") `shouldBe` ("12345" <> BL.replicate 2875 0)
 
 
 testEncodePrimary :: Spec
@@ -246,7 +247,7 @@ testRoundTrip =
 
       length (filter (matchKeyword "BITPIX") k2) `shouldBe` length (filter (matchKeyword "BITPIX") ks)
 
-      length hs._records `shouldBe` length h2._records
+      length h2._records `shouldBe` length hs._records
 
     itWithOuter "should keep naxes order preserved" $ \fs -> do
       f2 <- decode $ encode fs

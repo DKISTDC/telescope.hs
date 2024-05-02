@@ -11,6 +11,8 @@ import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
+import Data.Word (Word8)
+import Telescope.Fits.Checksum
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
 
@@ -93,7 +95,7 @@ runRender bb = toLazyByteString bb.builder
 renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
 renderPrimaryHDU hdu =
   mconcat
-    [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header
+    [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header hdu.dataArray.rawData
     , renderData hdu.dataArray.rawData
     ]
 
@@ -106,40 +108,46 @@ renderExtensionHDU (BinTable _) = error "BinTableHDU rendering not supported"
 renderImageHDU :: ImageHDU -> BuilderBlock
 renderImageHDU hdu =
   mconcat
-    [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header
+    [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header hdu.dataArray.rawData
     , renderData hdu.dataArray.rawData
     ]
 
 
 renderData :: BS.ByteString -> BuilderBlock
-renderData s = fillBlock $ BuilderBlock (BS.length s) $ byteString s
+renderData s = fillBlock zeros $ BuilderBlock (BS.length s) $ byteString s
 
 
-renderImageHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
-renderImageHeader bp as h =
-  fillBlock $
+renderImageHeader :: BitPix -> Axes Column -> Header -> BS.ByteString -> BuilderBlock
+renderImageHeader bp as h dat =
+  fillBlock spaces $
     mconcat
       [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
       , renderDataKeywords bp as
       , renderKeywordLine "PCOUNT" (Integer 0) Nothing
       , renderKeywordLine "GCOUNT" (Integer 1) Nothing
+      , renderDatasum dat
       , renderOtherKeywords h
       , renderEnd
       ]
 
 
-renderPrimaryHeader :: BitPix -> Axes Column -> Header -> BuilderBlock
-renderPrimaryHeader bp as h =
-  fillBlock $
+renderPrimaryHeader :: BitPix -> Axes Column -> Header -> BS.ByteString -> BuilderBlock
+renderPrimaryHeader bp as h dat =
+  fillBlock spaces $
     mconcat
       [ renderKeywordLine "SIMPLE" (Logic T) (Just "Conforms to the FITS standard")
       , renderDataKeywords bp as
       , renderKeywordLine "EXTEND" (Logic T) Nothing
       , -- , renderKeywordLine "CHECKSUM" (String "TODO") Nothing
-        -- , renderKeywordLine "DATASUM" (String "TODO") Nothing
-        renderOtherKeywords h
+        renderDatasum dat
+      , renderOtherKeywords h
       , renderEnd
       ]
+
+
+renderDatasum :: BS.ByteString -> BuilderBlock
+renderDatasum dat =
+  renderKeywordLine "DATASUM" (String (pack (show (checksum dat)))) Nothing
 
 
 renderEnd :: BuilderBlock
@@ -176,19 +184,20 @@ renderOtherKeywords (Header ks) =
     let k = kr._keyword
      in k == "BITPIX"
           || k == "EXTEND"
+          || k == "DATASUM"
           || "NAXIS" `isPrefixOf` k
   isSystemKeyword _ = False
 
 
 -- | Fill out the header or data block to the nearest 2880 bytes
-fillBlock :: BuilderBlock -> BuilderBlock
-fillBlock b =
+fillBlock :: (Int -> BuilderBlock) -> BuilderBlock -> BuilderBlock
+fillBlock fill b =
   let rm = hduBlockSize - b.length `mod` hduBlockSize
    in b <> extraSpaces rm
  where
   extraSpaces n
     | n == hduBlockSize = mempty
-    | otherwise = spaces n
+    | otherwise = fill n
 
 
 bitPixCode :: BitPix -> Int
@@ -270,7 +279,15 @@ pad n b = b <> spaces (n - b.length)
 
 
 spaces :: Int -> BuilderBlock
-spaces n = builderBlock n $ mconcat $ replicate n $ charUtf8 ' '
+spaces = padding (charUtf8 ' ')
+
+
+zeros :: Int -> BuilderBlock
+zeros = padding (word8 0)
+
+
+padding :: Builder -> Int -> BuilderBlock
+padding b n = builderBlock n . mconcat . replicate n $ b
 
 
 string :: String -> BuilderBlock
