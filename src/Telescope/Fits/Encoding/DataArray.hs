@@ -12,6 +12,7 @@ module Telescope.Fits.Encoding.DataArray
   , AxesIndex (..)
   , getAxesVector
   , runGetThrow
+  , sizeAxes
 
     -- * Binary Encoding
   , GetPix (..)
@@ -27,6 +28,7 @@ module Telescope.Fits.Encoding.DataArray
   , Ix3
   , Ix4
   , Ix5
+  , size
   , (!>)
   , (!?>)
   , (<!)
@@ -56,16 +58,18 @@ import Telescope.Fits.Types
 -- > decodeExample :: BL.ByteString -> Either String Int
 -- > decodeExample bs = do
 -- >  hdu <- readPrimaryHDU bs
--- >  arr <- decodeImage @Ix2 $ imageData hdu
+-- >  arr <- decodeImage @Ix2 $ hdu.dataArray
 -- >  pure $ arr !> 1 ! 2
 
-{- | Decode an Image into an Image of arbitrary dimensions 'ix'. You will need to inspect the HDU's axes to specify the index type
+{- | Decode a 'DataArray' of arbitrary dimensions 'ix' and type 'a'. Inspect the DataArray's (.bitpix) and (.axes) if these are unknown.
 
->>> decodeArray @Ix2 @Float (imageData myHdu)
+>>> decodeArray @Ix2 @Float hdu.dataArray
 Array D Seq (Sz (2 :. 3))
   [ [ 1.0, 2.0, 3.0 ]
   , [ 4.0, 5.0, 6.0 ]
   ]
+
+This creates a delayed (D) array, which will postpone evaluation of cells until needed
 -}
 decodeArray :: forall ix a m. (MonadThrow m) => (Index ix, AxesIndex ix, Prim a, GetPix a) => DataArray -> m (Array D ix a)
 decodeArray DataArray{bitpix, axes, rawData} = do
@@ -142,16 +146,20 @@ runGetThrow get inp =
 
 ----- ENCODING -----------------------------------------------------------------
 
-{- | Encode an Array as an Image
+{- | Encode an 'Array' to a 'DataArray'
 
 >>> encodeImage array
-ImageData:
-  data = 78 Bytes
-  dimensions =
-    format = 32 bit IEEE single precision float
-    axes = [3,2]
+DataArray:
+  data: 48 bytes
+  dimensions:
+    format: Int64
+    axes: [3,2]
 -}
-encodeArray :: forall r ix a. (Source r a, Stream r Ix1 a, Size r, PutArray ix, Index ix, AxesIndex ix, PutPix a, Prim a) => Array r ix a -> DataArray
+encodeArray
+  :: forall r ix a
+   . (Source r a, Stream r Ix1 a, Size r, PutArray ix, Index ix, AxesIndex ix, PutPix a, Prim a)
+  => Array r ix a
+  -> DataArray
 encodeArray arr =
   let axes = sizeAxes $ size arr
       bitpix = bitPixFormat @a Proxy
@@ -189,7 +197,7 @@ instance AxesIndex Ix2 where
     ix1 <- axesIndex $ Axes [r]
     pure $ c :. ix1
   axesIndex as = throwM $ AxesMismatch as
-  indexAxes (c :. r) = Axes [r, c]
+  indexAxes (c :. r) = Axes [c, r]
 
 
 instance AxesIndex Ix3 where
@@ -217,7 +225,7 @@ axesIndexN as = throwM $ AxesMismatch as
 indexAxesN :: (AxesIndex (Lower (IxN n))) => IxN n -> Axes Row
 indexAxesN (d :> ix) =
   let Axes ax = indexAxes ix
-   in Axes $ ax <> [d] -- outermost axis goes last
+   in Axes $ d : ax
 
 
 sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column

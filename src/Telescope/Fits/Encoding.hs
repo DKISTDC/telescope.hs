@@ -1,6 +1,5 @@
 module Telescope.Fits.Encoding where
 
-import Control.Applicative ((<|>))
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString qualified as BS
@@ -10,13 +9,16 @@ import Data.Char (toUpper)
 import Data.Fits qualified as Fits
 import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
-import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
 
 
+{- | Decode a FITS file read as a strict 'ByteString'
+
+>  decode =<< BS.readFile "samples/simple2x3.fits"
+-}
 decode :: forall m. (MonadThrow m) => BS.ByteString -> m Fits
 decode inp = do
   hdus <- either (throwM . FormatError . ParseError) pure $ M.runParser Fits.parseHDUs "FITS" inp
@@ -32,7 +34,8 @@ decode inp = do
     case hdu._extension of
       Fits.Primary -> throwM $ InvalidExtension "Primary, expected Extension"
       Fits.Image -> pure $ Image $ ImageHDU hdu._header $ dataArray hdu
-      ex -> throwM $ InvalidExtension (show ex)
+      Fits.BinTable n heap -> pure $ BinTable $ BinTableHDU hdu._header n heap (dataArray hdu)
+  -- ex -> throwM $ InvalidExtension (show ex)
 
   toPrimary :: Fits.HeaderDataUnit -> m PrimaryHDU
   toPrimary hdu =
@@ -71,6 +74,10 @@ data HDUError
   deriving (Show, Exception)
 
 
+{- | Encode a FITS file to a strict 'ByteString'
+
+> BS.writeFile $ encdoe fits
+-}
 encode :: Fits -> BS.ByteString
 encode f =
   let primary = renderPrimaryHDU f.primaryHDU
@@ -93,6 +100,7 @@ renderPrimaryHDU hdu =
 
 renderExtensionHDU :: Extension -> BuilderBlock
 renderExtensionHDU (Image hdu) = renderImageHDU hdu
+renderExtensionHDU (BinTable _) = error "BinTableHDU rendering not supported"
 
 
 renderImageHDU :: ImageHDU -> BuilderBlock
@@ -113,6 +121,8 @@ renderImageHeader bp as h =
     mconcat
       [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
       , renderDataKeywords bp as
+      , renderKeywordLine "PCOUNT" (Integer 0) Nothing
+      , renderKeywordLine "GCOUNT" (Integer 1) Nothing
       , renderOtherKeywords h
       , renderEnd
       ]
@@ -208,7 +218,7 @@ renderKeywordValue k v =
   mconcat
     [ renderKeyword k
     , string "= "
-    , pad 30 $ renderValue v
+    , pad 20 $ renderValue v
     ]
 
 
@@ -221,10 +231,10 @@ renderComment mx c = string $ take mx $ " / " <> unpack c
 
 
 renderValue :: Value -> BuilderBlock
-renderValue (Logic T) = justify 30 "T"
-renderValue (Logic F) = justify 30 "F"
-renderValue (Float f) = justify 30 $ string $ map toUpper $ show f
-renderValue (Integer n) = justify 30 $ string $ show n
+renderValue (Logic T) = justify 20 "T"
+renderValue (Logic F) = justify 20 "F"
+renderValue (Float f) = justify 20 $ string $ map toUpper $ show f
+renderValue (Integer n) = justify 20 $ string $ show n
 renderValue (String s) = string $ "'" <> unpack s <> "'"
 
 

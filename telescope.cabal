@@ -5,14 +5,14 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:               telescope
-version:            0.1.0
+version:            0.1.1
 synopsis:           Astronomical Observations (FITS, ASDF, WCS, etc)
-description:        Work with data from modern telescopes
+description:        Work with astronomical observations from modern telescopes
 license:            BSD3
 license-file:       LICENSE
 author:             Sean Hess
-maintainer:         Sean Hess <shess@gnso.edu>
-copyright:          Copyright (c) 2024 Sean Hess
+maintainer:         Sean Hess <shess@nso.edu>
+copyright:          (c) 2024 Sean Hess
 category:           Science, Astronomy
 homepage:           https://github.com/dkistdc/telescope.hs
 build-type:         Simple
@@ -23,6 +23,7 @@ library
     exposed-modules:
         Telescope.Fits
         Telescope.Fits.Encoding
+        Telescope.Fits.Encoding.Checksum
         Telescope.Fits.Encoding.DataArray
         Telescope.Fits.Header
         Telescope.Fits.Types
@@ -30,13 +31,13 @@ library
         Paths_telescope
     build-depends:
         base >=4.7 && <5,
-        binary,
-        bytestring,
-        exceptions,
-        fits-parse,
-        massiv,
-        megaparsec,
-        text
+        binary >=0.8.9 && <0.9,
+        bytestring ==0.11.*,
+        exceptions ==0.10.*,
+        fits-parse >=0.3.6 && <0.4,
+        massiv ==1.0.*,
+        megaparsec ==9.6.*,
+        text >=2.0 && <3
     hs-source-dirs:
         src
     default-extensions:
@@ -61,6 +62,7 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
         Test.ArraySpec
+        Test.ChecksumSpec
         Test.EncodingSpec
         Paths_telescope
     hs-source-dirs:
@@ -85,13 +87,13 @@ test-suite spec
     build-depends:
         base >=4.7 && <5,
         binary,
-        bytestring,
+        bytestring ==0.11.*,
         containers,
-        exceptions,
-        fits-parse,
-        massiv,
-        megaparsec,
+        exceptions ==0.10.*,
+        fits-parse >=0.3.6 && <0.4,
+        massiv ==1.0.*,
+        megaparsec ==9.6.*,
         sydtest >=0.15,
         telescope,
-        text
+        text >=2.0 && <3
     default-language: GHC2021

@@ -43,22 +43,22 @@ testRenderHeader :: Spec
 testRenderHeader = do
   describe "renderValue" $ do
     it "int should right justify" $ do
-      runValue (Integer 8) `shouldBe` justify 30 "8"
+      runValue (Integer 8) `shouldBe` justify 20 "8"
 
     it "float should right justify" $ do
-      runValue (Float 3.2) `shouldBe` justify 30 "3.2"
+      runValue (Float 3.2) `shouldBe` justify 20 "3.2"
 
     it "negative int" $ do
-      runValue (Integer (-32)) `shouldBe` justify 30 "-32"
+      runValue (Integer (-32)) `shouldBe` justify 20 "-32"
 
     it "negative float" $ do
-      runValue (Float (-32.32)) `shouldBe` justify 30 "-32.32"
+      runValue (Float (-32.32)) `shouldBe` justify 20 "-32.32"
 
     it "float should exponent uppercase" $ do
-      runValue (Float 6.0001e-16) `shouldBe` justify 30 "6.0001E-16"
+      runValue (Float 6.0001e-16) `shouldBe` justify 20 "6.0001E-16"
 
     it "logic should right justify" $ do
-      runValue (Logic T) `shouldBe` justify 30 "T"
+      runValue (Logic T) `shouldBe` justify 20 "T"
 
     it "string" $ do
       runValue (String "Hello World") `shouldBe` "'Hello World'"
@@ -79,13 +79,13 @@ testRenderHeader = do
 
   describe "renderKeywordValue" $ do
     it "should render space" $ do
-      run (renderKeywordValue "SIMPLE" (Logic T)) `shouldBe` ("SIMPLE  = " <> justify 30 "T")
+      run (renderKeywordValue "SIMPLE" (Logic T)) `shouldBe` ("SIMPLE  = " <> justify 20 "T")
 
     it "should butt against equals" $ do
-      run (renderKeywordValue "WHATEVER" (Integer 10)) `shouldBe` ("WHATEVER= " <> justify 30 "10")
+      run (renderKeywordValue "WHATEVER" (Integer 10)) `shouldBe` ("WHATEVER= " <> justify 20 "10")
 
     it "should string" $ do
-      run (renderKeywordValue "WHATEVER" (String "dude")) `shouldBe` pad 40 "WHATEVER= 'dude'"
+      run (renderKeywordValue "WHATEVER" (String "dude")) `shouldBe` pad 30 "WHATEVER= 'dude'"
 
     it "should correctly count long values" $ do
       let render = renderKeywordValue "KEYWORD" (String "0123456789012345678901234567890123456789")
@@ -100,13 +100,13 @@ testRenderHeader = do
 
   describe "renderKeywordComments" $ do
     it "should render comment in line" $ do
-      run (renderKeywordLine "SIMPLE" (Logic T) (Just "Comment")) `shouldBe` pad 80 ("SIMPLE  = " <> justify 30 "T" <> " / Comment")
+      run (renderKeywordLine "SIMPLE" (Logic T) (Just "Comment")) `shouldBe` pad 80 ("SIMPLE  = " <> justify 20 "T" <> " / Comment")
 
     it "should render no comment" $ do
-      run (renderKeywordLine "SIMPLE" (Logic T) Nothing) `shouldBe` pad 80 ("SIMPLE  = " <> justify 30 "T")
+      run (renderKeywordLine "SIMPLE" (Logic T) Nothing) `shouldBe` pad 80 ("SIMPLE  = " <> justify 20 "T")
 
     it "should truncate whole line" $ do
-      run (renderKeywordLine "SIMPLE" (Logic T) Nothing) `shouldBe` pad 80 ("SIMPLE  = " <> justify 30 "T")
+      run (renderKeywordLine "SIMPLE" (Logic T) Nothing) `shouldBe` pad 80 ("SIMPLE  = " <> justify 20 "T")
 
   describe "renderKeywordLine" $ do
     it "should be 80 characters mininum" $ do
@@ -118,12 +118,12 @@ testRenderHeader = do
       b.length `shouldBe` 80
 
     it "should be 80 characters maximum with long strings" $ do
-      let b = renderKeywordLine "HELLO" (String "this is a really long value that exceeds 30") (Just $ pack $ replicate 100 'a')
+      let b = renderKeywordLine "HELLO" (String "this is a really long value that exceeds 20") (Just $ pack $ replicate 100 'a')
       b.length `shouldBe` 80
       length (run b) `shouldBe` 80
 
     it "should be padded" $ do
-      run (renderKeywordLine "HELLO" (Integer 1) Nothing) `shouldBe` "HELLO   = " <> justify 30 "1" <> spaces 40
+      run (renderKeywordLine "HELLO" (Integer 1) Nothing) `shouldBe` "HELLO   = " <> justify 20 "1" <> spaces 50
 
   describe "renderOtherKeywords" $ do
     it "should render comments" $ do
@@ -132,11 +132,11 @@ testRenderHeader = do
 
     it "should render blanks" $ do
       let h = Header [BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` headers ["", "WOOT    = " <> justify 30 "12345"]
+      run (renderOtherKeywords h) `shouldBe` headers ["", "WOOT    = " <> justify 20 "12345"]
 
     it "should render blanks between" $ do
       let h = Header [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 30 "12345"]
+      run (renderOtherKeywords h) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 20 "12345"]
  where
   runValue :: Value -> String
   runValue = run . renderValue
@@ -190,7 +190,7 @@ testEncodePrimary = do
 
     itWithOuter "starts with SIMPLE" $ \enc -> do
       print enc
-      BS.take 40 enc `shouldBe` "SIMPLE  =                              T"
+      BS.take 30 enc `shouldBe` "SIMPLE  =                    T"
 
   aroundAll provDecoded $ describe "decoded encoded primary hdu" $ do
     itWithOuter "Has custom header" $ \f -> do
@@ -241,14 +241,18 @@ testRoundTrip =
           h2 = f2.primaryHDU.header
       Fits.lookup "NAXIS" h2 `shouldBe` Just (Integer 2)
 
-      let ks = getKeywords hs
-          k2 = getKeywords h2
+      let ks = getKeywords hs :: [KeywordRecord]
+          k2 = getKeywords h2 :: [KeywordRecord]
 
-      filter (isKeyword "BITPIX") k2 `shouldBe` filter (isKeyword "BITPIX") ks
+      length (filter (matchKeyword "BITPIX") k2) `shouldBe` length (filter (matchKeyword "BITPIX") ks)
 
       length hs._records `shouldBe` length h2._records
+
+    itWithOuter "should keep naxes order preserved" $ \fs -> do
+      f2 <- decode $ encode fs
+      f2.primaryHDU.dataArray.axes `shouldBe` fs.primaryHDU.dataArray.axes
  where
-  isKeyword k (k2, _) = k == k2
+  matchKeyword k (KeywordRecord k2 _ _) = k == k2
 
 
 -- hs `shouldBe` h2

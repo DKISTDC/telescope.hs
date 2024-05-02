@@ -2,6 +2,7 @@ module Telescope.Fits.Types
   ( Fits (..)
   , PrimaryHDU (..)
   , ImageHDU (..)
+  , BinTableHDU (..)
   , DataArray (..)
   , Extension (..)
   , Axis
@@ -40,11 +41,31 @@ data ImageHDU = ImageHDU
   }
 
 
+data BinTableHDU = BinTableHDU
+  { header :: Header
+  , pCount :: Int
+  , heap :: ByteString
+  , dataArray :: DataArray
+  }
+
+
 data DataArray = DataArray
   { bitpix :: BitPix
   , axes :: Axes Column
   , rawData :: BS.ByteString
   }
+
+
+instance Show DataArray where
+  show d =
+    L.intercalate
+      "\n"
+      [ "DataArray:"
+      , "  data: " <> show (BS.length d.rawData) <> " bytes"
+      , "  dimensions: "
+      , "    format: " <> L.drop 2 (show d.bitpix)
+      , "    axes: " <> show d.axes.axes
+      ]
 
 
 emptyDataArray :: DataArray
@@ -58,6 +79,7 @@ emptyDataArray = DataArray BPInt8 (Axes []) ""
 
 data Extension
   = Image ImageHDU
+  | BinTable BinTableHDU
 
 
 type Axis = Int

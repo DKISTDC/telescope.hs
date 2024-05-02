@@ -23,23 +23,38 @@ spec = do
     describe "array" testDecodeArray
     describe "image" testDecodeImage
 
+  describe "encode" $ do
+    describe "array/image" testEncode
 
--- describe "encode" $ do
--- describe "array/image" $testEncode
 
 testIndices :: Spec
 testIndices = do
-  it "Ix1" $ do
-    ix <- axesIndex $ rowMajor $ Axes [10]
-    ix `shouldBe` Ix1 10
+  describe "axesIndex" $ do
+    it "Ix1" $ do
+      ix <- axesIndex $ rowMajor $ Axes [10]
+      ix `shouldBe` Ix1 10
 
-  it "Ix2 in reverse order" $ do
-    ix <- axesIndex $ rowMajor $ Axes [3, 2]
-    ix `shouldBe` 2 :. 3
+    it "Ix2 in reverse order" $ do
+      ix <- axesIndex $ rowMajor $ Axes [3, 2]
+      ix `shouldBe` 2 :. 3
 
-  it "Ix3 in reverse order" $ do
-    ix <- axesIndex $ rowMajor $ Axes [3, 2, 1]
-    ix `shouldBe` 1 :> 2 :. 3
+    it "Ix3 in reverse order" $ do
+      ix <- axesIndex $ rowMajor $ Axes [3, 2, 1]
+      ix `shouldBe` 1 :> 2 :. 3
+
+  describe "indexAxes" $ do
+    -- indexAxes produces row major
+    it "Ix1" $ do
+      indexAxes @Ix1 2 `shouldBe` Axes [2]
+
+    it "Ix2 Row Major" $ do
+      indexAxes (2 :. 3) `shouldBe` Axes [2, 3]
+
+    it "Ix3 Row Major" $ do
+      indexAxes (1 :> 2 :. 3) `shouldBe` Axes [1, 2, 3]
+
+    it "Ix3 Column Major" $ do
+      sizeAxes (Sz (1 :> 2 :. 3)) `shouldBe` Axes [3, 2, 1]
 
 
 testGetPix :: Spec
@@ -151,6 +166,10 @@ testEncode = do
     let enc = encodeArrayData arrayFloat :: BS.ByteString
     arr <- decodeArrayData @Ix2 @Float BPFloat (Axes [3, 2]) enc
     arr `shouldBe` arrayFloat
+
+  it "should encode naxes in correct order" $ do
+    size array `shouldBe` Sz (2 :. 3)
+    sizeAxes (size array) `shouldBe` Axes [3, 2]
 
 -- TODO: reimplement
 -- it "should encode images" $ do
