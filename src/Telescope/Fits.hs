@@ -68,18 +68,20 @@ module Telescope.Fits
   , (<!?)
   , (<!>)
   , Dim (..)
-  -- , test
+  , testRead
+  , testWrite
   ) where
 
 import Data.Fits (lookup)
+import Telescope.Fits.Checksum
 import Telescope.Fits.Encoding
 import Telescope.Fits.Encoding.DataArray
 import Telescope.Fits.Header (addComment, keyword)
 import Telescope.Fits.Types
 import Prelude hiding (lookup)
 
+import Data.ByteString qualified as BS
 
--- import Data.ByteString qualified as BS
 
 -- test :: IO ()
 -- test = do
@@ -102,11 +104,35 @@ import Prelude hiding (lookup)
 --   print f.primaryHDU.header
 --   [BinTable b] <- pure f.extensions
 --   print b.header
+--
+--
 
--- test :: IO ()
--- test = do
---   inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
---   print $ BS.length inp
+testRead :: IO Fits
+testRead = do
+  putStrLn "\nREADING"
+  inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
+  print $ BS.length inp
+
+  fits <- decode inp
+  pure fits
+
+
+testWrite :: Fits -> IO ()
+testWrite fits = do
+  putStrLn "\nWRITING"
+  let out = encode fits
+  print $ BS.length out
+  BS.writeFile "/Users/seanhess/code/notebooks/data/out.fits" out
+
+  -- print $ checksumValue $ checksum out
+
+-- The checksum for the HDU should now be zero
+
+-- putStrLn "\nCHECKSUMMING"
+-- print $ encodeChecksum (Checksum 1234)
+
+-- inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
+-- print $ BS.length inp
 
 -- -- print $ length $ BS.unpack inp
 --

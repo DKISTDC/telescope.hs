@@ -1,10 +1,9 @@
-#ifndef SUM_H
-#define SUM_H
+#ifndef CHECKSUM_H
+#define CHECKSUM_H
 
-int sum(int* array, int size);
+unsigned int checksum ( unsigned char *buf, int length);
 
-unsigned int checksum (
-  unsigned char *buf,
-  int length);
+void char_encode ( unsigned int value, char *ascii);
 
 #endif
+

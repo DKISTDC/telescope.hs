@@ -11,7 +11,8 @@ import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
-import Data.Word (Word8)
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as TE
 import Telescope.Fits.Checksum
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
@@ -84,7 +85,22 @@ encode :: Fits -> BS.ByteString
 encode f =
   let primary = renderPrimaryHDU f.primaryHDU
       exts = fmap renderExtensionHDU f.extensions
-   in BS.toStrict . runRender $ primary <> mconcat exts
+   in mconcat $ fmap (writeChecksum . BS.toStrict . runRender) $ primary : exts
+
+
+-- | Write the CHECKSUM header, assumes you have already set DATASUM and CHECKSUM=0
+writeChecksum :: BS.ByteString -> BS.ByteString
+writeChecksum hdu =
+  replaceChecksum (checksum hdu) hdu
+ where
+  replaceChecksum :: Checksum -> BS.ByteString -> BS.ByteString
+  replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum)
+
+  replaceKeywordLine :: BS.ByteString -> Value -> BS.ByteString -> BS.ByteString
+  replaceKeywordLine key val header =
+    let (start, rest) = BS.breakSubstring key header
+        newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val Nothing
+     in start <> newKeyLine <> BS.drop 80 rest
 
 
 -- | Execute a BuilderBlock and create a bytestring
@@ -94,10 +110,11 @@ runRender bb = toLazyByteString bb.builder
 
 renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
 renderPrimaryHDU hdu =
-  mconcat
-    [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header hdu.dataArray.rawData
-    , renderData hdu.dataArray.rawData
-    ]
+  let dsum = checksum hdu.dataArray.rawData
+   in mconcat
+        [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes dsum hdu.header
+        , renderData hdu.dataArray.rawData
+        ]
 
 
 renderExtensionHDU :: Extension -> BuilderBlock
@@ -107,47 +124,51 @@ renderExtensionHDU (BinTable _) = error "BinTableHDU rendering not supported"
 
 renderImageHDU :: ImageHDU -> BuilderBlock
 renderImageHDU hdu =
-  mconcat
-    [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes hdu.header hdu.dataArray.rawData
-    , renderData hdu.dataArray.rawData
-    ]
+  let dsum = checksum hdu.dataArray.rawData
+   in mconcat
+        [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes dsum hdu.header
+        , renderData hdu.dataArray.rawData
+        ]
 
 
 renderData :: BS.ByteString -> BuilderBlock
 renderData s = fillBlock zeros $ BuilderBlock (BS.length s) $ byteString s
 
 
-renderImageHeader :: BitPix -> Axes Column -> Header -> BS.ByteString -> BuilderBlock
-renderImageHeader bp as h dat =
+renderImageHeader :: BitPix -> Axes Column -> Checksum -> Header -> BuilderBlock
+renderImageHeader bp as dsum h =
   fillBlock spaces $
     mconcat
       [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
       , renderDataKeywords bp as
       , renderKeywordLine "PCOUNT" (Integer 0) Nothing
       , renderKeywordLine "GCOUNT" (Integer 1) Nothing
-      , renderDatasum dat
+      , renderDatasum dsum
       , renderOtherKeywords h
       , renderEnd
       ]
 
 
-renderPrimaryHeader :: BitPix -> Axes Column -> Header -> BS.ByteString -> BuilderBlock
-renderPrimaryHeader bp as h dat =
+renderPrimaryHeader :: BitPix -> Axes Column -> Checksum -> Header -> BuilderBlock
+renderPrimaryHeader bp as dsum h =
   fillBlock spaces $
     mconcat
       [ renderKeywordLine "SIMPLE" (Logic T) (Just "Conforms to the FITS standard")
       , renderDataKeywords bp as
       , renderKeywordLine "EXTEND" (Logic T) Nothing
-      , -- , renderKeywordLine "CHECKSUM" (String "TODO") Nothing
-        renderDatasum dat
+      , renderDatasum dsum
       , renderOtherKeywords h
       , renderEnd
       ]
 
 
-renderDatasum :: BS.ByteString -> BuilderBlock
-renderDatasum dat =
-  renderKeywordLine "DATASUM" (String (pack (show (checksum dat)))) Nothing
+renderDatasum :: Checksum -> BuilderBlock
+renderDatasum dsum =
+  mconcat
+    [ renderKeywordLine "DATASUM" (checksumValue dsum) Nothing
+    , -- encode the CHECKSUM as zeros, replace later in 'runRenderHDU'
+      renderKeywordLine "CHECKSUM" (String (T.replicate 16 "0")) Nothing
+    ]
 
 
 renderEnd :: BuilderBlock
@@ -185,6 +206,7 @@ renderOtherKeywords (Header ks) =
      in k == "BITPIX"
           || k == "EXTEND"
           || k == "DATASUM"
+          || k == "CHECKSUM"
           || "NAXIS" `isPrefixOf` k
   isSystemKeyword _ = False
 

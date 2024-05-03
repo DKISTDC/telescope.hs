@@ -43,7 +43,8 @@ dependencies:
 
 library:
   source-dirs: src
-  c-sources: src/checksum.c
+  c-sources:
+    - src/checksum.c
 
 
 tests:
