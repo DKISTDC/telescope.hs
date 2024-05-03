@@ -83,24 +83,9 @@ data HDUError
 -}
 encode :: Fits -> BS.ByteString
 encode f =
-  let primary = renderPrimaryHDU f.primaryHDU
-      exts = fmap renderExtensionHDU f.extensions
-   in mconcat $ fmap (writeChecksum . BS.toStrict . runRender) $ primary : exts
-
-
--- | Write the CHECKSUM header, assumes you have already set DATASUM and CHECKSUM=0
-writeChecksum :: BS.ByteString -> BS.ByteString
-writeChecksum hdu =
-  replaceChecksum (checksum hdu) hdu
- where
-  replaceChecksum :: Checksum -> BS.ByteString -> BS.ByteString
-  replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum)
-
-  replaceKeywordLine :: BS.ByteString -> Value -> BS.ByteString -> BS.ByteString
-  replaceKeywordLine key val header =
-    let (start, rest) = BS.breakSubstring key header
-        newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val Nothing
-     in start <> newKeyLine <> BS.drop 80 rest
+  let primary = encodePrimaryHDU f.primaryHDU
+      exts = fmap encodeExtension f.extensions
+   in mconcat $ primary : exts
 
 
 -- | Execute a BuilderBlock and create a bytestring
@@ -108,39 +93,78 @@ runRender :: BuilderBlock -> BL.ByteString
 runRender bb = toLazyByteString bb.builder
 
 
-renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
-renderPrimaryHDU hdu =
-  let dsum = checksum hdu.dataArray.rawData
-   in mconcat
-        [ renderPrimaryHeader hdu.dataArray.bitpix hdu.dataArray.axes dsum hdu.header
-        , renderData hdu.dataArray.rawData
-        ]
+encodePrimaryHDU :: PrimaryHDU -> BS.ByteString
+encodePrimaryHDU p = encodeHDU (renderPrimaryHeader p.header p.dataArray) p.dataArray.rawData
 
 
-renderExtensionHDU :: Extension -> BuilderBlock
-renderExtensionHDU (Image hdu) = renderImageHDU hdu
-renderExtensionHDU (BinTable _) = error "BinTableHDU rendering not supported"
+encodeImageHDU :: ImageHDU -> BS.ByteString
+encodeImageHDU p = encodeHDU (renderImageHeader p.header p.dataArray) p.dataArray.rawData
 
 
-renderImageHDU :: ImageHDU -> BuilderBlock
-renderImageHDU hdu =
-  let dsum = checksum hdu.dataArray.rawData
-   in mconcat
-        [ renderImageHeader hdu.dataArray.bitpix hdu.dataArray.axes dsum hdu.header
-        , renderData hdu.dataArray.rawData
-        ]
+encodeExtension :: Extension -> BS.ByteString
+encodeExtension (Image hdu) = encodeImageHDU hdu
+encodeExtension (BinTable _) = error "BinTableHDU rendering not supported"
 
+
+encodeHDU :: (Checksum -> BuilderBlock) -> BS.ByteString -> BS.ByteString
+encodeHDU buildHead rawData =
+  let dsum = checksum rawData
+   in encodeHeader (buildHead dsum) dsum <> encodeDataArray rawData
+
+
+encodeHeader :: BuilderBlock -> Checksum -> BS.ByteString
+encodeHeader buildHead dsum =
+  let h = BS.toStrict $ runRender buildHead
+      hsum = checksum h -- calculate the checksum of only the header
+      csum = hsum <> dsum -- 1s complement add to the datasum
+   in replaceChecksum csum h
+
+
+encodeDataArray :: BS.ByteString -> BS.ByteString
+encodeDataArray dat = BS.toStrict $ runRender $ renderData dat
+
+
+replaceChecksum :: Checksum -> BS.ByteString -> BS.ByteString
+replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum)
+
+
+replaceKeywordLine :: BS.ByteString -> Value -> BS.ByteString -> BS.ByteString
+replaceKeywordLine key val header =
+  let (start, rest) = BS.breakSubstring key header
+      newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val Nothing
+   in start <> newKeyLine <> BS.drop 80 rest
+
+
+-- renderPrimaryHDU :: PrimaryHDU -> BuilderBlock
+-- renderPrimaryHDU hdu =
+--   let dsum = checksum hdu.dataArray.rawData
+--    in mconcat
+--         [ renderPrimaryHeader hdu.header hdu.dataArray dsum
+--         , renderData hdu.dataArray.rawData
+--         ]
+
+-- renderExtensionHDU :: Extension -> BuilderBlock
+-- renderExtensionHDU (Image hdu) = renderImageHDU hdu
+-- renderExtensionHDU (BinTable _) = error "BinTableHDU rendering not supported"
+
+-- renderImageHDU :: ImageHDU -> BuilderBlock
+-- renderImageHDU hdu =
+--   let dsum = checksum hdu.dataArray.rawData
+--    in mconcat
+--         [ renderImageHeader hdu.header hdu.dataArray dsum
+--         , renderData hdu.dataArray.rawData
+--         ]
 
 renderData :: BS.ByteString -> BuilderBlock
 renderData s = fillBlock zeros $ BuilderBlock (BS.length s) $ byteString s
 
 
-renderImageHeader :: BitPix -> Axes Column -> Checksum -> Header -> BuilderBlock
-renderImageHeader bp as dsum h =
+renderImageHeader :: Header -> DataArray -> Checksum -> BuilderBlock
+renderImageHeader h d dsum =
   fillBlock spaces $
     mconcat
       [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
-      , renderDataKeywords bp as
+      , renderDataKeywords d.bitpix d.axes
       , renderKeywordLine "PCOUNT" (Integer 0) Nothing
       , renderKeywordLine "GCOUNT" (Integer 1) Nothing
       , renderDatasum dsum
@@ -149,12 +173,12 @@ renderImageHeader bp as dsum h =
       ]
 
 
-renderPrimaryHeader :: BitPix -> Axes Column -> Checksum -> Header -> BuilderBlock
-renderPrimaryHeader bp as dsum h =
+renderPrimaryHeader :: Header -> DataArray -> Checksum -> BuilderBlock
+renderPrimaryHeader h d dsum =
   fillBlock spaces $
     mconcat
       [ renderKeywordLine "SIMPLE" (Logic T) (Just "Conforms to the FITS standard")
-      , renderDataKeywords bp as
+      , renderDataKeywords d.bitpix d.axes
       , renderKeywordLine "EXTEND" (Logic T) Nothing
       , renderDatasum dsum
       , renderOtherKeywords h

@@ -1,6 +1,6 @@
 module Telescope.Fits.Checksum where
 
-import Data.Bits (complement)
+import Data.Bits (complement, shiftR, (.&.))
 import Data.ByteString.Internal
 import Data.Fits (Value (..))
 import Data.Text (Text, pack)
@@ -19,6 +19,10 @@ newtype Checksum = Checksum Word32
   deriving (Eq, Show)
 
 
+instance Semigroup Checksum where
+  Checksum w1 <> Checksum w2 = Checksum (add1s w1 w2)
+
+
 checksum :: ByteString -> Checksum
 checksum bs = unsafePerformIO $ do
   let (fptr, offset, len) = toForeignPtr bs
@@ -29,7 +33,6 @@ checksum bs = unsafePerformIO $ do
 
 checksumValue :: Checksum -> Value
 checksumValue (Checksum s) = String (pack (show s))
-
 
 
 foreign import ccall "char_encode" char_encode :: CUInt -> CString -> IO ()
@@ -44,3 +47,18 @@ encodeChecksum (Checksum csum) =
       char_encode (fromIntegral comp) cs
       peekCString cs
     pure $ pack out
+
+
+add1s :: Word32 -> Word32 -> Word32
+add1s x y =
+  let
+    sum64 = (+) @Word64 (fromIntegral x) (fromIntegral y)
+    result =
+      if sum64 > maxWord32
+        then (sum64 .&. maxWord32) + (sum64 `shiftR` 32)
+        else sum64
+   in
+    fromIntegral result
+ where
+  maxWord32 :: Word64
+  maxWord32 = 0xFFFFFFFF

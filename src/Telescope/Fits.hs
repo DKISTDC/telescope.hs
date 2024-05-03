@@ -81,6 +81,10 @@ import Telescope.Fits.Types
 import Prelude hiding (lookup)
 
 import Data.ByteString qualified as BS
+import Data.Fits (HeaderDataUnit (..))
+import Data.Fits.MegaParser (parseHDU)
+import Data.Fits.Read (readHDUs, readPrimaryHDU)
+import Text.Megaparsec qualified as M
 
 
 -- test :: IO ()
@@ -104,14 +108,12 @@ import Data.ByteString qualified as BS
 --   print f.primaryHDU.header
 --   [BinTable b] <- pure f.extensions
 --   print b.header
---
---
 
 testRead :: IO Fits
 testRead = do
   putStrLn "\nREADING"
   inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
-  print $ BS.length inp
+  -- print $ BS.length inp
 
   fits <- decode inp
   pure fits
@@ -124,7 +126,23 @@ testWrite fits = do
   print $ BS.length out
   BS.writeFile "/Users/seanhess/code/notebooks/data/out.fits" out
 
-  -- print $ checksumValue $ checksum out
+
+testReadFits = do
+  putStrLn "\nREADING FITS"
+  inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
+  -- Right p <- pure $ readPrimaryHDU inp
+  -- print $ p._dimensions
+  -- print $ p._extension
+
+  Right hdus <- pure $ M.runParser (M.many parseHDU) "FITS" inp
+  -- print $ BS.length p._mainData
+  mapM_ (print . (._dimensions)) hdus
+  -- pr
+  -- pure p
+  print $ length hdus
+  pure ()
+
+-- print $ checksumValue $ checksum out
 
 -- The checksum for the HDU should now be zero
 
