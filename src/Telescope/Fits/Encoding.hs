@@ -1,63 +1,49 @@
 module Telescope.Fits.Encoding where
 
+import Control.Applicative ((<|>))
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
+import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as BL
 import Data.Char (toUpper)
 import Data.Fits qualified as Fits
+import Data.Fits.MegaParser (Parser)
 import Data.Fits.MegaParser qualified as Fits
 import Data.Fits.Read (FitsError (..))
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
+import Effectful
+import Effectful.Error.Static
+import Effectful.NonDet
+import Effectful.State.Static.Local
 import Telescope.Fits.Checksum
 import Telescope.Fits.Types
 import Text.Megaparsec qualified as M
+import Text.Megaparsec.State qualified as M
 
 
 {- | Decode a FITS file read as a strict 'ByteString'
 
 >  decode =<< BS.readFile "samples/simple2x3.fits"
 -}
-decode :: forall m. (MonadThrow m) => BS.ByteString -> m Fits
+decode :: forall m. (MonadThrow m) => ByteString -> m Fits
 decode inp = do
-  hdus <- either (throwM . FormatError . ParseError) pure $ M.runParser Fits.parseHDUs "FITS" inp
-  case hdus of
-    [] -> throwM MissingPrimary
-    (h : hs) -> do
-      primaryHDU <- toPrimary h
-      extensions <- mapM toExtension hs
-      pure $ Fits{primaryHDU, extensions}
+  let res = runPureEff $ evalState inp parseFits
+  pure res
+
+
+dataArray :: Fits.Dimensions -> ByteString -> DataArray
+dataArray dim dat =
+  DataArray
+    { bitpix = bitpix dim._bitpix
+    , axes = axes dim._axes
+    , rawData = dat
+    }
  where
-  toExtension :: Fits.HeaderDataUnit -> m Extension
-  toExtension hdu =
-    case hdu._extension of
-      Fits.Primary -> throwM $ InvalidExtension "Primary, expected Extension"
-      Fits.Image -> pure $ Image $ ImageHDU hdu._header $ dataArray hdu
-      Fits.BinTable n heap -> pure $ BinTable $ BinTableHDU hdu._header n heap (dataArray hdu)
-  -- ex -> throwM $ InvalidExtension (show ex)
-
-  toPrimary :: Fits.HeaderDataUnit -> m PrimaryHDU
-  toPrimary hdu =
-    case hdu._extension of
-      Fits.Primary -> pure $ PrimaryHDU hdu._header $ dataArray hdu
-      _ -> throwM $ InvalidExtension "Extension, expected Primary"
-
-  dataArray :: Fits.HeaderDataUnit -> DataArray
-  dataArray hdu =
-    DataArray
-      { bitpix = bitpix hdu._dimensions._bitpix
-      , axes = axes hdu._dimensions._axes
-      , rawData = hdu._mainData
-      }
-
-  -- decodePrimary :: BS.ByteString -> m PrimaryHDU
-  -- decodePrimary inp =
-  -- toImage :: Fits.HeaderDataUnit -> m ImageHDU
-
   bitpix :: Fits.BitPixFormat -> BitPix
   bitpix Fits.EightBitInt = BPInt8
   bitpix Fits.SixteenBitInt = BPInt16
@@ -68,6 +54,97 @@ decode inp = do
 
   axes :: Fits.Axes -> Axes Column
   axes = Axes
+
+
+primary :: (State ByteString :> es) => Eff es PrimaryHDU
+primary = do
+  (dm, hd) <- nextParser "Primary Header" $ do
+    dm <- Fits.parsePrimaryKeywords
+    hd <- Fits.parseHeader
+    pure (dm, hd)
+
+  darr <- mainData dm
+  pure $ PrimaryHDU hd darr
+
+
+parseFits :: (State ByteString :> es) => Eff es Fits
+parseFits = do
+  p <- primary
+  es <- extensions
+  pure $ Fits p es
+ where
+  image :: (State ByteString :> es) => Eff es ImageHDU
+  image = do
+    (dm, hd) <- imageHeader
+    darr <- mainData dm
+    pure $ ImageHDU hd darr
+
+  imageHeader :: (State ByteString :> es) => Eff es (Fits.Dimensions, Header)
+  imageHeader = do
+    nextParser "Image Header" $ do
+      dm <- Fits.parseImageKeywords
+      hd <- Fits.parseHeader
+      pure (dm, hd)
+
+  extension :: (State ByteString :> es) => Eff es Extension
+  extension = do
+    res <- runNonDet OnEmptyKeep $ do
+      (Image <$> image) <|> (BinTable <$> binTable)
+    case res of
+      Left _ -> throwM $ InvalidExtension ""
+      Right e -> pure e
+
+  extensions :: (State ByteString :> es) => Eff es [Extension]
+  extensions = do
+    e <- extension
+    rest <- get @ByteString
+    case rest of
+      "" -> pure [e]
+      _ -> do
+        es <- extensions
+        pure (e : es)
+
+  binTable :: (State ByteString :> es) => Eff es BinTableHDU
+  binTable = do
+    (dm, pcount, hd) <- binTableHeader
+    darr <- mainData dm
+    pure $ BinTableHDU hd pcount "" darr
+
+  binTableHeader :: (State ByteString :> es) => Eff es (Fits.Dimensions, Int, Header)
+  binTableHeader = do
+    nextParser "Image Header" $ do
+      (dm, pcount) <- Fits.parseBinTableKeywords
+      hd <- Fits.parseHeader
+      pure (dm, pcount, hd)
+
+
+mainData :: (State ByteString :> es) => Fits.Dimensions -> Eff es DataArray
+mainData dm = do
+  rest <- get
+  let len = Fits.dataSize dm
+  let dat = dataArray dm (BS.take len rest)
+  put $ BS.dropWhile (== 0) $ BS.drop len rest
+  pure dat
+
+
+-- Runs a parser, and returns the unconsumed string
+nextParser :: (State ByteString :> es) => String -> Parser a -> Eff es a
+nextParser src parse = do
+  res <- runErrorNoCallStack @HDUError (nextParser' src parse)
+  case res of
+    Right a -> pure a
+    Left e -> throwM e
+
+
+nextParser' :: (Error HDUError :> es, State ByteString :> es) => String -> Parser a -> Eff es a
+nextParser' src parse = do
+  bs <- get
+  let st1 = M.initialState src bs
+  case M.runParser' parse st1 of
+    (st2, Right a) -> do
+      put $ BS.drop st2.stateOffset bs
+      pure a
+    (_, Left err) -> throwError $ FormatError $ ParseError err
 
 
 data HDUError
@@ -81,7 +158,7 @@ data HDUError
 
 > BS.writeFile $ encdoe fits
 -}
-encode :: Fits -> BS.ByteString
+encode :: Fits -> ByteString
 encode f =
   let primary = encodePrimaryHDU f.primaryHDU
       exts = fmap encodeExtension f.extensions
@@ -93,26 +170,26 @@ runRender :: BuilderBlock -> BL.ByteString
 runRender bb = toLazyByteString bb.builder
 
 
-encodePrimaryHDU :: PrimaryHDU -> BS.ByteString
+encodePrimaryHDU :: PrimaryHDU -> ByteString
 encodePrimaryHDU p = encodeHDU (renderPrimaryHeader p.header p.dataArray) p.dataArray.rawData
 
 
-encodeImageHDU :: ImageHDU -> BS.ByteString
+encodeImageHDU :: ImageHDU -> ByteString
 encodeImageHDU p = encodeHDU (renderImageHeader p.header p.dataArray) p.dataArray.rawData
 
 
-encodeExtension :: Extension -> BS.ByteString
+encodeExtension :: Extension -> ByteString
 encodeExtension (Image hdu) = encodeImageHDU hdu
 encodeExtension (BinTable _) = error "BinTableHDU rendering not supported"
 
 
-encodeHDU :: (Checksum -> BuilderBlock) -> BS.ByteString -> BS.ByteString
+encodeHDU :: (Checksum -> BuilderBlock) -> ByteString -> ByteString
 encodeHDU buildHead rawData =
   let dsum = checksum rawData
    in encodeHeader (buildHead dsum) dsum <> encodeDataArray rawData
 
 
-encodeHeader :: BuilderBlock -> Checksum -> BS.ByteString
+encodeHeader :: BuilderBlock -> Checksum -> ByteString
 encodeHeader buildHead dsum =
   let h = BS.toStrict $ runRender buildHead
       hsum = checksum h -- calculate the checksum of only the header
@@ -120,15 +197,15 @@ encodeHeader buildHead dsum =
    in replaceChecksum csum h
 
 
-encodeDataArray :: BS.ByteString -> BS.ByteString
+encodeDataArray :: ByteString -> ByteString
 encodeDataArray dat = BS.toStrict $ runRender $ renderData dat
 
 
-replaceChecksum :: Checksum -> BS.ByteString -> BS.ByteString
+replaceChecksum :: Checksum -> ByteString -> ByteString
 replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum)
 
 
-replaceKeywordLine :: BS.ByteString -> Value -> BS.ByteString -> BS.ByteString
+replaceKeywordLine :: ByteString -> Value -> ByteString -> ByteString
 replaceKeywordLine key val header =
   let (start, rest) = BS.breakSubstring key header
       newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val Nothing
@@ -155,7 +232,7 @@ replaceKeywordLine key val header =
 --         , renderData hdu.dataArray.rawData
 --         ]
 
-renderData :: BS.ByteString -> BuilderBlock
+renderData :: ByteString -> BuilderBlock
 renderData s = fillBlock zeros $ BuilderBlock (BS.length s) $ byteString s
 
 

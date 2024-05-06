@@ -68,8 +68,7 @@ module Telescope.Fits
   , (<!?)
   , (<!>)
   , Dim (..)
-  , testRead
-  , testWrite
+  , test
   ) where
 
 import Data.Fits (lookup)
@@ -82,9 +81,11 @@ import Prelude hiding (lookup)
 
 import Data.ByteString qualified as BS
 import Data.Fits (HeaderDataUnit (..))
-import Data.Fits.MegaParser (parseHDU)
+import Data.Fits.MegaParser (dataSize, parseHDU)
 import Data.Fits.Read (readHDUs, readPrimaryHDU)
 import Text.Megaparsec qualified as M
+import Effectful
+import Effectful.State.Static.Local
 
 
 -- test :: IO ()
@@ -109,38 +110,20 @@ import Text.Megaparsec qualified as M
 --   [BinTable b] <- pure f.extensions
 --   print b.header
 
-testRead :: IO Fits
-testRead = do
+test :: IO ()
+test = do
   putStrLn "\nREADING"
   inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
-  -- print $ BS.length inp
-
   fits <- decode inp
-  pure fits
+  print fits.primaryHDU.dataArray
+  [Image h2, Image h3] <- pure fits.extensions
+  print h2.dataArray
+  print h3.dataArray
 
-
-testWrite :: Fits -> IO ()
-testWrite fits = do
-  putStrLn "\nWRITING"
-  let out = encode fits
-  print $ BS.length out
-  BS.writeFile "/Users/seanhess/code/notebooks/data/out.fits" out
-
-
-testReadFits = do
-  putStrLn "\nREADING FITS"
-  inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
-  -- Right p <- pure $ readPrimaryHDU inp
-  -- print $ p._dimensions
-  -- print $ p._extension
-
-  Right hdus <- pure $ M.runParser (M.many parseHDU) "FITS" inp
-  -- print $ BS.length p._mainData
-  mapM_ (print . (._dimensions)) hdus
-  -- pr
-  -- pure p
-  print $ length hdus
   pure ()
+
+
+
 
 -- print $ checksumValue $ checksum out
 
