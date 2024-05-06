@@ -1,6 +1,5 @@
 module Telescope.Fits.Encoding where
 
-import Control.Applicative ((<|>))
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString (ByteString)
@@ -56,23 +55,22 @@ dataArray dim dat =
   axes = Axes
 
 
-primary :: (State ByteString :> es) => Eff es PrimaryHDU
-primary = do
-  (dm, hd) <- nextParser "Primary Header" $ do
-    dm <- Fits.parsePrimaryKeywords
-    hd <- Fits.parseHeader
-    pure (dm, hd)
-
-  darr <- mainData dm
-  pure $ PrimaryHDU hd darr
-
-
 parseFits :: (State ByteString :> es) => Eff es Fits
 parseFits = do
   p <- primary
   es <- extensions
   pure $ Fits p es
  where
+  primary :: (State ByteString :> es) => Eff es PrimaryHDU
+  primary = do
+    (dm, hd) <- nextParser "Primary Header" $ do
+      dm <- Fits.parsePrimaryKeywords
+      hd <- Fits.parseHeader
+      pure (dm, hd)
+
+    darr <- mainData dm
+    pure $ PrimaryHDU hd darr
+
   image :: (State ByteString :> es) => Eff es ImageHDU
   image = do
     (dm, hd) <- imageHeader
@@ -96,11 +94,11 @@ parseFits = do
 
   extensions :: (State ByteString :> es) => Eff es [Extension]
   extensions = do
-    e <- extension
-    rest <- get @ByteString
-    case rest of
-      "" -> pure [e]
+    inp <- get @ByteString
+    case inp of
+      "" -> pure []
       _ -> do
+        e <- extension
         es <- extensions
         pure (e : es)
 

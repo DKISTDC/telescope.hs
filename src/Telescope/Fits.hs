@@ -68,25 +68,25 @@ module Telescope.Fits
   , (<!?)
   , (<!>)
   , Dim (..)
-  , test
   ) where
 
 import Data.Fits (lookup)
-import Telescope.Fits.Checksum
 import Telescope.Fits.Encoding
 import Telescope.Fits.Encoding.DataArray
 import Telescope.Fits.Header (addComment, keyword)
 import Telescope.Fits.Types
 import Prelude hiding (lookup)
 
-import Data.ByteString qualified as BS
-import Data.Fits (HeaderDataUnit (..))
-import Data.Fits.MegaParser (dataSize, parseHDU)
-import Data.Fits.Read (readHDUs, readPrimaryHDU)
-import Text.Megaparsec qualified as M
-import Effectful
-import Effectful.State.Static.Local
 
+-- import Telescope.Fits.Checksum
+
+-- import Data.ByteString qualified as BS
+-- import Data.Fits (HeaderDataUnit (..))
+-- import Data.Fits.MegaParser (dataSize, parseHDU)
+-- import Data.Fits.Read (readHDUs, readPrimaryHDU)
+-- import Text.Megaparsec qualified as M
+-- import Effectful
+-- import Effectful.State.Static.Local
 
 -- test :: IO ()
 -- test = do
@@ -110,20 +110,17 @@ import Effectful.State.Static.Local
 --   [BinTable b] <- pure f.extensions
 --   print b.header
 
-test :: IO ()
-test = do
-  putStrLn "\nREADING"
-  inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
-  fits <- decode inp
-  print fits.primaryHDU.dataArray
-  [Image h2, Image h3] <- pure fits.extensions
-  print h2.dataArray
-  print h3.dataArray
-
-  pure ()
-
-
-
+-- test :: IO ()
+-- test = do
+--   putStrLn "\nREADING"
+--   inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
+--   fits <- decode inp
+--   print fits.primaryHDU.dataArray
+--   [Image h2, Image h3] <- pure fits.extensions
+--   print h2.dataArray
+--   print h3.dataArray
+--
+--   pure ()
 
 -- print $ checksumValue $ checksum out
 
