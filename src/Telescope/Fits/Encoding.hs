@@ -17,7 +17,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Effectful
 import Effectful.Error.Static
-import Effectful.NonDet
 import Effectful.State.Static.Local
 import Telescope.Fits.Checksum
 import Telescope.Fits.Types
@@ -63,7 +62,7 @@ parseFits = do
  where
   primary :: (State ByteString :> es) => Eff es PrimaryHDU
   primary = do
-    (dm, hd) <- nextParser "Primary Header" $ do
+    (dm, hd) <- nextParserThrow "Primary Header" $ do
       dm <- Fits.parsePrimaryKeywords
       hd <- Fits.parseHeader
       pure (dm, hd)
@@ -71,13 +70,13 @@ parseFits = do
     darr <- mainData dm
     pure $ PrimaryHDU hd darr
 
-  image :: (State ByteString :> es) => Eff es ImageHDU
+  image :: (Error HDUError :> es, State ByteString :> es) => Eff es ImageHDU
   image = do
     (dm, hd) <- imageHeader
     darr <- mainData dm
     pure $ ImageHDU hd darr
 
-  imageHeader :: (State ByteString :> es) => Eff es (Fits.Dimensions, Header)
+  imageHeader :: (Error HDUError :> es, State ByteString :> es) => Eff es (Fits.Dimensions, Header)
   imageHeader = do
     nextParser "Image Header" $ do
       dm <- Fits.parseImageKeywords
@@ -86,11 +85,14 @@ parseFits = do
 
   extension :: (State ByteString :> es) => Eff es Extension
   extension = do
-    res <- runNonDet OnEmptyKeep $ do
-      (Image <$> image) <|> (BinTable <$> binTable)
-    case res of
-      Left _ -> throwM $ InvalidExtension ""
-      Right e -> pure e
+    -- this consumes input!
+    resImg <- runErrorNoCallStack @HDUError image
+    resTbl <- runErrorNoCallStack @HDUError binTable
+    case (resImg, resTbl) of
+      (Right i, _) -> pure $ Image i
+      (_, Right b) -> pure $ BinTable b
+      -- should report the current extenion
+      (_, Left be) -> throwM be
 
   extensions :: (State ByteString :> es) => Eff es [Extension]
   extensions = do
@@ -102,15 +104,18 @@ parseFits = do
         es <- extensions
         pure (e : es)
 
-  binTable :: (State ByteString :> es) => Eff es BinTableHDU
+  binTable :: (Error HDUError :> es, State ByteString :> es) => Eff es BinTableHDU
   binTable = do
     (dm, pcount, hd) <- binTableHeader
     darr <- mainData dm
-    pure $ BinTableHDU hd pcount "" darr
+    rest <- get
+    let heap = BS.take pcount rest
+    put $ BS.dropWhile (== 0) $ BS.drop pcount rest
+    pure $ BinTableHDU hd pcount heap darr
 
-  binTableHeader :: (State ByteString :> es) => Eff es (Fits.Dimensions, Int, Header)
+  binTableHeader :: (Error HDUError :> es, State ByteString :> es) => Eff es (Fits.Dimensions, Int, Header)
   binTableHeader = do
-    nextParser "Image Header" $ do
+    nextParser "BinTable Header" $ do
       (dm, pcount) <- Fits.parseBinTableKeywords
       hd <- Fits.parseHeader
       pure (dm, pcount, hd)
@@ -125,21 +130,21 @@ mainData dm = do
   pure dat
 
 
--- Runs a parser, and returns the unconsumed string
-nextParser :: (State ByteString :> es) => String -> Parser a -> Eff es a
-nextParser src parse = do
-  res <- runErrorNoCallStack @HDUError (nextParser' src parse)
+nextParserThrow :: (State ByteString :> es) => String -> Parser a -> Eff es a
+nextParserThrow src parse = do
+  res <- runErrorNoCallStack @HDUError (nextParser src parse)
   case res of
     Right a -> pure a
     Left e -> throwM e
 
 
-nextParser' :: (Error HDUError :> es, State ByteString :> es) => String -> Parser a -> Eff es a
-nextParser' src parse = do
+nextParser :: (Error HDUError :> es, State ByteString :> es) => String -> Parser a -> Eff es a
+nextParser src parse = do
   bs <- get
   let st1 = M.initialState src bs
   case M.runParser' parse st1 of
     (st2, Right a) -> do
+      -- only consumes input if it succeeds
       put $ BS.drop st2.stateOffset bs
       pure a
     (_, Left err) -> throwError $ FormatError $ ParseError err
@@ -200,13 +205,13 @@ encodeDataArray dat = BS.toStrict $ runRender $ renderData dat
 
 
 replaceChecksum :: Checksum -> ByteString -> ByteString
-replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum)
+replaceChecksum csum = replaceKeywordLine "CHECKSUM" (String $ encodeChecksum csum) Nothing
 
 
-replaceKeywordLine :: ByteString -> Value -> ByteString -> ByteString
-replaceKeywordLine key val header =
+replaceKeywordLine :: ByteString -> Value -> Maybe Text -> ByteString -> ByteString
+replaceKeywordLine key val mc header =
   let (start, rest) = BS.breakSubstring key header
-      newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val Nothing
+      newKeyLine = BS.toStrict $ runRender $ renderKeywordLine (TE.decodeUtf8 key) val mc
    in start <> newKeyLine <> BS.drop 80 rest
 
 

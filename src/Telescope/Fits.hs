@@ -68,6 +68,7 @@ module Telescope.Fits
   , (<!?)
   , (<!>)
   , Dim (..)
+  -- , test
   ) where
 
 import Data.Fits (lookup)
@@ -78,28 +79,26 @@ import Telescope.Fits.Types
 import Prelude hiding (lookup)
 
 
--- import Telescope.Fits.Checksum
-
 -- import Data.ByteString qualified as BS
 -- import Data.Fits (HeaderDataUnit (..))
 -- import Data.Fits.MegaParser (dataSize, parseHDU)
 -- import Data.Fits.Read (readHDUs, readPrimaryHDU)
--- import Text.Megaparsec qualified as M
 -- import Effectful
 -- import Effectful.State.Static.Local
+-- import Text.Megaparsec qualified as M
 
 -- test :: IO ()
 -- test = do
 --   inp <- BS.readFile "samples/simple2x3.fits"
---   f <- decode inp
---   print f.primaryHDU.dataArray.axes
---   print f.primaryHDU.dataArray.bitpix
---   print f.primaryHDU.dataArray
---   print $ lookup "BTYPE" f.primaryHDU.header
+-- f <- decode inp
+-- print f.primaryHDU.dataArray.axes
+-- print f.primaryHDU.dataArray.bitpix
+-- print f.primaryHDU.dataArray
+-- print $ lookup "BTYPE" f.primaryHDU.header
 --
---   a <- decodeArray @Ix2 @Int f.primaryHDU.dataArray
---   print $ size a
---   print $ a !> 0
+-- a <- decodeArray @Ix2 @Int f.primaryHDU.dataArray
+-- print $ size a
+-- print $ a !> 0
 --
 --
 -- test2 :: IO ()
@@ -113,12 +112,13 @@ import Prelude hiding (lookup)
 -- test :: IO ()
 -- test = do
 --   putStrLn "\nREADING"
---   inp <- BS.readFile "/Users/seanhess/data/scan1807/inv_res_pre.fits"
+--   inp <- BS.readFile "/Users/seanhess/Data/pid_2_114/ADDMM/VISP_2023_10_16T23_55_59_513_00589600_I_ADDMM_L1.fits"
 --   fits <- decode inp
 --   print fits.primaryHDU.dataArray
---   [Image h2, Image h3] <- pure fits.extensions
---   print h2.dataArray
---   print h3.dataArray
+--   print $ length fits.extensions
+--   -- [Image h2, Image h3] <- pure fits.extensions
+--   -- print h2.dataArray
+--   -- print h3.dataArray
 --
 --   pure ()
 

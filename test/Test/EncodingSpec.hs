@@ -26,7 +26,7 @@ spec = do
 testDecodeFits :: Spec
 testDecodeFits = do
   describe "simple2x3.fits" $ do
-    it "should load load metadata" $ do
+    it "should load metadata" $ do
       f <- decode =<< BS.readFile "samples/simple2x3.fits"
       let dat = f.primaryHDU.dataArray
           hds = f.primaryHDU.header
@@ -190,7 +190,6 @@ testEncodePrimary = do
       BS.take 6 (BS.drop 2880 enc) `shouldBe` rawData
 
     itWithOuter "starts with SIMPLE" $ \enc -> do
-      print enc
       BS.take 30 enc `shouldBe` "SIMPLE  =                    T"
 
   aroundAll provDecoded $ describe "decoded encoded primary hdu" $ do
@@ -225,7 +224,7 @@ testEncodePrimary = do
 
 
 testRoundTrip :: Spec
-testRoundTrip =
+testRoundTrip = do
   aroundAll simple2x3 $ describe "simple2x3.fits" $ do
     itWithOuter "should match metadata" $ \fs -> do
       f2 <- decode $ encode fs
