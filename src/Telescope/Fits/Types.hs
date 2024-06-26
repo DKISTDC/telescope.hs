@@ -23,7 +23,8 @@ module Telescope.Fits.Types
   , emptyDataArray
   ) where
 
-import Data.ByteString as BS
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
 import Data.List qualified as L
 
@@ -35,10 +36,18 @@ data PrimaryHDU = PrimaryHDU
   }
 
 
+instance Show PrimaryHDU where
+  show p = showHDU "PrimaryHDU" p.header p.dataArray
+
+
 data ImageHDU = ImageHDU
   { header :: Header
   , dataArray :: DataArray
   }
+
+
+instance Show ImageHDU where
+  show p = showHDU "ImageHDU" p.header p.dataArray
 
 
 data BinTableHDU = BinTableHDU
@@ -47,6 +56,10 @@ data BinTableHDU = BinTableHDU
   , heap :: ByteString
   , dataArray :: DataArray
   }
+
+
+instance Show BinTableHDU where
+  show p = showHDU "BinTableHDU" p.header p.dataArray
 
 
 data DataArray = DataArray
@@ -60,12 +73,26 @@ instance Show DataArray where
   show d =
     L.intercalate
       "\n"
-      [ "DataArray:"
-      , "  data: " <> show (BS.length d.rawData) <> " bytes"
+      [ "  data: " <> show (BS.length d.rawData) <> " bytes"
       , "  dimensions: "
       , "    format: " <> L.drop 2 (show d.bitpix)
       , "    axes: " <> show d.axes.axes
       ]
+
+
+showHDU :: String -> Header -> DataArray -> String
+showHDU name h d =
+  L.intercalate
+    "\n"
+    [ name
+    , showHeader h
+    , show d
+    ]
+
+
+showHeader :: Header -> String
+showHeader h =
+  "  Header: " <> show (length $ getKeywords h)
 
 
 emptyDataArray :: DataArray
@@ -80,6 +107,11 @@ emptyDataArray = DataArray BPInt8 (Axes []) ""
 data Extension
   = Image ImageHDU
   | BinTable BinTableHDU
+
+
+instance Show Extension where
+  show (Image i) = show i
+  show (BinTable b) = show b
 
 
 type Axis = Int
@@ -102,6 +134,17 @@ data Fits = Fits
   , extensions :: [Extension]
   }
 
+
+instance Show Fits where
+  show f =
+    show f.primaryHDU
+      <> "\n"
+      <> L.intercalate "\n" (fmap show f.extensions)
+
+
+--   L.intercalate
+--   "\n"
+-- \$ fmap show extensions
 
 data BitPix
   = BPInt8
