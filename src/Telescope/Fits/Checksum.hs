@@ -12,6 +12,27 @@ import Foreign.Ptr
 import GHC.IO
 
 
+-- | Generate the Checksum per the FITS spec
+checksum :: ByteString -> Checksum
+checksum bs = unsafePerformIO $ do
+  let (fptr, offset, len) = toForeignPtr bs
+  withForeignPtr fptr $ \ptr -> do
+    ci <- c_checksum (ptr `plusPtr` offset) (fromIntegral len)
+    pure $ Checksum $ fromIntegral ci
+
+
+-- | Encode the Checksum as ASCII chars per FITS spec
+encodeChecksum :: Checksum -> Text
+encodeChecksum (Checksum csum) =
+  unsafePerformIO $ do
+    let comp = complement csum
+    let str = replicate 16 ' '
+    out <- withCString str $ \cs -> do
+      char_encode (fromIntegral comp) cs
+      peekCString cs
+    pure $ pack out
+
+
 foreign import ccall "checksum" c_checksum :: Ptr CChar -> CInt -> IO CUInt
 
 
@@ -23,30 +44,11 @@ instance Semigroup Checksum where
   Checksum w1 <> Checksum w2 = Checksum (add1s w1 w2)
 
 
-checksum :: ByteString -> Checksum
-checksum bs = unsafePerformIO $ do
-  let (fptr, offset, len) = toForeignPtr bs
-  withForeignPtr fptr $ \ptr -> do
-    ci <- c_checksum (ptr `plusPtr` offset) (fromIntegral len)
-    pure $ Checksum $ fromIntegral ci
-
-
 checksumValue :: Checksum -> Value
 checksumValue (Checksum s) = String (pack (show s))
 
 
 foreign import ccall "char_encode" char_encode :: CUInt -> CString -> IO ()
-
-
-encodeChecksum :: Checksum -> Text
-encodeChecksum (Checksum csum) =
-  unsafePerformIO $ do
-    let comp = complement csum
-    let str = replicate 16 ' '
-    out <- withCString str $ \cs -> do
-      char_encode (fromIntegral comp) cs
-      peekCString cs
-    pure $ pack out
 
 
 add1s :: Word32 -> Word32 -> Word32

@@ -1,5 +1,5 @@
 name:                telescope
-version:             0.1.1
+version:             0.1.2
 synopsis:            Astronomical Observations (FITS, ASDF, WCS, etc)
 description:         Work with astronomical observations from modern telescopes
 homepage:            https://github.com/dkistdc/telescope.hs
@@ -10,6 +10,8 @@ copyright:           (c) 2024 Sean Hess
 category:            Science, Astronomy
 extra-source-files:
   - README.md
+  - src/checksum.c
+  - src/checksum.h
 
 language: GHC2021
 
