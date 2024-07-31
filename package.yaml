@@ -38,7 +38,7 @@ dependencies:
   - binary >= 0.8.9 && <0.9
   - bytestring >= 0.11 && <0.12
   - exceptions >= 0.10 && <0.11
-  - fits-parse >= 0.3.6 && < 0.4
+  - fits-parse >= 0.4.2 && < 0.5
   - massiv >= 1.0 && < 1.1
   - megaparsec >= 9.6 && <9.7
   - text >= 2.0 && <3
@@ -61,8 +61,12 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - telescope
-    - sydtest >= 0.15
     - binary
     - containers
+
+    # envparse 0.5 gives error in sydtest
+    - sydtest >= 0.15
+    - envparse >= 0.4 && <= 0.5
+
 
 
