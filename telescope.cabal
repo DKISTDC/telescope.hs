@@ -23,6 +23,7 @@ extra-source-files:
 
 library
     exposed-modules:
+        Telescope.Asdf
         Telescope.Fits
         Telescope.Fits.Checksum
         Telescope.Fits.Encoding
@@ -32,6 +33,7 @@ library
     other-modules:
         Paths_telescope
     build-depends:
+        aeson,
         base >=4.7 && <5,
         binary >=0.8.9 && <0.9,
         bytestring ==0.11.*,
@@ -40,6 +42,7 @@ library
         fits-parse >=0.4.2 && <0.5,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
+        scientific,
         text >=2.0 && <3
     hs-source-dirs:
         src
@@ -90,6 +93,7 @@ test-suite spec
     build-tool-depends:
         sydtest-discover:sydtest-discover
     build-depends:
+        aeson,
         base >=4.7 && <5,
         binary,
         bytestring ==0.11.*,
@@ -100,6 +104,7 @@ test-suite spec
         fits-parse >=0.4.2 && <0.5,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
+        scientific,
         sydtest >=0.15,
         telescope,
         text >=2.0 && <3
