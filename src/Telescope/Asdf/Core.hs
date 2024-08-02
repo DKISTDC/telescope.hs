@@ -1,18 +1,16 @@
 module Telescope.Asdf.Core where
 
+import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
 import Data.Scientific (Scientific)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import GHC.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Node
-import Telescope.Fits.Types (Axes, Row)
+import Telescope.Fits.Types (Axes (..), Row)
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
 -- >> Unrecognised units should be accepted by parsers, as long as they are parsed giving preference to the syntaxes and prefixes described here.
--- umm...............
--- ..................
--- then do these transform themsleves too?
 data Unit
   = Count
   | Pixel
@@ -20,11 +18,12 @@ data Unit
 
 
 instance ToAsdf Unit where
-  type Schema Unit = "unit/unit-1.5.0"
+  schema = "unit/unit-1.5.0"
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"
     (Unit t) -> String t
+instance FromAsdf Unit where
   fromValue = \case
     String "count" -> pure Count
     String "pixel" -> pure Pixel
@@ -33,6 +32,7 @@ instance ToAsdf Unit where
     val -> fail $ "Expected String, but got: " ++ show val
 
 
+-- it seems silly to parse into these. this is dynamic typing!
 data Quantity = Quantity
   { unit :: Unit
   , value :: Value
@@ -40,18 +40,19 @@ data Quantity = Quantity
 
 
 instance ToAsdf Quantity where
-  type Schema Quantity = "unit/quantity-1.5.0"
+  schema = "unit/quantity-1.5.0"
   toValue q =
     Object
       [ ("unit", toNode q.unit)
-      , ("value", Node Nothing q.value)
+      , ("value", Node mempty q.value)
       ]
+instance FromAsdf Quantity where
   fromValue = \case
     Object o -> do
       unit <- o .: "unit"
-      Node _ value <- field "value" o
+      value <- o .: "value"
       pure $ Quantity{unit, value}
-    val -> fail $ "Expected Object, but got: " ++ show val
+    val -> fail $ expected "Quantity" val
 
 
 data NDArray = NDArray
@@ -60,27 +61,55 @@ data NDArray = NDArray
   , datatype :: DataType
   , shape :: Axes Row
   }
+
+
+instance ToAsdf NDArray where
+  schema = "core/ndarray-1.5.0"
+  toValue a =
+    Object
+      [ ("source", toNode a.source)
+      , ("byteorder", toNode a.byteorder)
+      , ("datatype", toNode a.datatype)
+      , ("shape", toNode a.shape)
+      ]
+
+
+instance FromAsdf NDArray where
+  fromValue = \case
+    Object o -> do
+      sc <- o .: "source"
+      bo <- o .: "byteorder"
+      dt <- o .: "datatype"
+      sh <- o .: "shape"
+      pure $ NDArray sc bo dt sh
+    val -> fail $ expected "NDArray" val
+
+
 data DataType = Float64
 
 
--- what if this is two classes?
--- Schema
--- ToAsdf
-instance ToAsdf NDArray where
-  type Schema NDArray = "core/ndarray-1.5.0"
-  toValue a =
-    Object
-      [ ("source", Node Nothing (Binary a.source))
-      , ("byteorder", Node Nothing a.byteorder)
-      , ("datatype", Node Nothing a.datatype)
-      , ("shape", Node Nothing a.shape)
-      ]
+instance ToAsdf DataType where
+  toValue Float64 = String "Float64"
+instance FromAsdf DataType where
   fromValue = \case
-    Object o -> do
-      unit <- o .: "unit"
-      Node _ value <- field "value" o
-      pure $ Quantity{unit, value}
-    val -> fail $ "Expected Object, but got: " ++ show val
+    String "Float64" -> pure Float64
+    node -> fail $ expected "DataType" node
+
+
+-- points are really just an array, encoded in the ndarray
+newtype Points = Points [Double]
+
+
+instance ToAsdf Points where
+  schema = "unit/quantity-1.1.0"
+  toValue (Points ds) = _
+
+-- instance ToAsdf Points where
+--   schema = "unit/quantity-1.1.0"
+--   toValue (Points ds) = _
+
+-- we could have embedded data as a class?
+-- we are really just specifying how type x
 
 --  points:
 -- - !unit/quantity-1.1.0
@@ -89,4 +118,3 @@ instance ToAsdf NDArray where
 --     source: 260
 --     datatype: float64
 --     byteorder: little
---     shape: [85]
