@@ -3,9 +3,11 @@
 module Telescope.Asdf
   ( module Telescope.Asdf.Node
   , module Telescope.Asdf.Encoding
+  , module Telescope.Asdf.Core
   )
 where
 
+import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding
 import Telescope.Asdf.Node
 

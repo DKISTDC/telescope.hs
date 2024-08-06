@@ -1,12 +1,17 @@
+{-# LANGUAGE OverloadedLists #-}
+
 module Telescope.Asdf.Core where
 
 import Data.Aeson.Types (Parser)
+import Data.Binary qualified as B
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy qualified as BL
+import Data.Massiv.Array
 import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import GHC.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Node
-import Telescope.Fits.Types (Axes (..), Row)
+import Telescope.Fits.Types (Axes (..), Row, axesRowMajor)
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
@@ -24,7 +29,7 @@ instance ToAsdf Unit where
     Pixel -> "pixel"
     (Unit t) -> String t
 instance FromAsdf Unit where
-  fromValue = \case
+  parseValue = \case
     String "count" -> pure Count
     String "pixel" -> pure Pixel
     String "pix" -> pure Pixel
@@ -47,7 +52,7 @@ instance ToAsdf Quantity where
       , ("value", Node mempty q.value)
       ]
 instance FromAsdf Quantity where
-  fromValue = \case
+  parseValue = \case
     Object o -> do
       unit <- o .: "unit"
       value <- o .: "value"
@@ -55,46 +60,33 @@ instance FromAsdf Quantity where
     val -> fail $ expected "Quantity" val
 
 
-data NDArray = NDArray
-  { source :: ByteString
-  , byteorder :: ByteOrder
-  , datatype :: DataType
-  , shape :: Axes Row
-  }
+-- instance ToAsdf NDArray where
+--   schema = "core/ndarray-1.5.0"
+--   toValue a =
+--     Object
+--       [ ("source", toNode a.source)
+--       , ("byteorder", toNode a.byteorder)
+--       , ("datatype", toNode a.datatype)
+--       , ("shape", toNode a.shape)
+--       ]
+--
+--
+-- instance FromAsdf NDArray where
+--   parseValue = \case
+--     Object o -> do
+--       sc <- o .: "source"
+--       bo <- o .: "byteorder"
+--       dt <- o .: "datatype"
+--       sh <- o .: "shape"
+--       pure $ NDArray sc bo dt sh
+--     val -> fail $ expected "NDArray" val
 
-
-instance ToAsdf NDArray where
-  schema = "core/ndarray-1.5.0"
-  toValue a =
-    Object
-      [ ("source", toNode a.source)
-      , ("byteorder", toNode a.byteorder)
-      , ("datatype", toNode a.datatype)
-      , ("shape", toNode a.shape)
-      ]
-
-
-instance FromAsdf NDArray where
-  fromValue = \case
-    Object o -> do
-      sc <- o .: "source"
-      bo <- o .: "byteorder"
-      dt <- o .: "datatype"
-      sh <- o .: "shape"
-      pure $ NDArray sc bo dt sh
-    val -> fail $ expected "NDArray" val
-
-
-data DataType = Float64
-
-
-instance ToAsdf DataType where
-  toValue Float64 = String "Float64"
-instance FromAsdf DataType where
-  fromValue = \case
-    String "Float64" -> pure Float64
-    node -> fail $ expected "DataType" node
-
+-- instance ToAsdf DataType where
+--   toValue Float64 = String "Float64"
+-- instance FromAsdf DataType where
+--   parseValue = \case
+--     String "Float64" -> pure Float64
+--     node -> fail $ expected "DataType" node
 
 -- points are really just an array, encoded in the ndarray
 newtype Points = Points [Double]
@@ -102,7 +94,34 @@ newtype Points = Points [Double]
 
 instance ToAsdf Points where
   schema = "unit/quantity-1.1.0"
-  toValue (Points ds) = _
+  toValue (Points ds) = do
+    toValue $ Quantity Pixel (toValue ds)
+
+
+instance FromAsdf Points where
+  parseValue v = do
+    q <- parseValue v :: Parser Quantity
+    ps <- parseValue q.value
+    pure $ Points ps
+
+
+-- TEST: this is probably index dependnent
+data BoundingBox = BoundingBox Double Double
+
+
+instance ToAsdf BoundingBox where
+  toValue (BoundingBox a b) =
+    Array
+      [ toNode $ Quantity Pixel (toValue a)
+      , toNode $ Quantity Pixel (toValue b)
+      ]
+
+
+instance FromAsdf BoundingBox where
+  parseValue = \case
+    Array [n1, n2] -> do
+      BoundingBox <$> fromNode n1 <*> fromNode n2
+    node -> fail $ expected "BoundingBox" node
 
 -- instance ToAsdf Points where
 --   schema = "unit/quantity-1.1.0"
@@ -118,3 +137,5 @@ instance ToAsdf Points where
 --     source: 260
 --     datatype: float64
 --     byteorder: little
+--
+--

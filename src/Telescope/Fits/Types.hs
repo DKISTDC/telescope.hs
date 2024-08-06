@@ -9,6 +9,8 @@ module Telescope.Fits.Types
   , Axes (..)
   , Row
   , Column
+  , axesRowMajor
+  , axesColumnMajor
   , rowMajor
   , columnMajor
   , BitPix (..)
@@ -27,6 +29,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
 import Data.List qualified as L
+import GHC.IsList (IsList (..))
 
 
 -- we know the first one is an image
@@ -119,6 +122,20 @@ newtype Axes a = Axes {axes :: [Axis]}
   deriving (Show, Eq)
 data Row
 data Column
+
+
+instance IsList (Axes Row) where
+  type Item (Axes Row) = Axis
+  fromList = Axes
+  toList (Axes ax) = ax
+
+
+axesRowMajor :: [Axis] -> Axes Row
+axesRowMajor = Axes
+
+
+axesColumnMajor :: [Axis] -> Axes Column
+axesColumnMajor = Axes
 
 
 rowMajor :: Axes Column -> Axes Row

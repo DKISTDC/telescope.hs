@@ -27,7 +27,6 @@ library
         Telescope.Asdf.Core
         Telescope.Asdf.Encoding
         Telescope.Asdf.Node
-        Telescope.Asdf.ToAsdf
         Telescope.Fits
         Telescope.Fits.Checksum
         Telescope.Fits.Encoding
@@ -40,6 +39,7 @@ library
         aeson,
         base >=4.7 && <5,
         binary >=0.8.9 && <0.9,
+        byte-order,
         bytestring ==0.11.*,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
@@ -100,6 +100,7 @@ test-suite spec
         aeson,
         base >=4.7 && <5,
         binary,
+        byte-order,
         bytestring ==0.11.*,
         containers,
         effectful >=2.3 && <3,

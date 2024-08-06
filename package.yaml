@@ -45,6 +45,7 @@ dependencies:
   - effectful >= 2.3 && <3
   - aeson
   - scientific
+  - byte-order
 
 library:
   source-dirs: src

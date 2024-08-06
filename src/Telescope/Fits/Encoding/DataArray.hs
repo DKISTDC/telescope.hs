@@ -103,6 +103,7 @@ fromVector as v = do
 
 
 -- TODO: switch to throwable
+-- TODO: generialize this to work for both Fits and Asdf
 parseVector :: forall a. (GetPix a) => Comp -> BitPix -> BS.ByteString -> Vector D a
 parseVector c bp inp =
   let v = parseWordVector inp
