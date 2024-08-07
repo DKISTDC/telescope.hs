@@ -45,19 +45,17 @@ instance BinaryValue Double where
   get BigEndian = getDoublebe
   get LittleEndian = getDoublele
 
+-- instance (BinaryValue a) => BinaryValue [a] where
+--   byteSize = byteSize @a
+--   put bo = mapM_ (put bo)
+--   get bo = getToEmpty (get bo)
 
-instance (BinaryValue a) => BinaryValue [a] where
-  byteSize = byteSize @a
-  put bo = mapM_ (put bo)
-  get bo = getToEmpty (get bo)
-
-
-getToEmpty :: Get a -> Get [a]
-getToEmpty gt = do
-  empty <- isEmpty
-  if empty
-    then return []
-    else do
-      a <- gt
-      as <- getToEmpty gt
-      pure (a : as)
+-- getToEmpty :: Get a -> Get [a]
+-- getToEmpty gt = do
+--   empty <- isEmpty
+--   if empty
+--     then return []
+--     else do
+--       a <- gt
+--       as <- getToEmpty gt
+--       pure (a : as)

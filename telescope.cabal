@@ -24,10 +24,12 @@ extra-source-files:
 library
     exposed-modules:
         Telescope.Asdf
+        Telescope.Asdf.Class
         Telescope.Asdf.Core
         Telescope.Asdf.Encoding
         Telescope.Asdf.NDArray
         Telescope.Asdf.Node
+        Telescope.Asdf.Parser
         Telescope.Data.Array
         Telescope.Data.Axes
         Telescope.Data.Binary

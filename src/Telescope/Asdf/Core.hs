@@ -2,7 +2,6 @@
 
 module Telescope.Asdf.Core where
 
-import Data.Aeson.Types (Parser)
 import Data.Binary qualified as B
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
@@ -10,7 +9,10 @@ import Data.Massiv.Array
 import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import GHC.ByteOrder (ByteOrder (..))
+import Telescope.Asdf.Class
+import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
+import Telescope.Asdf.Parser
 import Telescope.Fits.Types (Axes (..), Row)
 
 
@@ -89,13 +91,13 @@ instance FromAsdf Quantity where
 --     node -> fail $ expected "DataType" node
 
 -- points are really just an array, encoded in the ndarray
-newtype Points = Points [Double]
+newtype Points = Points [[Double]]
 
 
 instance ToAsdf Points where
   schema = "unit/quantity-1.1.0"
   toValue (Points ds) = do
-    toValue $ Quantity Pixel (toValue ds)
+    toValue $ Quantity Pixel (NDArray $ toNDArray ds)
 
 
 instance FromAsdf Points where
@@ -111,7 +113,7 @@ newtype Points' = Points' (Array D Ix1 Double)
 instance ToAsdf Points' where
   schema = "unit/quantity-1.1.0"
   toValue (Points' ds) = do
-    toValue $ Quantity Pixel (toValue ds)
+    toValue $ Quantity Pixel (NDArray $ toNDArray ds)
 
 
 instance FromAsdf Points' where

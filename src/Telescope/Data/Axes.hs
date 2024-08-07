@@ -26,6 +26,10 @@ toColumnMajor :: Axes Row -> Axes Column
 toColumnMajor (Axes as) = Axes (reverse as)
 
 
+totalItems :: Axes a -> Int
+totalItems (Axes as) = product as
+
+
 instance IsList (Axes Row) where
   type Item (Axes Row) = Axis
   fromList = Axes

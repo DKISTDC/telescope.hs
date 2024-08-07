@@ -1,17 +1,53 @@
-module Telescope.Fits.Encoding.DataArray where
+module Telescope.Fits.Encoding.DataArray
+  ( -- * Encoding Images
+    decodeArray
+  , encodeArray
 
+    -- * Encoding as ByteStrings
+  , decodeArrayData
+  , encodeArrayData
+
+    -- * Handling Axes
+  , totalPix
+  , AxesIndex (..)
+  , getAxesVector
+  , runGetThrow
+  , sizeAxes
+
+    -- * Binary Encoding
+  , GetPix (..)
+  , PutPix (..)
+  , PutArray (..)
+  , parseVector
+  , fromVector
+
+    -- * Exports from Data.Massiv.Array
+  , Array
+  , Ix1
+  , Ix2
+  , Ix3
+  , Ix4
+  , Ix5
+  , size
+  , (!>)
+  , (!?>)
+  , (<!)
+  , (<!?)
+  , (<!>)
+  , Dim (..)
+  ) where
+
+import Control.Exception
 import Control.Monad.Catch
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.Int
 import Data.Massiv.Array as M hiding (isEmpty, product)
 import Data.Proxy
-import GHC.Int
-import System.ByteOrder (ByteOrder (BigEndian))
-import Telescope.Data.Array
+import Data.Word (Word8)
 import Telescope.Data.Axes
-import Telescope.Data.Binary
 import Telescope.Fits.Types
 
 
@@ -36,15 +72,78 @@ Array D Seq (Sz (2 :. 3))
 
 This creates a delayed (D) array, which will postpone evaluation of cells until needed
 -}
-decodeDataArray :: forall ix a m. (MonadThrow m, MonadUnliftIO m, Manifest D a) => (Index ix, AxesIndex ix, Prim a, BinaryValue a) => DataArray -> m (Array D ix a)
-decodeDataArray DataArray{axes, rawData} = do
-  decodeArrayOrder BigEndian (toRowMajor axes) rawData
+decodeArray :: forall ix a m. (MonadThrow m) => (Index ix, AxesIndex ix, Prim a, GetPix a) => DataArray -> m (Array D ix a)
+decodeArray DataArray{bitpix, axes, rawData} = do
+  decodeArrayData bitpix axes rawData
 
 
--- | Decode Axes as a delayed stream 1d vector
+{- | Decode data into an Array of arbitrary dimensions 'ix' specifying 'BitPixFormat' and 'Axes'
+
+>>> decodeArray @Ix2 @Float BPFloat [3, 2] input
+Array P Seq (Sz (2 :. 3))
+  [ [ 1.0, 2.0, 3.0 ]
+  , [ 4.0, 5.0, 6.0 ]
+  ]
+-}
+decodeArrayData
+  :: forall ix a m
+   . (AxesIndex ix, Prim a, GetPix a, Index ix, MonadThrow m)
+  => BitPix
+  -> Axes Column
+  -> BS.ByteString
+  -> m (Array D ix a)
+decodeArrayData f as inp = do
+  let v = parseVector @a Par f inp
+  fromVector as v
+
+
+fromVector :: forall ix a m. (AxesIndex ix, Index ix, Prim a, MonadThrow m) => Axes Column -> Vector D a -> m (Array D ix a)
+fromVector as v = do
+  ix <- axesIndex $ toRowMajor as
+  resizeM (Sz ix) v
+
+
+-- TODO: switch to throwable
+-- TODO: generialize this to work for both Fits and Asdf
+parseVector :: forall a. (GetPix a) => Comp -> BitPix -> BS.ByteString -> Vector D a
+parseVector c bp inp =
+  let v = parseWordVector inp
+   in makeArray c (bitPixSize v) (toBitPix v)
+ where
+  bitPixSize v =
+    let Sz s = size v
+     in Sz $ s `div` bytes
+
+  bytes = bitPixBits bp `div` 8
+
+  toBitPix :: Vector D Word8 -> Ix1 -> a
+  toBitPix v ix =
+    let slc = M.slice (ix * bytes) (Sz bytes) v :: Vector D Word8
+     in -- in trace (show ("toBitPix:" <> show ix, show bytes, show slc)) $
+        toPix $ M.toList slc
+
+  parseWordVector :: BS.ByteString -> Vector D Word8
+  parseWordVector = fromByteString c
+
+  toPix :: [Word8] -> a
+  toPix ws =
+    -- trace (show (ws, BL.pack ws)) $
+    case runGetOrFail (getPix @a bp) (BL.pack ws) of
+      Left (ip, byts, e) -> throw $ ParseError byts (e <> " " <> show ip <> show bp)
+      Right (_, _, a) -> a
+
+
+-- | Decode Axes as a delayed 1d vector
 getAxesVector :: Get a -> Axes Column -> Get (Vector DS a)
-getAxesVector gt as = do
-  sreplicateM (Sz1 (totalPix as)) gt
+getAxesVector get as = do
+  sreplicateM (Sz1 (totalPix as)) get
+
+
+runGetThrow :: forall a m. (MonadThrow m) => Get a -> BL.ByteString -> m a
+runGetThrow get inp =
+  case runGetOrFail get inp of
+    Left (_, bytes, e) -> throwM $ ParseError bytes e
+    Right (_, _, a) -> pure a
 
 
 ----- ENCODING -----------------------------------------------------------------
@@ -58,40 +157,176 @@ DataArray:
     format: Int64
     axes: [3,2]
 -}
-encodeDataArray
+encodeArray
   :: forall r ix a
-   . (Source r a, Stream r Ix1 a, Size r, PutArray ix, Index ix, AxesIndex ix, BinaryValue a, IsBitPix a, Prim a)
+   . (Source r a, Stream r Ix1 a, Size r, PutArray ix, Index ix, AxesIndex ix, PutPix a, Prim a)
   => Array r ix a
   -> DataArray
-encodeDataArray arr =
+encodeArray arr =
   let axes = sizeAxes $ size arr
       bitpix = bitPixFormat @a Proxy
-      rawData = encodeArray arr -- O(n)
+      rawData = encodeArrayData arr -- O(n)
    in DataArray{bitpix, axes, rawData}
 
 
+{- | Encode an Array as a Lazy ByteString based on the type of the element 'a'
+
+>>> myArray = decodeArray @Ix2 @Float BPFloat [3, 2] input
+>>> output = encodeArray myArray
+-}
+encodeArrayData :: (Source r a, Stream r Ix1 a, PutArray ix, Index ix, PutPix a, Prim a) => Array r ix a -> BS.ByteString
+encodeArrayData = BL.toStrict . runPut . putArray
+
+
 -- | The total number of pixels to read from the input ByteString
-totalPix :: Axes a -> Int
+totalPix :: Axes Column -> Int
 totalPix (Axes as) = product as
+
+
+class AxesIndex ix where
+  axesIndex :: (MonadThrow m) => Axes Row -> m ix
+  indexAxes :: ix -> Axes Row
+
+
+instance AxesIndex Ix1 where
+  axesIndex (Axes [i]) = pure i
+  axesIndex as = throwM $ AxesMismatch as
+  indexAxes n = Axes [n]
+
+
+instance AxesIndex Ix2 where
+  axesIndex (Axes [c, r]) = do
+    ix1 <- axesIndex $ Axes [r]
+    pure $ c :. ix1
+  axesIndex as = throwM $ AxesMismatch as
+  indexAxes (c :. r) = Axes [c, r]
+
+
+instance AxesIndex Ix3 where
+  axesIndex = axesIndexN
+  indexAxes = indexAxesN
+
+
+instance AxesIndex Ix4 where
+  axesIndex = axesIndexN
+  indexAxes = indexAxesN
+
+
+instance AxesIndex Ix5 where
+  axesIndex = axesIndexN
+  indexAxes = indexAxesN
+
+
+axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadThrow m) => Axes Row -> m (IxN n)
+axesIndexN (Axes (a : as)) = do
+  ixl <- axesIndex (Axes as)
+  pure $ a :> ixl
+axesIndexN as = throwM $ AxesMismatch as
+
+
+indexAxesN :: (AxesIndex (Lower (IxN n))) => IxN n -> Axes Row
+indexAxesN (d :> ix) =
+  let Axes ax = indexAxes ix
+   in Axes $ d : ax
 
 
 sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
 sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
 
 
-class IsBitPix a where
+data ParseError
+  = ParseError !ByteOffset !String
+  | AxesMismatch !(Axes Row)
+  deriving (Show, Exception)
+
+
+class GetPix a where
+  getPix :: BitPix -> Get a
+
+
+instance GetPix Int8 where
+  getPix BPInt8 = getInt8
+  getPix f = fail $ "Expected Int8, but format is " <> show f
+
+
+instance GetPix Int16 where
+  getPix BPInt16 = getInt16be
+  getPix f = fail $ "Expected Int16, but format is " <> show f
+
+
+instance GetPix Int32 where
+  getPix BPInt32 = getInt32be
+  getPix f = fail $ "Expected Int32, but format is " <> show f
+
+
+instance GetPix Int64 where
+  getPix BPInt64 = getInt64be
+  getPix f = fail $ "Expected Int64, but format is " <> show f
+
+
+instance GetPix Int where
+  getPix BPInt8 = fromIntegral <$> getPix @Int8 BPInt8
+  getPix BPInt16 = fromIntegral <$> getPix @Int16 BPInt16
+  getPix BPInt32 = fromIntegral <$> getPix @Int32 BPInt32
+  getPix BPInt64 = fromIntegral <$> getPix @Int64 BPInt64
+  getPix f = fail $ "Expected Int, but format is " <> show f
+
+
+instance GetPix Float where
+  getPix BPFloat = getFloatbe
+  getPix f = fail $ "Expected Float, but format is " <> show f
+
+
+instance GetPix Double where
+  getPix BPDouble = getDoublebe
+  getPix f = fail $ "Expected Double, but format is " <> show f
+
+
+-- | How to encode an element type. Note that there is no instance for 'Int', since the size is system dependent. Use Int64 or Int32 instead
+class PutPix a where
   bitPixFormat :: Proxy a -> BitPix
+  putPix :: a -> Put
 
 
-instance IsBitPix Int8 where
+instance PutPix Int8 where
   bitPixFormat _ = BPInt8
-instance IsBitPix Int16 where
+  putPix = putInt8
+instance PutPix Int16 where
   bitPixFormat _ = BPInt16
-instance IsBitPix Int32 where
+  putPix = putInt16be
+instance PutPix Int32 where
   bitPixFormat _ = BPInt32
-instance IsBitPix Int64 where
+  putPix = putInt32be
+instance PutPix Int64 where
   bitPixFormat _ = BPInt64
-instance IsBitPix Float where
+  putPix = putInt64be
+instance PutPix Float where
   bitPixFormat _ = BPFloat
-instance IsBitPix Double where
+  putPix = putFloatbe
+instance PutPix Double where
   bitPixFormat _ = BPDouble
+  putPix = putDoublebe
+
+
+class PutArray ix where
+  putArray :: (Source r a, Stream r Ix1 a, PutPix a, Prim a) => Array r ix a -> Put
+
+
+instance PutArray Ix1 where
+  putArray = sfoldl (\b a -> b <> putPix a) mempty
+
+
+instance PutArray Ix2 where
+  putArray = foldOuterSlice putArray
+
+
+instance PutArray Ix3 where
+  putArray = foldOuterSlice putArray
+
+
+instance PutArray Ix4 where
+  putArray = foldOuterSlice putArray
+
+
+instance PutArray Ix5 where
+  putArray = foldOuterSlice putArray

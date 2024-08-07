@@ -1,5 +1,6 @@
 module Telescope.Data.Array where
 
+import Control.Exception (throw)
 import Control.Monad.Catch
 import Data.Binary.Get (ByteOffset, runGetOrFail)
 import Data.Binary.Put (Put, runPut)
@@ -23,7 +24,7 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArray
   :: forall ix a m
-   . (AxesIndex ix, Prim a, BinaryValue a, Index ix, MonadThrow m, MonadUnliftIO m, Manifest D a)
+   . (AxesIndex ix, Prim a, BinaryValue a, MonadFail m)
   => Axes Row
   -> BS.ByteString
   -> m (Array D ix a)
@@ -36,7 +37,7 @@ decodeArray = decodeArrayOrder BigEndian
 >>> output = encodeArray myArray
 -}
 encodeArray
-  :: (Source r a, Stream r Ix1 a, PutArray ix, Index ix, BinaryValue a, Prim a)
+  :: (Source r a, Stream r Ix1 a, PutArray ix, BinaryValue a, Prim a)
   => Array r ix a
   -> BS.ByteString
 encodeArray = BL.toStrict . runPut . putArray BigEndian
@@ -52,27 +53,26 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArrayOrder
   :: forall ix a m
-   . (AxesIndex ix, Prim a, BinaryValue a, Index ix, MonadThrow m, MonadUnliftIO m, Manifest D a)
+   . (AxesIndex ix, BinaryValue a, MonadFail m)
   => ByteOrder
   -> Axes Row
   -> BS.ByteString
   -> m (Array D ix a)
 decodeArrayOrder bo as inp = do
-  v <- decodeVector @a Par bo inp
-  fromVector as v
+  fromVector as $ decodeVector @a Par bo inp
 
 
 -- | Decode binary data into as a 1d Vector ~ (Array r Ix1 a)
 decodeVector
-  :: forall a m
-   . (BinaryValue a, Manifest D a, MonadThrow m, MonadUnliftIO m)
+  :: forall a
+   . (BinaryValue a)
   => Comp
   -> ByteOrder
   -> BS.ByteString
-  -> m (Vector D a)
-decodeVector c bo inp = do
+  -> Vector D a
+decodeVector c bo inp =
   let v = parseWordVector inp
-  M.generateArray c (arraySize v) (valueAt v)
+   in M.makeArray c (arraySize v) (valueAt v)
  where
   numBytes = byteSize @a
 
@@ -80,10 +80,9 @@ decodeVector c bo inp = do
     let Sz s = M.size v
      in Sz $ s `div` numBytes
 
-  valueAt :: Vector D Word8 -> Ix1 -> m a
-  valueAt v ix = do
-    let ws = wordsAt v ix
-    fromWords ws
+  valueAt :: Vector D Word8 -> Ix1 -> a
+  valueAt v ix =
+    fromWords $ wordsAt v ix
 
   wordsAt :: Vector D Word8 -> Ix1 -> [Word8]
   wordsAt v ix =
@@ -92,23 +91,29 @@ decodeVector c bo inp = do
   parseWordVector :: BS.ByteString -> Vector D Word8
   parseWordVector = M.fromByteString c
 
-  fromWords :: [Word8] -> m a
+  -- this should never actually fail
+  fromWords :: [Word8] -> a
   fromWords ws =
     case runGetOrFail (get bo) (BL.pack ws) of
-      Left (ip, byts, e) -> throwM $ BinaryParseError byts (e <> " " <> show ip <> show ws)
-      Right (_, _, a) -> pure a
+      Left (ip, byts, e) -> throw $ BinaryParseError byts (e <> " " <> show ip <> show ws)
+      Right (_, _, a) -> a
 
+
+-- if I used my own parser type, I could use MonadThrow!
+-- and we could run in it just fine
+-- could the parser requier MonadUnfli
 
 -- | Resize a Vector into an Array
 fromVector
   :: forall ix a m
-   . (AxesIndex ix, Index ix, Prim a, MonadThrow m)
+   . (AxesIndex ix, MonadFail m)
   => Axes Row
   -> Vector D a
   -> m (Array D ix a)
 fromVector as v = do
   ix <- axesIndex as
-  M.resizeM (Sz ix) v
+  -- TODO: catch, so we can fail appropriately!
+  pure $ M.resize' (Sz ix) v
 
 
 data ArrayError
@@ -117,14 +122,14 @@ data ArrayError
   deriving (Show, Exception)
 
 
-class AxesIndex ix where
-  axesIndex :: (MonadThrow m) => Axes Row -> m ix
+class (Index ix) => AxesIndex ix where
+  axesIndex :: (MonadFail m) => Axes Row -> m ix
   indexAxes :: ix -> Axes Row
 
 
 instance AxesIndex Ix1 where
   axesIndex (Axes [i]) = pure i
-  axesIndex as = throwM $ AxesMismatch as
+  axesIndex as = fail $ show $ AxesMismatch as
   indexAxes n = Axes [n]
 
 
@@ -132,7 +137,7 @@ instance AxesIndex Ix2 where
   axesIndex (Axes [c, r]) = do
     ix1 <- axesIndex $ Axes [r]
     pure $ c :. ix1
-  axesIndex as = throwM $ AxesMismatch as
+  axesIndex as = fail $ show $ AxesMismatch as
   indexAxes (c :. r) = Axes [c, r]
 
 
@@ -151,11 +156,11 @@ instance AxesIndex Ix5 where
   indexAxes = indexAxesN
 
 
-axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadThrow m) => Axes Row -> m (IxN n)
+axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadFail m) => Axes Row -> m (IxN n)
 axesIndexN (Axes (a : as)) = do
   ixl <- axesIndex (Axes as)
   pure $ a :> ixl
-axesIndexN as = throwM $ AxesMismatch as
+axesIndexN as = fail $ show $ AxesMismatch as
 
 
 indexAxesN :: (AxesIndex (Lower (IxN n))) => IxN n -> Axes Row
@@ -166,7 +171,7 @@ indexAxesN (d :> ix) =
 
 class PutArray ix where
   putArray
-    :: (Source r a, Stream r Ix1 a, BinaryValue a, Prim a)
+    :: (BinaryValue a, Source r a, Stream r Ix1 a, Prim a)
     => ByteOrder
     -> Array r ix a
     -> Put
