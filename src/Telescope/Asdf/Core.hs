@@ -11,7 +11,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import GHC.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Node
-import Telescope.Fits.Types (Axes (..), Row, axesRowMajor)
+import Telescope.Fits.Types (Axes (..), Row)
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
@@ -101,8 +101,24 @@ instance ToAsdf Points where
 instance FromAsdf Points where
   parseValue v = do
     q <- parseValue v :: Parser Quantity
-    ps <- parseValue q.value
+    ps <- parseNDArray q.value
     pure $ Points ps
+
+
+newtype Points' = Points' (Array D Ix1 Double)
+
+
+instance ToAsdf Points' where
+  schema = "unit/quantity-1.1.0"
+  toValue (Points' ds) = do
+    toValue $ Quantity Pixel (toValue ds)
+
+
+instance FromAsdf Points' where
+  parseValue v = do
+    q <- parseValue v :: Parser Quantity
+    ps <- parseNDArray q.value
+    pure $ Points' ps
 
 
 -- TEST: this is probably index dependnent

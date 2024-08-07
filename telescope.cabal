@@ -26,7 +26,11 @@ library
         Telescope.Asdf
         Telescope.Asdf.Core
         Telescope.Asdf.Encoding
+        Telescope.Asdf.NDArray
         Telescope.Asdf.Node
+        Telescope.Data.Array
+        Telescope.Data.Axes
+        Telescope.Data.Binary
         Telescope.Fits
         Telescope.Fits.Checksum
         Telescope.Fits.Encoding

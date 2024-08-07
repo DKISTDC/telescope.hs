@@ -9,10 +9,6 @@ module Telescope.Fits.Types
   , Axes (..)
   , Row
   , Column
-  , axesRowMajor
-  , axesColumnMajor
-  , rowMajor
-  , columnMajor
   , BitPix (..)
   , bitPixBits
   , Header (..)
@@ -29,7 +25,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
 import Data.List qualified as L
-import GHC.IsList (IsList (..))
+import Telescope.Data.Axes
 
 
 -- we know the first one is an image
@@ -115,35 +111,6 @@ data Extension
 instance Show Extension where
   show (Image i) = show i
   show (BinTable b) = show b
-
-
-type Axis = Int
-newtype Axes a = Axes {axes :: [Axis]}
-  deriving (Show, Eq)
-data Row
-data Column
-
-
-instance IsList (Axes Row) where
-  type Item (Axes Row) = Axis
-  fromList = Axes
-  toList (Axes ax) = ax
-
-
-axesRowMajor :: [Axis] -> Axes Row
-axesRowMajor = Axes
-
-
-axesColumnMajor :: [Axis] -> Axes Column
-axesColumnMajor = Axes
-
-
-rowMajor :: Axes Column -> Axes Row
-rowMajor (Axes as) = Axes (L.reverse as)
-
-
-columnMajor :: Axes Row -> Axes Column
-columnMajor (Axes as) = Axes (L.reverse as)
 
 
 data Fits = Fits

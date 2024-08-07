@@ -2,20 +2,24 @@
 
 module Telescope.Asdf.Node where
 
+import Control.Monad.Catch (MonadThrow)
 import Data.Binary (Binary)
 import Data.Binary qualified as B
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, D, Ix1, Ix2, Ix3, Ix4, Ix5)
+import Data.Massiv.Array (Array, D, Index, Ix1, Ix2, Ix3, Ix4, Ix5, Manifest, MonadUnliftIO, Prim)
 import Data.Massiv.Array qualified as M
 import Data.Scientific (Scientific, fromFloatDigits, toRealFloat)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
 import GHC.Int
 import System.ByteOrder (ByteOrder (..), Bytes (..))
-import Telescope.Fits.Types (Axes (..), Row, axesRowMajor)
+import Telescope.Data.Array
+import Telescope.Data.Axes
+import Telescope.Data.Binary
+import Telescope.Fits.Types (Axes (..), Row)
 
 import Control.Monad (replicateM, unless)
 import Data.Aeson.Types (Parser)
@@ -260,48 +264,25 @@ ndArray a datatype shape =
    in NDArray $ NDArrayData{bytes, byteorder, datatype, shape}
 
 
-class BinaryValue a where
-  put :: ByteOrder -> a -> Put
-  get :: ByteOrder -> Get a
+-- newtype DataCube ix a = DataCube (Array D ix a)
 
+-- decodeNDArray :: (MonadThrow m, MonadUnliftIO m, AxesIndex ix, Prim a, BinaryValue a, Index ix, Manifest D a) => NDArrayData -> m (Array D ix a)
+-- decodeNDArray arr =
+--   decodeArrayOrder arr.byteorder arr.shape arr.bytes
 
-instance BinaryValue Int64 where
-  put BigEndian = putInt64be
-  put LittleEndian = putInt64le
-  get BigEndian = getInt64be
-  get LittleEndian = getInt64le
-
-
-instance BinaryValue Double where
-  put BigEndian = putDoublebe
-  put LittleEndian = putDoublele
-  get BigEndian = getDoublebe
-  get LittleEndian = getDoublele
-
-
-instance (BinaryValue a) => BinaryValue [a] where
-  put bo = mapM_ (put bo)
-  get bo = getUntilEmpty (get bo)
-
-
-getUntilEmpty :: Get a -> Get [a]
-getUntilEmpty gt = do
-  empty <- isEmpty
-  if empty
-    then return []
-    else do
-      a <- gt
-      as <- getUntilEmpty gt
-      pure (a : as)
-
-
-instance (BinaryValue a) => BinaryValue (Array D Ix1 a) where
-  put bo = mapM_ (put bo)
-  get bo = do
-    let v = parseVector @a Par f inp
-    let num = 10
-    ns <- replicateM num (get bo)
-    pure $ M.fromList M.Seq ns
+-- the size must be known early!
+-- we can't decode this without knowing the size, right?
+-- right
+-- instance (BinaryValue a) => BinaryValue (DataCube Ix1 a) where
+--   byteSize = byteSize @a
+--   put bo (DataCube a) = mapM_ (put bo) a
+--   get bo = do
+--     decodeArrayOrder bo (indexAxes ix)
+--     -- size isn't known until runtime?
+--     let v = parseVector @a Par f inp
+--     let num = 10
+--     ns <- replicateM num (get bo)
+--     pure $ M.fromList M.Seq ns
 
 -- 1. [Int64] - keep parsing ints until the end of the list
 -- 2. [Double] - same
