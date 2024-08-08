@@ -2,34 +2,21 @@
 
 module Telescope.Asdf.Class where
 
-import Control.Monad (replicateM, unless)
-import Control.Monad.Catch (MonadThrow)
-import Data.Binary (Binary)
-import Data.Binary qualified as B
-import Data.Binary.Get hiding (getBytes)
-import Data.Binary.Put
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, D, Index, Ix1, Ix2, Ix3, Ix4, Ix5, Manifest, MonadUnliftIO, Prim)
-import Data.Massiv.Array qualified as M
-import Data.Proxy (Proxy (..))
-import Data.Scientific (Scientific, fromFloatDigits, toRealFloat)
-import Data.String (IsString (..))
-import Data.Text (Text, pack, unpack)
+import Data.Scientific (fromFloatDigits, toRealFloat)
+import Data.Text (Text)
 import GHC.Int
-import GHC.TypeLits
-import System.ByteOrder (ByteOrder (..), Bytes (..))
+import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
-import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
-import Telescope.Fits.Types (Axes (..), Row)
 
 
 class ToAsdf a where
   toValue :: a -> Value
+
+
   schema :: SchemaTag
   default schema :: SchemaTag
   schema = mempty
@@ -93,29 +80,29 @@ instance FromAsdf Text where
     node -> fail $ expected "Text" node
 
 
--- instance ToAsdf ByteString where
---   toValue = Binary
--- instance FromAsdf ByteString where
+-- instance ToAsdf (Axes Row) where
+--   toValue (Axes axs) = Array $ fmap axis axs
+--    where
+--     axis ax = Node mempty (Number $ fromIntegral ax)
+-- instance FromAsdf (Axes Row) where
 --   parseValue = \case
---     Binary t -> pure t
---     node -> fail $ expected "Binary" node
-
-instance ToAsdf (Axes Row) where
-  toValue (Axes axs) = Array $ fmap axis axs
-   where
-    axis ax = Node mempty (Number $ fromIntegral ax)
-instance FromAsdf (Axes Row) where
-  parseValue = \case
-    Array ns -> do
-      axes <- mapM (\(Node _ v) -> parseValue v) ns
-      pure $ Axes axes
-    node -> fail $ expected "Axes" node
-
+--     Array ns -> do
+--       axes <- mapM (\(Node _ v) -> parseValue v) ns
+--       pure $ Axes axes
+--     node -> fail $ expected "Axes" node
 
 instance ToAsdf Value where
   toValue = id
 instance FromAsdf Value where
   parseValue = pure
+
+
+instance ToAsdf NDArrayData where
+  toValue = NDArray
+instance FromAsdf NDArrayData where
+  parseValue = \case
+    NDArray nda -> pure nda
+    node -> fail $ expected "NDArray" node
 
 
 -- | Convert to a Node, including the schema tag if specified
@@ -128,11 +115,9 @@ fromNode :: (FromAsdf a) => Node -> Parser a
 fromNode (Node _ v) = parseValue v
 
 
-
-
 (.:) :: (FromAsdf a) => Object -> Key -> Parser a
 o .: k = do
-  node <- parseNode k o
+  node <- parseKey k o
   fromNode node
 
 -- data Scalar

@@ -4,8 +4,6 @@ import Control.Monad.Catch
 import Effectful
 import Effectful.Error.Static
 import Effectful.Writer.Static.Local
-
--- import Telescope.Asdf.Class
 import Telescope.Asdf.Node
 
 
@@ -19,7 +17,7 @@ data Context
 
 -- the parser requires specific errors?
 newtype Parser a = Parser
-  { parserEffect :: Eff '[Error ParseError, Writer [Context]] a
+  { effect :: Eff '[Error ParseError, Writer [Context]] a
   }
   deriving newtype (Functor, Applicative, Monad)
 
@@ -34,7 +32,7 @@ instance MonadFail Parser where
 
 runParser :: Parser a -> Either String a
 runParser p =
-  case runPureEff . runWriter . runErrorNoCallStack $ p.parserEffect of
+  case runPureEff . runWriter . runErrorNoCallStack $ p.effect of
     (Left (ParseError e), ctx) -> Left $ formatError ctx e
     (Right a, _) -> Right a
 
@@ -44,8 +42,8 @@ formatError :: [Context] -> String -> String
 formatError _ s = s
 
 
-parseNode :: Key -> Object -> Parser Node
-parseNode k o =
+parseKey :: Key -> Object -> Parser Node
+parseKey k o =
   case lookup k o of
     Nothing -> fail $ "key " ++ show k ++ " not found"
     Just node -> do
