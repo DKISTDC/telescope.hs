@@ -26,6 +26,7 @@ library
         Telescope.Asdf
         Telescope.Asdf.Class
         Telescope.Asdf.Core
+        Telescope.Asdf.Document
         Telescope.Asdf.Encoding
         Telescope.Asdf.NDArray
         Telescope.Asdf.Node
@@ -80,8 +81,10 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
         Test.ArraySpec
-        Test.ChecksumSpec
-        Test.EncodingSpec
+        Test.Asdf.DocumentSpec
+        Test.BinarySpec
+        Test.Fits.ChecksumSpec
+        Test.Fits.EncodingSpec
         Paths_telescope
     hs-source-dirs:
         test/

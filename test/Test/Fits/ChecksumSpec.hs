@@ -1,4 +1,4 @@
-module Test.ChecksumSpec where
+module Test.Fits.ChecksumSpec where
 
 import Data.ByteString qualified as BS
 import Data.Word

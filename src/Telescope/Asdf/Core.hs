@@ -2,18 +2,12 @@
 
 module Telescope.Asdf.Core where
 
-import Data.Binary qualified as B
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy qualified as BL
 import Data.Massiv.Array
-import Data.Scientific (Scientific)
-import Data.Text (Text, pack)
-import GHC.ByteOrder (ByteOrder (..))
+import Data.Text (Text)
 import Telescope.Asdf.Class
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
-import Telescope.Fits.Types (Axes (..), Row)
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html

@@ -9,7 +9,6 @@ import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
-import Telescope.Data.Axes
 import Telescope.Data.Binary
 
 

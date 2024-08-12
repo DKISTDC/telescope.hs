@@ -4,7 +4,7 @@ module Telescope.Data.Binary where
 
 import Data.Binary.Get
 import Data.Binary.Put
-import GHC.Int (Int32, Int64)
+import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 
 
@@ -12,6 +12,20 @@ class BinaryValue a where
   byteSize :: Int
   put :: ByteOrder -> a -> Put
   get :: ByteOrder -> Get a
+
+
+instance BinaryValue Int8 where
+  byteSize = 1
+  put _ = putInt8
+  get _ = getInt8
+
+
+instance BinaryValue Int16 where
+  byteSize = 1
+  put BigEndian = putInt16be
+  put LittleEndian = putInt16le
+  get BigEndian = getInt16be
+  get LittleEndian = getInt16le
 
 
 instance BinaryValue Int32 where
@@ -28,6 +42,12 @@ instance BinaryValue Int64 where
   put LittleEndian = putInt64le
   get BigEndian = getInt64be
   get LittleEndian = getInt64le
+
+
+instance BinaryValue Int where
+  byteSize = byteSize @Int64
+  put bo a = put @Int64 bo (fromIntegral a)
+  get bo = fromIntegral <$> get @Int64 bo
 
 
 instance BinaryValue Float where

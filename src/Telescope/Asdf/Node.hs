@@ -2,29 +2,13 @@
 
 module Telescope.Asdf.Node where
 
-import Control.Monad.Catch (MonadThrow)
-import Data.Binary (Binary)
-import Data.Binary qualified as B
-import Data.Binary.Get hiding (getBytes)
-import Data.Binary.Put
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, D, Index, Ix1, Ix2, Ix3, Ix4, Ix5, Manifest, MonadUnliftIO, Prim)
-import Data.Massiv.Array qualified as M
-import Data.Scientific (Scientific, fromFloatDigits, toRealFloat)
+import Data.Scientific (Scientific)
 import Data.String (IsString (..))
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack)
 import GHC.Int
-import System.ByteOrder (ByteOrder (..), Bytes (..))
-import Telescope.Data.Array
+import System.ByteOrder (ByteOrder (..))
 import Telescope.Data.Axes
-import Telescope.Data.Binary
-import Telescope.Fits.Types (Axes (..), Row)
-
-import Control.Monad (replicateM, unless)
-import Data.Aeson.Types (Parser)
-import Data.Proxy (Proxy (..))
-import GHC.TypeLits
 
 
 -- | Specify a schema using 'schema' from 'ToAsdf'
@@ -61,9 +45,6 @@ instance IsString Value where
 
 type Key = Text
 type Object = [(Key, Node)]
-
-
-newtype Document = Document Node
 
 
 -- schemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => SchemaTag

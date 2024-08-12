@@ -8,7 +8,7 @@ import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, D, Index, Ix1, Ix2, Ix3, Ix4, Ix5, Manifest, MonadUnliftIO, Prim, Sz (..))
+import Data.Massiv.Array (Array, D, Ix1, Ix2, Ix3, Ix4, Ix5, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Data.Array

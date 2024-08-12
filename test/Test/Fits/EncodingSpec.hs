@@ -1,10 +1,11 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Test.EncodingSpec where
+module Test.Fits.EncodingSpec where
 
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.ByteString.Lazy.Char8 qualified as C8
+import Data.Massiv.Array (Ix2)
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
 import Telescope.Fits qualified as Fits
@@ -36,7 +37,7 @@ testDecodeFits = do
 
     it "should load data array" $ do
       f <- decode =<< BS.readFile "samples/simple2x3.fits"
-      arr <- decodeArray @Ix2 @Int f.primaryHDU.dataArray
+      arr <- decodeDataArray @Ix2 @Int f.primaryHDU.dataArray
       M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
 

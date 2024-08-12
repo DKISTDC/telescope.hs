@@ -6,7 +6,7 @@ import Data.Binary.Get (ByteOffset, runGetOrFail)
 import Data.Binary.Put (Put, runPut)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, Comp (..), D, Index, Ix1, Ix2 (..), Ix3, Ix4, Ix5, IxN (..), Lower, Manifest, MonadUnliftIO, Prim, Source, Stream, Sz (..), Vector)
+import Data.Massiv.Array (Array, Comp (..), D, Index, Ix1, Ix2 (..), Ix3, Ix4, Ix5, IxN (..), Lower, Prim, Source, Stream, Sz (..), Vector)
 import Data.Massiv.Array qualified as M
 import Data.Word (Word8)
 import System.ByteOrder (ByteOrder (..))
