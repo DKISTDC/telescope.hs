@@ -4,9 +4,9 @@ import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Lazy (ByteString)
 import GHC.Int
+import Skeletest
 import System.ByteOrder
 import Telescope.Data.Binary
-import Test.Syd
 
 
 spec :: Spec

@@ -17,6 +17,7 @@ language: GHC2021
 
 ghc-options:
   - -Wall
+  - -fdefer-typed-holes
 
 default-extensions:
   - DataKinds
@@ -36,7 +37,7 @@ default-extensions:
 dependencies:
   - base >= 4.7 && < 5
   - binary >= 0.8.9 && <0.9
-  - bytestring >= 0.11 && <0.12
+  - bytestring >= 0.11 && <0.13
   - exceptions >= 0.10 && <0.11
   - fits-parse >= 0.4.2 && < 0.5
   - massiv >= 1.0 && < 1.1
@@ -46,6 +47,9 @@ dependencies:
   - aeson
   - scientific
   - byte-order
+  - libyaml
+  - conduit
+  - resourcet-effectful
 
 library:
   source-dirs: src
@@ -57,18 +61,18 @@ tests:
   spec:
     main: Spec.hs
     source-dirs: test/
-    build-tools: sydtest-discover
+    build-tools: skeletest:skeletest-preprocessor
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -F -pgmF=skeletest-preprocessor
     dependencies:
     - telescope
     - binary
     - containers
-
     # envparse 0.5 gives error in sydtest
-    - sydtest >= 0.15
+    - skeletest
     - envparse >= 0.4 && <= 0.5
 
 

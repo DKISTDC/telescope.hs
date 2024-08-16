@@ -2,11 +2,11 @@ module Test.Fits.ChecksumSpec where
 
 import Data.ByteString qualified as BS
 import Data.Word
+import Skeletest
 import Telescope.Fits qualified as Fits (lookup)
 import Telescope.Fits.Checksum
 import Telescope.Fits.Encoding
 import Telescope.Fits.Types
-import Test.Syd
 
 
 spec :: Spec

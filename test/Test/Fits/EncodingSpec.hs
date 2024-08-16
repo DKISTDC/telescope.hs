@@ -8,11 +8,14 @@ import Data.ByteString.Lazy.Char8 qualified as C8
 import Data.Massiv.Array (Ix2)
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
+import Skeletest
+import Skeletest.Predicate qualified as P
+import Skeletest.Prop.Gen qualified as Gen
+import Skeletest.Prop.Range qualified as Range
 import Telescope.Fits qualified as Fits
 import Telescope.Fits.Encoding hiding (justify, pad, spaces)
 import Telescope.Fits.Encoding.DataArray
 import Telescope.Fits.Types
-import Test.Syd
 
 
 spec :: Spec
@@ -183,60 +186,56 @@ testRenderData = do
 
 testEncodePrimary :: Spec
 testEncodePrimary = do
-  aroundAll provEncoded $ describe "encoded primary hdu" $ do
-    itWithOuter "encodes both a header and data hdu" $ \enc -> do
-      BS.length enc == hduBlockSize * 2
+  describe "encoded primary hdu" $ do
+    it "encodes both a header and data hdu" $ do
+      FitsEncodedFix enc <- getFixture
+      BS.length enc `shouldBe` hduBlockSize * 2
 
-    itWithOuter "encodes the data" $ \enc -> do
+    it "encodes the data" $ do
+      FitsEncodedFix enc <- getFixture
       BS.take 6 (BS.drop 2880 enc) `shouldBe` rawData
 
-    itWithOuter "starts with SIMPLE" $ \enc -> do
+    it "starts with SIMPLE" $ do
+      FitsEncodedFix enc <- getFixture
       BS.take 30 enc `shouldBe` "SIMPLE  =                    T"
 
-  aroundAll provDecoded $ describe "decoded encoded primary hdu" $ do
-    itWithOuter "Has custom header" $ \f -> do
+  describe "decoded encoded primary hdu" $ do
+    it "Has custom header" $ do
+      FitsDecodedFix f <- getFixture
       Fits.lookup "WOOT" f.primaryHDU.header `shouldBe` Just (Integer 123)
 
-    itWithOuter "Has required headers" $ \f -> do
+    it "Has required headers" $ do
+      FitsDecodedFix f <- getFixture
       Fits.lookup "EXTEND" f.primaryHDU.header `shouldBe` Just (Logic T)
 
-    itWithOuter "Matches data metadata" $ \f -> do
+    it "Matches data metadata" $ do
+      FitsDecodedFix f <- getFixture
       f.primaryHDU.dataArray.bitpix `shouldBe` BPInt8
       f.primaryHDU.dataArray.axes `shouldBe` Axes [3, 2]
 
-    itWithOuter "Matches raw data" $ \f -> do
+    it "Matches raw data" $ do
+      FitsDecodedFix f <- getFixture
       f.primaryHDU.dataArray.rawData `shouldBe` BS.pack [0 .. 5]
  where
-  primary =
-    let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
-        dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
-        hdu = PrimaryHDU heads dat
-     in hdu
-
   rawData = BS.pack [0 .. 5]
-
-  provEncoded m = do
-    m $ encode (Fits primary [])
-
-  provDecoded m = do
-    let enc = encode (Fits primary [])
-    f <- decode enc
-    m f
 
 
 testRoundTrip :: Spec
 testRoundTrip = do
-  aroundAll simple2x3 $ describe "simple2x3.fits" $ do
-    itWithOuter "should match metadata" $ \fs -> do
+  describe "simple2x3.fits" $ do
+    it "should match metadata" $ do
+      Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.axes `shouldBe` Axes [3, 2]
       f2.primaryHDU.dataArray.bitpix `shouldBe` fs.primaryHDU.dataArray.bitpix
 
-    itWithOuter "should match raw data" $ \fs -> do
+    it "should match raw data" $ do
+      Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.rawData `shouldBe` fs.primaryHDU.dataArray.rawData
 
-    itWithOuter "should encode headers only once" $ \fs -> do
+    it "should encode headers only once" $ do
+      Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       let hs = fs.primaryHDU.header
           h2 = f2.primaryHDU.header
@@ -249,17 +248,38 @@ testRoundTrip = do
 
       length h2._records `shouldBe` length hs._records
 
-    itWithOuter "should keep naxes order preserved" $ \fs -> do
+    it "should keep naxes order preserved" $ do
+      Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.axes `shouldBe` fs.primaryHDU.dataArray.axes
  where
   matchKeyword k (KeywordRecord k2 _ _) = k == k2
 
 
--- hs `shouldBe` h2
+newtype Simple2x3Fix = Simple2x3Fix Fits
+instance Fixture Simple2x3Fix where
+  fixtureAction = do
+    inp <- BS.readFile "samples/simple2x3.fits"
+    fits <- decode inp
+    pure $ noCleanup $ Simple2x3Fix fits
 
-simple2x3 :: (Fits -> IO a) -> IO a
-simple2x3 m = do
-  inp <- BS.readFile "samples/simple2x3.fits"
-  fits <- decode inp
-  m fits
+
+newtype FitsEncodedFix = FitsEncodedFix BS.ByteString
+instance Fixture FitsEncodedFix where
+  fixtureAction = do
+    pure $ noCleanup $ FitsEncodedFix encoded
+   where
+    encoded = encode (Fits primary [])
+    primary =
+      let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
+          dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
+          hdu = PrimaryHDU heads dat
+       in hdu
+
+
+newtype FitsDecodedFix = FitsDecodedFix Fits
+instance Fixture FitsDecodedFix where
+  fixtureAction = do
+    FitsEncodedFix enc <- getFixture
+    f <- decode enc
+    pure $ noCleanup $ FitsDecodedFix f

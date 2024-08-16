@@ -5,7 +5,7 @@ module Telescope.Asdf.Node where
 import Data.ByteString (ByteString)
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Data.Axes
@@ -13,8 +13,16 @@ import Telescope.Data.Axes
 
 -- | Specify a schema using 'schema' from 'ToAsdf'
 newtype SchemaTag = SchemaTag (Maybe Text)
-  deriving (Show)
   deriving newtype (Monoid, Semigroup, Eq)
+
+
+instance Show SchemaTag where
+  show (SchemaTag Nothing) = ""
+  show (SchemaTag (Just t)) = unpack t ++ ":"
+
+
+schemaTag :: String -> SchemaTag
+schemaTag = SchemaTag . Just . pack
 
 
 instance IsString SchemaTag where
@@ -25,13 +33,18 @@ data Node = Node
   { schema :: SchemaTag
   , value :: Value
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+
+
+instance Show Node where
+  show (Node st v) = show st ++ show v
 
 
 -- We can't use Aeson's Value, because it doesn't support tags or binary data
 data Value
   = Bool !Bool
   | Number !Scientific
+  | Integer !Int
   | String !Text
   | -- | RawBinary !ByteString
     NDArray !NDArrayData
@@ -45,6 +58,11 @@ instance IsString Value where
 
 type Key = Text
 type Object = [(Key, Node)]
+
+
+-- | Makes a node from a value
+fromValue :: Value -> Node
+fromValue = Node mempty
 
 
 -- schemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => SchemaTag

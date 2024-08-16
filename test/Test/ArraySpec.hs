@@ -6,11 +6,11 @@ import Data.ByteString qualified as BS
 import Data.Massiv.Array as M
 import Data.Word (Word8)
 import GHC.Int
+import Skeletest
 import System.ByteOrder
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Fits.Encoding.DataArray
-import Test.Syd
 
 
 spec :: Spec

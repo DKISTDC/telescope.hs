@@ -31,6 +31,7 @@ library
         Telescope.Asdf.NDArray
         Telescope.Asdf.Node
         Telescope.Asdf.Parser
+        Telescope.Asdf.Tree
         Telescope.Data.Array
         Telescope.Data.Axes
         Telescope.Data.Binary
@@ -47,12 +48,15 @@ library
         base >=4.7 && <5,
         binary >=0.8.9 && <0.9,
         byte-order,
-        bytestring ==0.11.*,
+        bytestring >=0.11 && <0.13,
+        conduit,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
         fits-parse >=0.4.2 && <0.5,
+        libyaml,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
+        resourcet-effectful,
         scientific,
         text >=2.0 && <3
     hs-source-dirs:
@@ -71,7 +75,7 @@ library
         StrictData
         TypeApplications
         TypeFamilies
-    ghc-options: -Wall
+    ghc-options: -Wall -fdefer-typed-holes
     c-sources:
         src/checksum.c
     default-language: GHC2021
@@ -82,6 +86,7 @@ test-suite spec
     other-modules:
         Test.ArraySpec
         Test.Asdf.DocumentSpec
+        Test.Asdf.TreeSpec
         Test.BinarySpec
         Test.Fits.ChecksumSpec
         Test.Fits.EncodingSpec
@@ -102,24 +107,27 @@ test-suite spec
         StrictData
         TypeApplications
         TypeFamilies
-    ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+    ghc-options: -Wall -fdefer-typed-holes -threaded -rtsopts -with-rtsopts=-N -F -pgmF=skeletest-preprocessor
     build-tool-depends:
-        sydtest-discover:sydtest-discover
+        skeletest:skeletest-preprocessor
     build-depends:
         aeson,
         base >=4.7 && <5,
         binary,
         byte-order,
-        bytestring ==0.11.*,
+        bytestring >=0.11 && <0.13,
+        conduit,
         containers,
         effectful >=2.3 && <3,
         envparse >=0.4 && <=0.5,
         exceptions ==0.10.*,
         fits-parse >=0.4.2 && <0.5,
+        libyaml,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
+        resourcet-effectful,
         scientific,
-        sydtest >=0.15,
+        skeletest,
         telescope,
         text >=2.0 && <3
     default-language: GHC2021

@@ -2,17 +2,27 @@
 
 module Telescope.Asdf.Document where
 
+import Conduit
+import Control.Exception
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
+import Data.Conduit.Combinators qualified as C
+import Data.Text (Text, pack)
+import Data.Text.Encoding (decodeUtf8)
 import Data.Word
 import Effectful
+import Effectful.Error.Dynamic
 import Effectful.Fail
+import Effectful.Resource
 import Effectful.State.Static.Local
 import Telescope.Asdf.Node
+import Telescope.Asdf.Tree
+import Text.Libyaml (Event (..), Tag (..))
+import Text.Libyaml qualified as Yaml
 
 
 newtype Asdf = Asdf Node
@@ -107,13 +117,37 @@ data DocumentParts = DocumentParts
 --  ensure the last entry in the index refers to a block magic token, and the end of its allocated_space is followed by the block index
 --  when using the index, make sure the block magic token exists at that index
 
-splitDocument :: ByteString -> Either String DocumentParts
-splitDocument dat = runPureEff . runFail . evalState dat $ do
+test :: IO ()
+test = do
+  -- TEST: the tree shouldn't contain any binary data!
+  putStrLn "TEST"
+  inp <- BS.readFile "/Users/shess/Data/VISP_L1_20230501T185359_AOPPO.asdf"
+  dp <- runEff $ runFailIO $ splitDocument inp
+  -- nope, it's the whole document
+  print $ BS.length inp
+  print $ BS.length dp.tree
+  print $ length dp.blocks
+  print $ BS.length dp.index
+
+  n <- runEff $ runFailIO $ parseTree dp.tree
+  print n
+
+
+-- runEff $ testTree dp.tree
+
+dumpTree :: (IOE :> es) => ByteString -> Eff es ()
+dumpTree inp = do
+  runResource $ runConduit $ Yaml.decode inp .| takeC 100 .| mapM_C (liftIO . print)
+
+
+splitDocument :: (Fail :> es) => ByteString -> Eff es DocumentParts
+splitDocument dat = evalState dat $ do
   tree <- parseToBlock
   blocks <- parseBlocks
   index <- get
   pure $ DocumentParts{tree, blocks, index}
  where
+  -- instead, we could start parsing
   parseToBlock = state $ BS.breakSubstring blockMagicToken
 
   parseBlocks :: (State ByteString :> es, Fail :> es) => Eff es [BlockData]
@@ -125,6 +159,11 @@ splitDocument dat = runPureEff . runFail . evalState dat $ do
         put (BL.toStrict rest)
         pure bs
 
+
+-- where
+-- handle = \case
+--   EventDocumentStart -> _
+--   _ -> _
 
 getBlock :: Get BlockData
 getBlock = do
@@ -216,7 +255,7 @@ getBlockData h = do
 
 
 blockMagicToken :: ByteString
-blockMagicToken = "\323BLK"
+blockMagicToken = BS.pack [0xd3, 0x42, 0x4c, 0x4b]
 
 
 blockIndexHeader :: ByteString
