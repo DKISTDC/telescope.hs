@@ -42,11 +42,19 @@ instance FromAsdf Int where
   parseValue = fmap (fromIntegral @Int64 @Int) <$> parseValue
 
 
+instance ToAsdf Int32 where
+  toValue n = Integer $ fromIntegral n
+instance FromAsdf Int32 where
+  parseValue = \case
+    Integer n -> pure $ fromIntegral n
+    node -> fail $ expected "Int32" node
+
+
 instance ToAsdf Int64 where
-  toValue n = Number $ fromIntegral n
+  toValue n = Integer $ fromIntegral n
 instance FromAsdf Int64 where
   parseValue = \case
-    Number n -> pure $ round n
+    Integer n -> pure $ fromIntegral n
     node -> fail $ expected "Int64" node
 
 

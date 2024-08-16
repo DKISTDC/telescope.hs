@@ -119,7 +119,6 @@ test-suite spec
         conduit,
         containers,
         effectful >=2.3 && <3,
-        envparse >=0.4 && <=0.5,
         exceptions ==0.10.*,
         fits-parse >=0.4.2 && <0.5,
         libyaml,

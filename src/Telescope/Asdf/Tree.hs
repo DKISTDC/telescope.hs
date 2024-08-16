@@ -8,6 +8,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
+import Data.List ((!?))
 import Data.Maybe (fromMaybe)
 import Data.Text (pack, unpack)
 import Data.Text qualified as T
@@ -21,20 +22,16 @@ import Effectful
 import Effectful.Error.Dynamic
 import Effectful.Fail
 import Effectful.NonDet
+import Effectful.Reader.Dynamic
 import Effectful.Resource
 import GHC.IO (unsafePerformIO)
+import System.ByteOrder
+import Telescope.Asdf.Document
 import Telescope.Asdf.Node
+import Telescope.Data.Axes
 import Text.Libyaml (Event (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
-
-
-parseTree :: (Fail :> es, IOE :> es) => ByteString -> Eff es Node
-parseTree inp = do
-  mn <- runErrorNoCallStack @YamlError $ runResource $ runConduit $ Yaml.decode inp .| sinkDocument
-  case mn of
-    Left e -> fail $ "YAML " ++ show e
-    Right n -> pure n
 
 
 -- WARNING: IOE is required to get the MonadResource instance! Dumb
@@ -48,7 +45,7 @@ parseTree inp = do
 -- runEff $ dumpTree inp
 -- runEff $ testTree inp
 
-sinkDocument :: (Error YamlError :> es) => ConduitT Yaml.Event o (Eff es) Node
+sinkDocument :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkDocument = do
   expect EventStreamStart
   expect EventDocumentStart
@@ -58,62 +55,78 @@ sinkDocument = do
 -- NOTE: START HERE
 -- TODO: flesh these out
 -- TODO: sinkDocument, should consume everything and produce a single document
-sinkNode :: (Error YamlError :> es) => ConduitT Yaml.Event o (Eff es) Node
+sinkNode :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
   -- handle the next one on the stack and gogogogogo
   e <- event
   case e of
     EventScalar s t _ _ -> lift $ parseScalar s t
     EventMappingStart tg _ _ -> do
-      kvs <- sinkMappings
-      pure $ Node (tag tg) $ Object kvs
+      let stag = tag tg
+      if isNDArray stag
+        then sinkNDArray stag
+        else sinkObject stag
     EventSequenceStart tg _ _ -> do
       ns <- sinkSequence
       pure $ Node (tag tg) $ Array ns
     ev -> lift $ throwError $ ExpectedEvent "Not Handled" ev
+ where
+  sinkObject stag = do
+    kvs <- sinkMappings
+    pure $ Node stag $ Object kvs
+
+  sinkNDArray stag = do
+    dat <- sinkNDArrayData
+    pure $ Node stag $ NDArray dat
 
 
-tag :: Tag -> SchemaTag
-tag (UriTag s) =
-  let t = pack s
-      mt = T.stripPrefix "tag:stsci.edu:asdf/" t
-   in SchemaTag (maybe (pure t) pure mt)
-tag _ = mempty
+sinkNDArrayData :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) NDArrayData
+sinkNDArrayData = do
+  kvs <- sinkMappings
+  bytes <- require "source" kvs >>= findSource
+  datatype <- require "datatype" kvs >>= parseDatatype
+  byteorder <- require "byteorder" kvs >>= parseByteorder
+  shape <- require "shape" kvs >>= parseShape
+  pure $ NDArrayData{bytes, datatype, byteorder, shape}
+ where
+  require key kvs =
+    case lookup key kvs of
+      Nothing -> lift $ throwError $ NDArrayMissingKey (unpack key)
+      Just (Node _ val) -> pure val
+
+  parseDatatype val =
+    case val of
+      String "int64" -> pure Int64
+      String "float64" -> pure Float64
+      _ -> lift $ throwError $ NDArrayExpected "DataType" val
+
+  parseByteorder val =
+    case val of
+      String "little" -> pure LittleEndian
+      String "big" -> pure BigEndian
+      _ -> lift $ throwError $ NDArrayExpected "Byteorder" val
+
+  parseShape val =
+    case val of
+      Array ns -> axesRowMajor <$> mapM (parseAxis . (.value)) ns
+      _ -> lift $ throwError $ NDArrayExpected "Shape" val
+
+  parseAxis val =
+    case val of
+      Integer n -> pure $ fromIntegral n
+      _ -> lift $ throwError $ NDArrayExpected "Shape Axis" val
+
+  findSource val =
+    case val of
+      Integer s -> do
+        blocks <- lift ask
+        case blocks !? fromIntegral s of
+          Nothing -> lift $ throwError $ NDArrayMissingBlock s
+          Just (BlockData b) -> pure b
+      _ -> lift $ throwError $ NDArrayExpected "Source" val
 
 
-expect :: (Error YamlError :> es) => Event -> ConduitT Event o (Eff es) ()
-expect ex = do
-  e <- event
-  if e == ex
-    then pure ()
-    else lift $ throwError $ ExpectedEvent ("Exactly " ++ show ex) e
-
-
--- EventMappingStart NoTag BlockMapping Nothing
---  EventScalar "x" NoTag Plain Nothing
---  EventMappingStart (UriTag "tag:stsci.edu:asdf/unit/quantity-1.1.0") FlowMapping Nothing
---    EventScalar "unit" NoTag Plain Nothing
---    EventScalar "m" (UriTag "tag:stsci.edu:asdf/unit/unit-1.0.0") Plain Nothing
---    EventScalar "value" NoTag Plain Nothing
---    EventScalar "150322960057.57962" NoTag Plain Nothing
---  EventMappingEnd
---  EventScalar "y" NoTag Plain Nothing
---  EventMappingStart (UriTag "tag:stsci.edu:asdf/unit/quantity-1.1.0") FlowMapping Nothing
---    EventScalar "unit" NoTag Plain Nothing
---    EventScalar "m" (UriTag "tag:stsci.edu:asdf/unit/unit-1.0.0") Plain Nothing
---    EventScalar "value" NoTag Plain Nothing
---    EventScalar "3663346.057533264" NoTag Plain Nothing
---  EventMappingEnd
---    EventScalar "z" NoTag Plain Nothing
---    EventMappingStart (UriTag "tag:stsci.edu:asdf/unit/quantity-1.1.0") FlowMapping Nothing
---    EventScalar "unit" NoTag Plain Nothing
---    EventScalar "m" (UriTag "tag:stsci.edu:asdf/unit/unit-1.0.0") Plain Nothing
---    EventScalar "value" NoTag Plain Nothing
---    EventScalar "-10884763676.845081" NoTag Plain Nothing
---  EventMappingEnd
--- EventMappingEnd
-
-sinkMapping :: (Error YamlError :> es) => ConduitT Event o (Eff es) (Key, Node)
+sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) (Key, Node)
 sinkMapping = do
   k <- sinkMapKey
   v <- sinkNode
@@ -125,10 +138,9 @@ sinkMapping = do
       ev -> lift $ throwError $ ExpectedEvent "Scalar Key" ev
 
 
-sinkMappings :: (Error YamlError :> es) => ConduitT Event o (Eff es) [(Key, Node)]
+sinkMappings :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
 sinkMappings = do
-  kvs <- sinkWhile (/= EventMappingEnd) sinkMapping
-  pure kvs
+  sinkWhile (/= EventMappingEnd) sinkMapping
 
 
 -- oh, the event mapping ends aren't being consumed!
@@ -146,7 +158,7 @@ sinkWhile p parse = do
       pure []
 
 
-sinkSequence :: (Error YamlError :> es) => ConduitT Event o (Eff es) [Node]
+sinkSequence :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [Node]
 sinkSequence = do
   sinkWhile (/= EventSequenceEnd) sinkNode
 
@@ -179,10 +191,10 @@ parseScalar inp tg = byTag tg
     parseInt s <|> parseFloat s <|> parseBool s <|> parseStr s
 
   throwEmpty :: (Error YamlError :> es) => String -> Eff (NonDet : es) a -> Eff es a
-  throwEmpty expect eff = do
+  throwEmpty expt eff = do
     ec <- runNonDet OnEmptyKeep eff
     case ec of
-      Left _ -> throwError $ InvalidScalar expect tg inp
+      Left _ -> throwError $ InvalidScalar expt tg inp
       Right a -> pure a
 
   parseRead :: (Read a, NonDet :> es) => ByteString -> Eff es a
@@ -195,6 +207,9 @@ data YamlError
   | ExpectedEvent String Yaml.Event
   | InvalidScalar String Tag ByteString
   | InvalidScalarTag Tag ByteString
+  | NDArrayMissingKey String
+  | NDArrayMissingBlock Integer
+  | NDArrayExpected String Value
   deriving (Exception, Show)
 
 
@@ -206,9 +221,31 @@ event = do
     Nothing -> throwM NoInput
     Just a -> pure a
 
+
 -- rootNode :: (Error YamlError :> es) => ConduitT Node Void (Eff es) Node
 -- rootNode = do
 --   mv <- C.head
 --   case mv of
 --     Nothing -> fail "Missing Root Value"
 --     Just v -> pure v
+--
+tag :: Tag -> SchemaTag
+tag (UriTag s) =
+  let t = pack s
+      mt = T.stripPrefix "tag:stsci.edu:asdf/" t
+   in SchemaTag (maybe (pure t) pure mt)
+tag _ = mempty
+
+
+isNDArray :: SchemaTag -> Bool
+isNDArray (SchemaTag Nothing) = False
+isNDArray (SchemaTag (Just t)) =
+  "core/ndarray" `T.isPrefixOf` t
+
+
+expect :: (Error YamlError :> es) => Event -> ConduitT Event o (Eff es) ()
+expect ex = do
+  e <- event
+  if e == ex
+    then pure ()
+    else lift $ throwError $ ExpectedEvent ("Exactly " ++ show ex) e

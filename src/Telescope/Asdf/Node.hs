@@ -44,7 +44,7 @@ instance Show Node where
 data Value
   = Bool !Bool
   | Number !Scientific
-  | Integer !Int
+  | Integer !Integer
   | String !Text
   | -- | RawBinary !ByteString
     NDArray !NDArrayData

@@ -9,9 +9,6 @@ import Data.Massiv.Array (Ix2)
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
 import Skeletest
-import Skeletest.Predicate qualified as P
-import Skeletest.Prop.Gen qualified as Gen
-import Skeletest.Prop.Range qualified as Range
 import Telescope.Fits qualified as Fits
 import Telescope.Fits.Encoding hiding (justify, pad, spaces)
 import Telescope.Fits.Encoding.DataArray
@@ -273,8 +270,7 @@ instance Fixture FitsEncodedFix where
     primary =
       let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
           dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
-          hdu = PrimaryHDU heads dat
-       in hdu
+       in PrimaryHDU heads dat
 
 
 newtype FitsDecodedFix = FitsDecodedFix Fits

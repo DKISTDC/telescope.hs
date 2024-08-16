@@ -71,9 +71,7 @@ tests:
     - telescope
     - binary
     - containers
-    # envparse 0.5 gives error in sydtest
     - skeletest
-    - envparse >= 0.4 && <= 0.5
 
 
 

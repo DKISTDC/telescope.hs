@@ -20,7 +20,6 @@ import Effectful.Fail
 import Effectful.Resource
 import Effectful.State.Static.Local
 import Telescope.Asdf.Node
-import Telescope.Asdf.Tree
 import Text.Libyaml (Event (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 
@@ -117,27 +116,23 @@ data DocumentParts = DocumentParts
 --  ensure the last entry in the index refers to a block magic token, and the end of its allocated_space is followed by the block index
 --  when using the index, make sure the block magic token exists at that index
 
-test :: IO ()
-test = do
-  -- TEST: the tree shouldn't contain any binary data!
-  putStrLn "TEST"
-  inp <- BS.readFile "/Users/shess/Data/VISP_L1_20230501T185359_AOPPO.asdf"
-  dp <- runEff $ runFailIO $ splitDocument inp
-  -- nope, it's the whole document
-  print $ BS.length inp
-  print $ BS.length dp.tree
-  print $ length dp.blocks
-  print $ BS.length dp.index
-
-  n <- runEff $ runFailIO $ parseTree dp.tree
-  print n
-
+-- test :: IO ()
+-- test = do
+--   -- TEST: the tree shouldn't contain any binary data!
+--   putStrLn "TEST"
+--   inp <- BS.readFile "/Users/shess/Data/VISP_L1_20230501T185359_AOPPO.asdf"
+--   dp <- runEff $ runFailIO $ splitDocument inp
+--   -- nope, it's the whole document
+--   print $ BS.length inp
+--   print $ BS.length dp.tree
+--   print $ length dp.blocks
+--   print $ BS.length dp.index
+--
+--   n <- runEff $ runFailIO $ parseTree dp.tree
+--   print n
 
 -- runEff $ testTree dp.tree
 
-dumpTree :: (IOE :> es) => ByteString -> Eff es ()
-dumpTree inp = do
-  runResource $ runConduit $ Yaml.decode inp .| takeC 100 .| mapM_C (liftIO . print)
 
 
 splitDocument :: (Fail :> es) => ByteString -> Eff es DocumentParts
