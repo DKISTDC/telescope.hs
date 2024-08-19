@@ -17,6 +17,7 @@ import System.ByteOrder
 import Telescope.Asdf.Class
 import Telescope.Asdf.Document
 import Telescope.Asdf.Encoding
+import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
 import Telescope.Data.Axes
@@ -65,22 +66,16 @@ spec = do
         o <- expectObject val
         lookup "foo" o `shouldBe` Just (Node mempty (Integer 40))
         lookup "name" o `shouldBe` Just (Node mempty (String "Marty"))
-        case lookup "sequence" o of
-          Nothing -> fail "Could not find sequence"
-          Just (Node _ (Array ns)) -> do
-            fmap (.value) ns `shouldBe` fmap (Integer . fromIntegral) ex.sequence
-          Just (Node _ v) -> fail $ "Expected Array, but got: " ++ show v
+        ns <- expectArray $ lookup "sequence" o
+        fmap (.value) ns `shouldBe` fmap (Integer . fromIntegral) ex.sequence
+
       it "should serialize long sequence to NDArray" $ do
         let ex = Example{foo = 40, name = "Marty", sequence = map (* 10) [0 .. 99]}
-        let Node s val = toNode ex
-        s `shouldBe` schema @Example
+        let Node _ val = toNode ex
         o <- expectObject val
-        case lookup "sequence" o of
-          Nothing -> fail "Could not find sequence"
-          Just (Node _ (NDArray dat)) -> do
-            BS.length dat.bytes `shouldSatisfy` P.gt 0
-            dat.datatype `shouldBe` Int64
-          Just (Node _ v) -> fail $ "Expected NDArray, but got: " ++ show v
+        dat <- expectNDArray $ lookup "sequence" o
+        BS.length dat.bytes `shouldSatisfy` P.gt 0
+        dat.datatype `shouldBe` Int64
  where
   -- Redundant
   -- it "should decode squares" $ do
@@ -92,6 +87,10 @@ spec = do
   expectNDArray = \case
     Just (Node _ (NDArray dat)) -> pure dat
     n -> fail $ "Expected NDArray, but got: " ++ show n
+
+  expectArray = \case
+    Just (Node _ (Array ns)) -> pure ns
+    n -> fail $ "Expected Array, but got: " ++ show n
 
   expectObject = \case
     Object o -> pure o

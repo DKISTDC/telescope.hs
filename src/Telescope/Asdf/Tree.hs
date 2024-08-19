@@ -249,3 +249,8 @@ expect ex = do
   if e == ex
     then pure ()
     else lift $ throwError $ ExpectedEvent ("Exactly " ++ show ex) e
+
+
+-- emit a bunch of events
+yieldNode :: Node -> Conduit Event o (Eff es) ()
+yieldNode n = _
