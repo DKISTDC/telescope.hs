@@ -1,21 +1,23 @@
-module Test.Asdf.DocumentSpec where
+module Test.Asdf.FileSpec where
 
+import Control.Monad.Catch (throwM)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Effectful
-import Effectful.Fail
+import Effectful.Error.Static
 import Skeletest
 import Skeletest.Predicate ((>>>))
 import Skeletest.Predicate qualified as P
-import Telescope.Asdf.Document
+import Telescope.Asdf.Error
+import Telescope.Asdf.File
 
 
 spec :: Spec
 spec = do
   describe "blocks" testBlocks
-  describe "document" testSplitDocument
+  describe "split-file" testSplit
 
 
 testBlocks :: Spec
@@ -72,50 +74,46 @@ testBlocks = do
       Right (_, _, x) -> Right x
 
 
-testSplitDocument :: Spec
-testSplitDocument = do
+testSplit :: Spec
+testSplit = do
   describe "basic data" $ do
     it "should parse empty" $ do
-      split "" `shouldBe` Right (DocumentParts "" [] "")
+      split "" `shouldBe` Right (AsdfFile "" [] "")
 
     it "optional blocks" $ do
-      split "asdf" `shouldBe` Right (DocumentParts "asdf" [] "")
+      split "asdf" `shouldBe` Right (AsdfFile "asdf" [] "")
 
     it "optional tree" $ do
       let out = runPut $ putBlock $ BlockData "hello"
-      split (BL.toStrict out) `shouldBe` Right (DocumentParts "" [BlockData "hello"] "")
+      split (BL.toStrict out) `shouldBe` Right (AsdfFile "" [BlockData "hello"] "")
 
     it "all parts" $ do
       let out = runPut $ putByteString "#hello\n" >> putBlock (BlockData "hello") >> putByteString "#index"
-      split (BL.toStrict out) `shouldBe` Right (DocumentParts "#hello\n" [BlockData "hello"] "#index")
+      split (BL.toStrict out) `shouldBe` Right (AsdfFile "#hello\n" [BlockData "hello"] "#index")
 
   describe "real asdf file" $ do
     it "tree smaller than document " $ do
-      SampleFixture inp dp <- getFixture
+      ExampleFileFix inp dp <- getFixture
       BS.length dp.tree `shouldNotBe` BS.length inp
 
     it "tree exists" $ do
-      SampleFixture _ dp <- getFixture
+      ExampleFileFix _ dp <- getFixture
       BS.length dp.tree `shouldSatisfy` P.gt 0
 
     it "blocks exist" $ do
-      SampleFixture _ dp <- getFixture
+      ExampleFileFix _ dp <- getFixture
       length dp.blocks `shouldSatisfy` P.gt 0
 
     it "index exists" $ do
-      SampleFixture _ dp <- getFixture
+      ExampleFileFix _ dp <- getFixture
       BS.length dp.index `shouldSatisfy` P.gt 0
  where
-  split = runPureEff . runFail . splitDocument
+  split = runPureEff . runErrorNoCallStack @AsdfError . splitAsdfFile
 
 
-data SampleFixture = SampleFixture {input :: BS.ByteString, parts :: DocumentParts}
-
-
-instance Fixture SampleFixture where
+data ExampleFileFix = ExampleFileFix {input :: BS.ByteString, file :: AsdfFile}
+instance Fixture ExampleFileFix where
   fixtureAction = do
     inp <- BS.readFile "samples/example.asdf"
-    edp <- runEff $ runFail $ splitDocument inp
-    case edp of
-      Left e -> fail $ "Could not splitDocument:" ++ e
-      Right dp -> pure $ noCleanup $ SampleFixture inp dp
+    f <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ splitAsdfFile inp
+    pure $ noCleanup $ ExampleFileFix inp f

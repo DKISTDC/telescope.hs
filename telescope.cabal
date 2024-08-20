@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -26,12 +26,13 @@ library
         Telescope.Asdf
         Telescope.Asdf.Class
         Telescope.Asdf.Core
-        Telescope.Asdf.Document
+        Telescope.Asdf.Decoding
         Telescope.Asdf.Encoding
+        Telescope.Asdf.Error
+        Telescope.Asdf.File
         Telescope.Asdf.NDArray
         Telescope.Asdf.Node
         Telescope.Asdf.Parser
-        Telescope.Asdf.Tree
         Telescope.Data.Array
         Telescope.Data.Axes
         Telescope.Data.Binary
@@ -85,7 +86,8 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
         Test.ArraySpec
-        Test.Asdf.DocumentSpec
+        Test.Asdf.DecodeSpec
+        Test.Asdf.FileSpec
         Test.Asdf.TreeSpec
         Test.BinarySpec
         Test.Fits.ChecksumSpec

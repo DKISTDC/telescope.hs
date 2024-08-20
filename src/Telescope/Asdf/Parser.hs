@@ -1,59 +1,70 @@
 module Telescope.Asdf.Parser where
 
-import Control.Monad.Catch
+import Control.Monad.Catch (Exception)
+import Data.List (intercalate)
+import Data.Text (unpack)
 import Effectful
 import Effectful.Error.Static
-import Effectful.Writer.Static.Local
+import Effectful.Reader.Static
 import Telescope.Asdf.Node
 
 
 data ParseError
-  = ParseError String
+  = ParseFailure [Context] String
+  deriving (Exception)
+
+
+instance Show ParseError where
+  show (ParseFailure ctx s) =
+    "at " ++ intercalate "." (fmap show $ reverse ctx) ++ "\n" ++ s
 
 
 data Context
   = Child Key
 
 
+instance Show Context where
+  show (Child c) = unpack c
+
+
 -- the parser requires specific errors?
 newtype Parser a = Parser
-  { effect :: Eff '[Error ParseError, Writer [Context]] a
+  { effect :: Eff '[Error ParseError, Reader [Context]] a
   }
   deriving newtype (Functor, Applicative, Monad)
 
 
-instance MonadThrow Parser where
-  throwM e = Parser $ throwError $ ParseError (show e)
-
-
 instance MonadFail Parser where
-  fail s = Parser $ throwError $ ParseError s
+  fail s = Parser $ do
+    ctx <- ask
+    throwError $ ParseFailure ctx s
 
 
 runParser :: Parser a -> Either String a
 runParser p =
-  case runPureEff . runWriter . runErrorNoCallStack $ p.effect of
-    (Left (ParseError e), ctx) -> Left $ formatError ctx e
-    (Right a, _) -> Right a
+  case runPureEff . runErrorNoCallStack @ParseError $ fromParser p of
+    Left pe -> Left $ show pe
+    Right a -> Right a
 
 
--- TODO: include context
-formatError :: [Context] -> String -> String
-formatError _ s = s
+fromParser :: (Error ParseError :> es) => Parser a -> Eff es a
+fromParser p = do
+  case runPureEff . runReader [] . runErrorNoCallStack @ParseError $ p.effect of
+    Left e -> throwError e
+    Right a -> pure a
 
 
 parseKey :: Key -> Object -> Parser Node
-parseKey k o =
+parseKey k o = do
   case lookup k o of
     Nothing -> fail $ "key " ++ show k ++ " not found"
-    Just node -> do
-      addContext $ Child k
-      pure node
+    Just node -> pure node
 
 
-addContext :: Context -> Parser ()
-addContext c = Parser $ tell [c]
+addContext :: Context -> Parser a -> Parser a
+addContext c p = Parser $ do
+  local (c :) p.effect
 
 
-expected :: (Show a) => String -> a -> String
-expected ex n = "Expected " ++ ex ++ ", but got: " ++ show n
+context :: Parser [Context]
+context = Parser ask

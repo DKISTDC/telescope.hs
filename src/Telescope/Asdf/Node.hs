@@ -3,6 +3,7 @@
 module Telescope.Asdf.Node where
 
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
@@ -34,10 +35,10 @@ data Node = Node
   , value :: Value
   }
   deriving (Eq)
-
-
 instance Show Node where
   show (Node st v) = show st ++ show v
+instance IsString Node where
+  fromString s = Node mempty $ String $ pack s
 
 
 -- We can't use Aeson's Value, because it doesn't support tags or binary data
@@ -94,7 +95,11 @@ data NDArrayData = NDArrayData
   , datatype :: DataType
   , shape :: Axes Row
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+
+
+instance Show NDArrayData where
+  show nd = unwords ["NDArrayData", show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
 
 
 data DataType

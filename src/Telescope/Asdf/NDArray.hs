@@ -8,9 +8,10 @@ import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Massiv.Array (Array, D, Ix1, Ix2, Ix3, Ix4, Ix5, Prim, Sz (..))
+import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import System.ByteOrder (ByteOrder (..))
+import Telescope.Asdf.Error (expected)
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
@@ -58,27 +59,11 @@ instance {-# OVERLAPPING #-} (BinaryValue a) => FromNDArray [[a]] where
     getRow n = replicateM n (get arr.byteorder)
 
 
-instance (BinaryValue a, Prim a) => FromNDArray (Array D Ix1 a) where
-  fromNDArray = parseMassiv
-instance (BinaryValue a, Prim a) => FromNDArray (Array D Ix2 a) where
-  fromNDArray = parseMassiv
-instance (BinaryValue a, Prim a) => FromNDArray (Array D Ix3 a) where
-  fromNDArray = parseMassiv
-instance (BinaryValue a, Prim a) => FromNDArray (Array D Ix4 a) where
-  fromNDArray = parseMassiv
-instance (BinaryValue a, Prim a) => FromNDArray (Array D Ix5 a) where
+instance (BinaryValue a, Prim a, AxesIndex ix) => FromNDArray (Array D ix a) where
   fromNDArray = parseMassiv
 
 
-instance (BinaryValue a, IsDataType a, Prim a) => ToNDArray (Array D Ix1 a) where
-  toNDArray = ndArrayMassiv
-instance (BinaryValue a, IsDataType a, Prim a) => ToNDArray (Array D Ix2 a) where
-  toNDArray = ndArrayMassiv
-instance (BinaryValue a, IsDataType a, Prim a) => ToNDArray (Array D Ix3 a) where
-  toNDArray = ndArrayMassiv
-instance (BinaryValue a, IsDataType a, Prim a) => ToNDArray (Array D Ix4 a) where
-  toNDArray = ndArrayMassiv
-instance (BinaryValue a, IsDataType a, Prim a) => ToNDArray (Array D Ix5 a) where
+instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToNDArray (Array D ix a) where
   toNDArray = ndArrayMassiv
 
 

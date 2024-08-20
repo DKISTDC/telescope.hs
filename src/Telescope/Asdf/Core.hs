@@ -3,8 +3,13 @@
 module Telescope.Asdf.Core where
 
 import Data.Massiv.Array
+import Data.Maybe (catMaybes)
+import Data.String (fromString)
 import Data.Text (Text)
+import Data.Version (showVersion)
+import Paths_telescope (version)
 import Telescope.Asdf.Class
+import Telescope.Asdf.Error (expected)
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
@@ -117,24 +122,6 @@ instance FromAsdf Points' where
     pure $ Points' ps
 
 
--- TEST: this is probably index dependnent
-data BoundingBox = BoundingBox Double Double
-
-
-instance ToAsdf BoundingBox where
-  toValue (BoundingBox a b) =
-    Array
-      [ toNode $ Quantity Pixel (toValue a)
-      , toNode $ Quantity Pixel (toValue b)
-      ]
-
-
-instance FromAsdf BoundingBox where
-  parseValue = \case
-    Array [n1, n2] -> do
-      BoundingBox <$> fromNode n1 <*> fromNode n2
-    node -> fail $ expected "BoundingBox" node
-
 -- instance ToAsdf Points where
 --   schema = "unit/quantity-1.1.0"
 --   toValue (Points ds) = _
@@ -149,5 +136,120 @@ instance FromAsdf BoundingBox where
 --     source: 260
 --     datatype: float64
 --     byteorder: little
---
---
+
+-- TEST: this is probably index dependent
+data BoundingBox = BoundingBox Double Double
+
+
+instance ToAsdf BoundingBox where
+  toValue (BoundingBox a b) =
+    Array
+      [ toNode $ Quantity Pixel (toValue a)
+      , toNode $ Quantity Pixel (toValue b)
+      ]
+
+
+instance FromAsdf BoundingBox where
+  parseValue = \case
+    Array [n1, n2] -> do
+      BoundingBox <$> parseNode n1 <*> parseNode n2
+    node -> fail $ expected "BoundingBox" node
+
+
+data Software = Software
+  { author :: Maybe Text
+  , homepage :: Maybe Text
+  , name :: Text
+  , version :: Text
+  }
+  deriving (Show)
+instance ToAsdf Software where
+  schema = "core/software-1.0.0"
+  toValue s =
+    Object
+      [ ("author", toNode s.author)
+      , ("homepage", toNode s.homepage)
+      , ("name", toNode s.name)
+      , ("version", toNode s.version)
+      ]
+instance FromAsdf Software where
+  parseValue = \case
+    Object o -> do
+      author <- o .:? "author"
+      homepage <- o .:? "homepage"
+      name <- o .: "name"
+      vers <- o .: "version"
+      pure $ Software{author, homepage, name, version = vers}
+    val -> fail $ expected "Software Object" val
+
+
+telescopeSoftware :: Software
+telescopeSoftware =
+  Software
+    { author = Just "DKIST Data Center"
+    , homepage = Just "https://github.com/dkistdc/telescope.hs"
+    , name = "Telescope"
+    , version = fromString $ showVersion version
+    }
+
+
+-- allows "additional properties"...
+data Asdf = Asdf
+  { history :: History
+  , library :: Software
+  , tree :: Object
+  }
+instance ToAsdf Asdf where
+  schema = "core/asdf-1.1.0"
+  toValue a =
+    -- these two required fields are first, then merge keys from the tree
+    Object $
+      [ ("asdf_library", toNode a.library)
+      , ("history", toNode a.history)
+      ]
+        <> a.tree
+instance FromAsdf Asdf where
+  parseValue = \case
+    Object o -> do
+      library <- o .: "asdf_library"
+      history <- o .: "history"
+      pure $ Asdf{history, library, tree = o}
+    val -> fail $ expected "Asdf Object" val
+
+
+data History = History
+  { extensions :: [ExtensionMetadata]
+  }
+  deriving (Show)
+instance ToAsdf History where
+  toValue h =
+    Object
+      [ ("extensions", Node mempty $ Array $ fmap toNode h.extensions)
+      ]
+instance FromAsdf History where
+  parseValue = \case
+    Object o -> do
+      extensions <- o .: "extensions"
+      pure $ History{extensions}
+    val -> fail $ expected "History Object" val
+
+
+data ExtensionMetadata = ExtensionMetadata
+  { extensionClass :: Text
+  , software :: Software
+  }
+  deriving (Show)
+instance ToAsdf ExtensionMetadata where
+  schema = "core/extension_metadata-1.0.0"
+  toValue e =
+    Object
+      [ ("extension_class", toNode e.extensionClass)
+      , ("software", toNode e.software)
+      ]
+instance FromAsdf ExtensionMetadata where
+  parseValue = \case
+    Object o -> do
+      extensionClass <- o .: "extension_class"
+      software <- o .: "software"
+      pure $ ExtensionMetadata{extensionClass, software}
+    val -> fail $ expected "ExtensionMetadata Object" val

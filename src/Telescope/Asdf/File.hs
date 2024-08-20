@@ -1,31 +1,30 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Telescope.Asdf.Document where
+module Telescope.Asdf.File where
 
-import Conduit
-import Control.Exception
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
-import Data.Conduit.Combinators qualified as C
-import Data.Text (Text, pack)
-import Data.Text.Encoding (decodeUtf8)
 import Data.Word
 import Effectful
-import Effectful.Error.Dynamic
-import Effectful.Fail
-import Effectful.Resource
+import Effectful.Error.Static
 import Effectful.State.Static.Local
-import Telescope.Asdf.Node
-import Text.Libyaml (Event (..), Tag (..))
-import Text.Libyaml qualified as Yaml
+import Telescope.Asdf.Error (AsdfError (..))
 
 
-newtype Asdf = Asdf Node
+{- | The top-level document is always an object with keys: https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/asdf-1.1.0.html#core-asdf-1-1-0
+should we parse the software, etc?
+yeah, we definitely should
+-}
 
+-- newtype Document = Document
+--   { library :: Software
+--   , history :: History
+--   , tree :: Object
+--   }
 
 -- | Uncompressed, block data
 newtype BlockData = BlockData {bytes :: ByteString}
@@ -85,7 +84,7 @@ noChecksum = Checksum $ BC.replicate 16 '0'
 
 -- TODO: parse the tree as yaml using libyaml
 -- TEST: lots of things
-data DocumentParts = DocumentParts
+data AsdfFile = AsdfFile
   { tree :: ByteString
   , blocks :: [BlockData]
   , index :: ByteString
@@ -133,23 +132,21 @@ data DocumentParts = DocumentParts
 
 -- runEff $ testTree dp.tree
 
-
-
-splitDocument :: (Fail :> es) => ByteString -> Eff es DocumentParts
-splitDocument dat = evalState dat $ do
+splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
+splitAsdfFile dat = evalState dat $ do
   tree <- parseToBlock
   blocks <- parseBlocks
   index <- get
-  pure $ DocumentParts{tree, blocks, index}
+  pure $ AsdfFile{tree, blocks, index}
  where
   -- instead, we could start parsing
   parseToBlock = state $ BS.breakSubstring blockMagicToken
 
-  parseBlocks :: (State ByteString :> es, Fail :> es) => Eff es [BlockData]
+  parseBlocks :: (State ByteString :> es, Error AsdfError :> es) => Eff es [BlockData]
   parseBlocks = do
     inp <- get
     case runGetOrFail getBlocks (BL.fromStrict inp) of
-      Left (_, num, err) -> fail $ "Block Parse failed at (" ++ show num ++ ") " ++ err
+      Left (_, num, err) -> throwError $ BlockError $ "at " ++ show num ++ ": " ++ err
       Right (rest, _, bs) -> do
         put (BL.toStrict rest)
         pure bs

@@ -1,55 +1,78 @@
-module Telescope.Asdf.Tree where
+module Telescope.Asdf.Decoding where
 
 import Conduit
-import Control.Applicative (Alternative, (<|>))
-import Control.Exception
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BSL
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
-import Data.Maybe (fromMaybe)
 import Data.Text (pack, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
-import Data.Text.Encoding qualified as T
-import Data.Text.IO qualified as T
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TL
-import Data.Text.Lazy.IO qualified as TL
 import Effectful
-import Effectful.Error.Dynamic
-import Effectful.Fail
+import Effectful.Error.Static
 import Effectful.NonDet
 import Effectful.Reader.Dynamic
 import Effectful.Resource
-import GHC.IO (unsafePerformIO)
 import System.ByteOrder
-import Telescope.Asdf.Document
+import Telescope.Asdf.Class (FromAsdf (..))
+import Telescope.Asdf.Core (Asdf (..))
+import Telescope.Asdf.Error (AsdfError (..))
+import Telescope.Asdf.File (AsdfFile (..), BlockData (..), splitAsdfFile)
 import Telescope.Asdf.Node
+import Telescope.Asdf.Parser (ParseError, fromParser)
 import Telescope.Data.Axes
 import Text.Libyaml (Event (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
 
 
+-- you can't catch monadfail, can you?
+-- that's not ideal
+-- throwing an error might be better...
+-- decode :: forall a m. (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
+-- decode bs = liftIO $ runEff $ runErrorNoCallStackWith throwM $ do
+--   f <- splitFile bs
+--   asdf <- parseAsdf f.tree f.blocks
+--   case runParser $ parseValue $ Object asdf.tree of
+--     Left e -> fail $ "Parse Error: " ++ e
+--     Right a -> pure a
+
+decode :: (FromAsdf a, IOE :> es, Error AsdfError :> es) => ByteString -> Eff es a
+decode bs = do
+  f <- splitAsdfFile bs
+  asdf <- fromAsdfFile f.tree f.blocks
+  runParseError $ fromParser $ parseValue $ Object asdf.tree
+ where
+  runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)
+
+
 -- WARNING: IOE is required to get the MonadResource instance! Dumb
 -- wild, they use unsafePerformIO
 -- https://hackage.haskell.org/package/yaml-0.11.11.2/docs/src/Data.Yaml.html#decodeEither%27
--- parseTree :: (Fail :> es, IOE :> es) => ByteString -> Eff es Node
--- parseTree inp = do
---   -- TODO: run with unsafePerformIO somehow
---   runResource $ runConduit $ Yaml.decode inp .| sinkNode .| rootNode
 
--- runEff $ dumpTree inp
--- runEff $ testTree inp
+fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => ByteString -> [BlockData] -> Eff es Asdf
+fromAsdfFile inp blocks = do
+  runParseError . runYamlError . runResource . runReader blocks . runConduit $ Yaml.decode inp .| sinkAsdf
+ where
+  runYamlError = runErrorNoCallStackWith @YamlError (throwError . YamlError . show)
+  runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)
 
-sinkDocument :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
-sinkDocument = do
+
+sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf
+sinkAsdf = do
+  tree <- sinkTree
+  lift $ fromParser (parseValue $ Object tree)
+
+
+sinkTree :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
+sinkTree = do
   expect EventStreamStart
   expect EventDocumentStart
-  sinkNode
+  Node _ v <- sinkNode
+  case v of
+    Object o -> pure o
+    _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
 -- NOTE: START HERE
@@ -57,7 +80,6 @@ sinkDocument = do
 -- TODO: sinkDocument, should consume everything and produce a single document
 sinkNode :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
-  -- handle the next one on the stack and gogogogogo
   e <- event
   case e of
     EventScalar s t _ _ -> lift $ parseScalar s t
@@ -202,23 +224,12 @@ parseScalar inp tg = byTag tg
     maybe empty pure $ readMaybe (unpack $ decodeUtf8 s)
 
 
-data YamlError
-  = NoInput
-  | ExpectedEvent String Yaml.Event
-  | InvalidScalar String Tag ByteString
-  | InvalidScalarTag Tag ByteString
-  | NDArrayMissingKey String
-  | NDArrayMissingBlock Integer
-  | NDArrayExpected String Value
-  deriving (Exception, Show)
-
-
 -- | Await an event. Throw if out of input
 event :: (Error YamlError :> es) => ConduitT i o (Eff es) i
 event = do
   e <- await
   case e of
-    Nothing -> throwM NoInput
+    Nothing -> lift $ throwError NoInput
     Just a -> pure a
 
 
@@ -251,6 +262,23 @@ expect ex = do
     else lift $ throwError $ ExpectedEvent ("Exactly " ++ show ex) e
 
 
--- emit a bunch of events
-yieldNode :: Node -> Conduit Event o (Eff es) ()
-yieldNode n = _
+data YamlError
+  = NoInput
+  | ExpectedEvent String Event
+  | InvalidScalar String Tag ByteString
+  | InvalidScalarTag Tag ByteString
+  | InvalidTree String Value
+  | NDArrayMissingKey String
+  | NDArrayMissingBlock Integer
+  | NDArrayExpected String Value
+  deriving (Show)
+
+
+testDecode :: IO ()
+testDecode = do
+  inp <- BS.readFile "samples/example.asdf"
+  a <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ do
+    decode @Asdf inp
+  print a.history
+  print a.library
+  print a.tree
