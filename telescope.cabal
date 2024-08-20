@@ -86,9 +86,9 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
         Test.ArraySpec
+        Test.Asdf.ClassSpec
         Test.Asdf.DecodeSpec
         Test.Asdf.FileSpec
-        Test.Asdf.TreeSpec
         Test.BinarySpec
         Test.Fits.ChecksumSpec
         Test.Fits.EncodingSpec

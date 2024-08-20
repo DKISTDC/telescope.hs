@@ -1,17 +1,16 @@
-module Test.Asdf.TreeSpec where
+module Test.Asdf.ClassSpec where
 
 import Conduit
 import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
 import Data.Massiv.Array (Array, Comp (..), D, Ix1, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Effectful
 import Effectful.Error.Static
 import Effectful.Resource
+import GHC.Generics (Generic, from)
 import GHC.Int (Int32, Int64)
 import Skeletest
-import Skeletest.Predicate qualified as P
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Decoding
@@ -19,7 +18,6 @@ import Telescope.Asdf.Error
 import Telescope.Asdf.File
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
-import Test.Asdf.DecodeSpec (expectNDArray)
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 import Text.Libyaml qualified as Yaml
 
@@ -28,6 +26,7 @@ spec :: Spec
 spec = do
   describe "FromAsdf" fromAsdfSpec
   describe "ToAsdf" toAsdfSpec
+  describe "GObject" gObjectSpec
 
 
 fromAsdfSpec :: Spec
@@ -38,16 +37,15 @@ fromAsdfSpec = do
           , ("name", fromValue $ String "Monty")
           , ("sequence", fromValue $ Array $ fmap (fromValue . Integer) [0 .. 99])
           ]
-    case runParser $ parseValue @ExampleList (Object tree) of
+    case runParser $ parseValue @Example (Object tree) of
       Left e -> fail e
       Right ex -> do
         ex.foo `shouldBe` 42
         ex.name `shouldBe` "Monty"
         ex.sequence `shouldBe` [0 .. 99]
 
-  it "parses sequence from example.asdf as an Array" $ do
+  it "parses sequence from example.asdf as an NDArray" $ do
     ExampleAsdfFix a <- getFixture
-    print a.tree
     case runParser $ parseValue @Sequence (Object a.tree) of
       Left e -> fail e
       Right (Sequence s) -> do
@@ -56,24 +54,44 @@ fromAsdfSpec = do
 
 toAsdfSpec :: Spec
 toAsdfSpec = do
-  it "should serialize data type" $ do
-    let Node s val = toNode $ ExampleList{foo = 40, name = "Marty", sequence = []}
-    s `shouldBe` schema @ExampleList
+  it "should serialize Example" $ do
+    let Node s val = toNode $ Example{foo = 40, name = "Marty", sequence = [], powers = Nothing}
+    s `shouldBe` schema @Example
     o <- expectObject val
     lookup "foo" o `shouldBe` Just (Node mempty (Integer 40))
     lookup "name" o `shouldBe` Just (Node mempty (String "Marty"))
+
+  it "should serialize Example sequence as list" $ do
+    let val = toValue $ Example{foo = 40, name = "Marty", sequence = [0 .. 99], powers = Nothing}
+    o <- expectObject val
     ns <- expectArray $ lookup "sequence" o
-    fmap (.value) ns `shouldBe` []
+    ns `shouldBe` fmap (fromValue . Integer) [0 .. 99]
 
   it "should serialize list to Array" $ do
     let nums = [0 .. 99] :: [Int]
     toValue nums `shouldBe` Array (fmap (Node mempty . Integer) [0 .. 99])
 
 
--- it "should serialize Array to NDArray" $ do
---   let n = toNode ([1 .. 100] :: [Int])
---   as <- expectArray (Just n)
---   as `shouldBe` fmap (Node mempty . Integer) [1 .. 100]
+gObjectSpec :: Spec
+gObjectSpec = do
+  it "should gen object" $ do
+    gToObject (from (TinyGen "world")) `shouldBe` [("hello", fromValue (String "world"))]
+
+  it "should gen tiny type" $ do
+    toValue (TinyGen "world") `shouldBe` Object [("hello", fromValue (String "world"))]
+
+  it "should gen maybe type" $ do
+    toValue (MaybeGen (Just "world")) `shouldBe` Object [("hello", fromValue (String "world"))]
+    toValue (MaybeGen Nothing) `shouldBe` Object [("hello", fromValue Null)]
+
+  it "should allow maybes" $ do
+    let val = Object [("hello", fromValue (String "world"))]
+    m1 <- parseIO (parseValue val)
+    m1 `shouldBe` MaybeGen (Just "world")
+
+    m2 <- parseIO (parseValue $ Object [])
+    m2 `shouldBe` MaybeGen Nothing
+
 
 newtype ExampleAsdfFix = ExampleAsdfFix Asdf
 instance Fixture ExampleAsdfFix where
@@ -90,31 +108,32 @@ dumpEvents inp = do
     runResource $ runConduit $ Yaml.decode a.tree .| takeC 100 .| mapM_C (liftIO . print)
 
 
-data ExampleList = ExampleList
+data TinyGen = TinyGen
+  { hello :: Text
+  }
+  deriving (Generic, FromAsdf, ToAsdf)
+
+
+data MaybeGen = MaybeGen
+  { hello :: Maybe Text
+  }
+  deriving (Generic, FromAsdf, ToAsdf, Eq)
+
+
+data Example = Example
   { foo :: Int32
   , name :: Text
-  , sequence :: [Int64]
+  , sequence :: [Int32]
+  , powers :: Maybe Powers
   }
-
-
-instance FromAsdf ExampleList where
-  parseValue = \case
-    Object o -> do
-      foo <- o .: "foo"
-      name <- o .: "name"
-      sql <- o .: "sequence"
-      pure ExampleList{foo, name, sequence = sql}
-    node -> fail $ expected "Example Object" node
-
-
-instance ToAsdf ExampleList where
+  deriving (Generic, FromAsdf)
+instance ToAsdf Example where
   schema = "example/woot-1.0"
-  toValue ex =
-    Object
-      [ ("foo", toNode ex.foo)
-      , ("name", toNode ex.name)
-      , ("sequence", toNode ex.sequence)
-      ]
+
+
+data Powers = Powers
+  {squares :: Array D Ix1 Int64}
+  deriving (Generic, ToAsdf, FromAsdf)
 
 
 data Sequence = Sequence (Array D Ix1 Int64)
@@ -137,3 +156,7 @@ expectObject :: Value -> IO Object
 expectObject = \case
   Object o -> pure o
   n -> fail $ "Expected Object, but got: " ++ show n
+
+
+parseIO :: Parser a -> IO a
+parseIO p = runEff $ runErrorNoCallStackWith @ParseError throwM $ fromParser p

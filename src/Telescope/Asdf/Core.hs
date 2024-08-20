@@ -2,17 +2,14 @@
 
 module Telescope.Asdf.Core where
 
-import Data.Massiv.Array
-import Data.Maybe (catMaybes)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Version (showVersion)
+import GHC.Generics (Generic)
 import Paths_telescope (version)
 import Telescope.Asdf.Class
 import Telescope.Asdf.Error (expected)
-import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
@@ -43,84 +40,42 @@ data Quantity = Quantity
   { unit :: Unit
   , value :: Value
   }
-
-
+  deriving (Generic)
 instance ToAsdf Quantity where
   schema = "unit/quantity-1.5.0"
-  toValue q =
-    Object
-      [ ("unit", toNode q.unit)
-      , ("value", Node mempty q.value)
-      ]
-instance FromAsdf Quantity where
-  parseValue = \case
-    Object o -> do
-      unit <- o .: "unit"
-      value <- o .: "value"
-      pure $ Quantity{unit, value}
-    val -> fail $ expected "Quantity" val
+instance FromAsdf Quantity
 
 
--- instance ToAsdf NDArray where
---   schema = "core/ndarray-1.5.0"
---   toValue a =
---     Object
---       [ ("source", toNode a.source)
---       , ("byteorder", toNode a.byteorder)
---       , ("datatype", toNode a.datatype)
---       , ("shape", toNode a.shape)
---       ]
+-- newtype Points = Points [[Double]]
 --
 --
--- instance FromAsdf NDArray where
---   parseValue = \case
---     Object o -> do
---       sc <- o .: "source"
---       bo <- o .: "byteorder"
---       dt <- o .: "datatype"
---       sh <- o .: "shape"
---       pure $ NDArray sc bo dt sh
---     val -> fail $ expected "NDArray" val
-
--- instance ToAsdf DataType where
---   toValue Float64 = String "Float64"
--- instance FromAsdf DataType where
---   parseValue = \case
---     String "Float64" -> pure Float64
---     node -> fail $ expected "DataType" node
-
--- points are really just an array, encoded in the ndarray
-newtype Points = Points [[Double]]
-
-
-instance ToAsdf Points where
-  schema = "unit/quantity-1.1.0"
-  toValue (Points ds) = do
-    toValue $ Quantity Pixel (NDArray $ toNDArray ds)
-
-
-instance FromAsdf Points where
-  parseValue v = do
-    q <- parseValue v :: Parser Quantity
-    ps <- parseNDArray q.value
-    pure $ Points ps
-
-
-newtype Points' = Points' (Array D Ix1 Double)
-
-
-instance ToAsdf Points' where
-  schema = "unit/quantity-1.1.0"
-  toValue (Points' ds) = do
-    toValue $ Quantity Pixel (NDArray $ toNDArray ds)
-
-
-instance FromAsdf Points' where
-  parseValue v = do
-    q <- parseValue v :: Parser Quantity
-    ps <- parseNDArray q.value
-    pure $ Points' ps
-
+-- instance ToAsdf Points where
+--   schema = "unit/quantity-1.1.0"
+--   toValue (Points ds) = do
+--     toValue $ Quantity Pixel (NDArray $ toNDArray ds)
+--
+--
+-- instance FromAsdf Points where
+--   parseValue v = do
+--     q <- parseValue v :: Parser Quantity
+--     ps <- parseNDArray q.value
+--     pure $ Points ps
+--
+--
+-- newtype Points' = Points' (Array D Ix1 Double)
+--
+--
+-- instance ToAsdf Points' where
+--   schema = "unit/quantity-1.1.0"
+--   toValue (Points' ds) = do
+--     toValue $ Quantity Pixel (NDArray $ toNDArray ds)
+--
+--
+-- instance FromAsdf Points' where
+--   parseValue v = do
+--     q <- parseValue v :: Parser Quantity
+--     ps <- parseNDArray q.value
+--     pure $ Points' ps
 
 -- instance ToAsdf Points where
 --   schema = "unit/quantity-1.1.0"
@@ -162,25 +117,9 @@ data Software = Software
   , name :: Text
   , version :: Text
   }
-  deriving (Show)
+  deriving (Show, Generic, FromAsdf)
 instance ToAsdf Software where
   schema = "core/software-1.0.0"
-  toValue s =
-    Object
-      [ ("author", toNode s.author)
-      , ("homepage", toNode s.homepage)
-      , ("name", toNode s.name)
-      , ("version", toNode s.version)
-      ]
-instance FromAsdf Software where
-  parseValue = \case
-    Object o -> do
-      author <- o .:? "author"
-      homepage <- o .:? "homepage"
-      name <- o .: "name"
-      vers <- o .: "version"
-      pure $ Software{author, homepage, name, version = vers}
-    val -> fail $ expected "Software Object" val
 
 
 telescopeSoftware :: Software
@@ -214,42 +153,19 @@ instance FromAsdf Asdf where
       library <- o .: "asdf_library"
       history <- o .: "history"
       pure $ Asdf{history, library, tree = o}
-    val -> fail $ expected "Asdf Object" val
+    val -> fail $ expected "Asdf" val
 
 
 data History = History
   { extensions :: [ExtensionMetadata]
   }
-  deriving (Show)
-instance ToAsdf History where
-  toValue h =
-    Object
-      [ ("extensions", Node mempty $ Array $ fmap toNode h.extensions)
-      ]
-instance FromAsdf History where
-  parseValue = \case
-    Object o -> do
-      extensions <- o .: "extensions"
-      pure $ History{extensions}
-    val -> fail $ expected "History Object" val
+  deriving (Show, Generic, FromAsdf, ToAsdf)
 
 
 data ExtensionMetadata = ExtensionMetadata
-  { extensionClass :: Text
+  { extension_class :: Text
   , software :: Software
   }
-  deriving (Show)
+  deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
   schema = "core/extension_metadata-1.0.0"
-  toValue e =
-    Object
-      [ ("extension_class", toNode e.extensionClass)
-      , ("software", toNode e.software)
-      ]
-instance FromAsdf ExtensionMetadata where
-  parseValue = \case
-    Object o -> do
-      extensionClass <- o .: "extension_class"
-      software <- o .: "software"
-      pure $ ExtensionMetadata{extensionClass, software}
-    val -> fail $ expected "ExtensionMetadata Object" val

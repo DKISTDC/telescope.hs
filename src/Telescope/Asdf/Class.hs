@@ -2,9 +2,11 @@
 
 module Telescope.Asdf.Class where
 
-import Data.Massiv.Array (Array, D, Prim)
+import Data.Massiv.Array (Array, Prim)
+import Data.Massiv.Array qualified as M
 import Data.Scientific (fromFloatDigits, toRealFloat)
-import Data.Text (Text)
+import Data.Text (Text, pack)
+import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
@@ -17,6 +19,8 @@ import Telescope.Data.Binary
 
 class ToAsdf a where
   toValue :: a -> Value
+  default toValue :: (Generic a, GObject (Rep a)) => a -> Value
+  toValue a = Object $ gToObject (from a)
 
 
   schema :: SchemaTag
@@ -26,6 +30,9 @@ class ToAsdf a where
 
 class FromAsdf a where
   parseValue :: Value -> Parser a
+  default parseValue :: (Generic a, GObject (Rep a)) => Value -> Parser a
+  parseValue (Object o) = to <$> gParseObject o
+  parseValue val = fail $ expected "Object" val
 
 
 instance ToAsdf ByteOrder where
@@ -103,11 +110,11 @@ instance (ToAsdf a) => ToAsdf (Maybe a) where
   toValue (Just a) = toValue a
 
 
-instance (BinaryValue a, Prim a, AxesIndex ix) => FromAsdf (Array D ix a) where
+instance (BinaryValue a, Prim a, AxesIndex ix) => FromAsdf (Array M.D ix a) where
   parseValue = \case
     NDArray a -> fromNDArray a
     node -> fail $ expected "Array" node
-instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToAsdf (Array D ix a) where
+instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToAsdf (Array M.D ix a) where
   toValue as = NDArray $ ndArrayMassiv as
 
 
@@ -155,6 +162,7 @@ o .:? k = addContext (Child k) $ do
     Nothing -> pure Nothing
     Just a -> Just <$> parseNode a
 
+
 -- data Scalar
 --   = SInt8
 --   | SInt16
@@ -178,3 +186,49 @@ o .:? k = addContext (Child k) $ do
 --
 -- data DataType
 --   = Scalar Scalar
+
+class GObject f where
+  gToObject :: f p -> Object
+  gParseObject :: Object -> Parser (f p)
+
+
+instance (GObject f) => GObject (M1 D c f) where
+  gToObject (M1 f) = gToObject f
+  gParseObject o = M1 <$> gParseObject o
+
+
+instance (GObject f) => GObject (M1 C c f) where
+  gToObject (M1 f) = gToObject f
+  gParseObject o = M1 <$> gParseObject o
+
+
+instance (GObject f, GObject g) => GObject (f :*: g) where
+  gToObject (f :*: g) = gToObject f <> gToObject g
+  gParseObject o = do
+    f <- gParseObject o
+    g <- gParseObject o
+    pure $ f :*: g
+
+
+instance (GNode f, Selector s) => GObject (M1 S s f) where
+  gToObject (M1 f) =
+    let s = selName (undefined :: M1 S s f p)
+     in [(pack s, gToNode f)]
+  gParseObject o = do
+    let k = pack $ selName (undefined :: M1 S s f p)
+    M1 <$> gParseKey o k
+
+
+class GNode f where
+  gToNode :: f p -> Node
+  gParseKey :: Object -> Key -> Parser (f p)
+
+
+instance {-# OVERLAPPABLE #-} (ToAsdf a, FromAsdf a) => GNode (K1 R a) where
+  gToNode (K1 a) = toNode a
+  gParseKey o k = K1 <$> o .: k
+
+
+instance {-# OVERLAPPING #-} (ToAsdf a, FromAsdf a) => GNode (K1 R (Maybe a)) where
+  gToNode (K1 a) = toNode a
+  gParseKey o k = K1 <$> o .:? k
