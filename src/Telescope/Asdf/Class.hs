@@ -10,10 +10,12 @@ import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
+import Telescope.Asdf.File (BlockSource (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
 import Telescope.Data.Array
+import Telescope.Data.Axes
 import Telescope.Data.Binary
 
 
@@ -33,17 +35,6 @@ class FromAsdf a where
   default parseValue :: (Generic a, GObject (Rep a)) => Value -> Parser a
   parseValue (Object o) = to <$> gParseObject o
   parseValue val = fail $ expected "Object" val
-
-
-instance ToAsdf ByteOrder where
-  toValue = \case
-    BigEndian -> "big"
-    LittleEndian -> "little"
-instance FromAsdf ByteOrder where
-  parseValue = \case
-    String "big" -> pure BigEndian
-    String "little" -> pure LittleEndian
-    node -> fail $ expected "ByteOrder" node
 
 
 instance ToAsdf Int where
@@ -138,6 +129,41 @@ instance FromAsdf NDArrayData where
   parseValue = \case
     NDArray nda -> pure nda
     node -> fail $ expected "NDArray" node
+
+
+instance ToAsdf DataType where
+  toValue Float64 = "float64"
+  toValue Int64 = "int64"
+  toValue Int32 = "int32"
+  toValue Int16 = "int16"
+  toValue Int8 = "int8"
+instance FromAsdf DataType where
+  parseValue = \case
+    String "float64" -> pure Float64
+    String "int64" -> pure Int64
+    String "int32" -> pure Int32
+    String "int16" -> pure Int16
+    String "int8" -> pure Int8
+    val -> fail $ expected "DataType" val
+
+
+instance ToAsdf ByteOrder where
+  toValue = \case
+    BigEndian -> "big"
+    LittleEndian -> "little"
+instance FromAsdf ByteOrder where
+  parseValue = \case
+    String "big" -> pure BigEndian
+    String "little" -> pure LittleEndian
+    node -> fail $ expected "ByteOrder" node
+
+
+instance ToAsdf (Axes Row) where
+  toValue (Axes as) = toValue as
+
+
+instance ToAsdf BlockSource where
+  toValue (BlockSource s) = toValue s
 
 
 -- | Convert to a Node, including the schema tag if specified

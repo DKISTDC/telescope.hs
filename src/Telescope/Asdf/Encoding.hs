@@ -1,31 +1,36 @@
 module Telescope.Asdf.Encoding where
 
 import Conduit
+import Data.Binary.Put (runPut)
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BC
+import Data.ByteString.Lazy qualified as BL
+import Data.Function ((&))
+import Data.Text (pack, unpack)
+import Data.Text.Encoding qualified as T
 import Effectful
-import Effectful.Error.Dynamic
+import Effectful.Error.Static
 import Effectful.Resource
+import Effectful.State.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Error
+import Telescope.Asdf.File
 import Telescope.Asdf.Node
-import Text.Libyaml (Event (..), Tag (..))
+import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 
 
--- import Data.ByteString qualified as BS
--- import Data.ByteString.Lazy qualified as BL
--- import Telescope.Asdf.Document
--- import Telescope.Asdf.Node
+encodeM :: (ToAsdf a, MonadIO m) => a -> m ByteString
+encodeM a =
+  liftIO $ runEff . runErrorNoCallStackWith @AsdfError throwM $ encode a
 
--- but... it can't emit the parsing ones
--- encode :: (ToAsdf a, IOE :> es, Error AsdfError :> es) => a -> Eff es ByteString
--- encode a = do
---   -- TODO: binary
---   -- TODO: include the required comments, etc
---   -- TODO: fail if A doesn't serialize to an object
---   -- we are writing our own!
---   liftIO $ runEff $ encodeAsdf u
+
+encode :: (ToAsdf a, IOE :> es, Error AsdfError :> es) => a -> Eff es ByteString
+encode a = do
+  toDocument a >>= encodeDocument
+
 
 toDocument :: (ToAsdf a, Error AsdfError :> es) => a -> Eff es Asdf
 toDocument a =
@@ -39,10 +44,24 @@ toDocument a =
 
 encodeDocument :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es ByteString
 encodeDocument a = do
-  runResource . runConduit $ yieldDocument a .| Yaml.encode
+  -- liftIO $ putStrLn "ENCODE DOCUMENT"
+  (doc, blks) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
+  -- liftIO $ print headers
+  -- liftIO $ print $ tree doc
+  pure $
+    BS.intercalate "\n" $
+      headers <> tree doc <> blocks blks <> emptyIndex
+ where
+  headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
+  tagDirective = "%TAG ! tag:stsci.edu:asdf/"
+  tree doc = ["--- " <> doc, "..."]
+  blocks blks = [BL.toStrict $ runPut $ putBlocks blks]
+  -- TODO: generate a real index
+  emptyIndex = ["%YAML 1.1", "---", "[]", "..."]
+  format = Yaml.defaultFormatOptions & Yaml.setTagRendering Yaml.renderUriTags
 
 
-yieldDocument :: (Monad m) => Asdf -> ConduitT a Event m ()
+yieldDocument :: (State [BlockData] :> es) => Asdf -> ConduitT a Event (Eff es) ()
 yieldDocument a = do
   yield EventStreamStart
   yield EventDocumentStart
@@ -51,26 +70,66 @@ yieldDocument a = do
   yield EventStreamEnd
 
 
--- emit a bunch of events
-yieldNode :: (Monad m) => Node -> ConduitT a Event m ()
-yieldNode _ = do
-  yield $ EventSequenceStart (UriTag "mytag") Yaml.BlockSequence Nothing
-  yield $ EventScalar "woot" NoTag Yaml.Plain Nothing
-  yield $ EventScalar "boot" NoTag Yaml.Plain Nothing
-  yield $ EventScalar "woot" NoTag Yaml.Plain Nothing
-  yield EventSequenceEnd
+yieldNode :: forall es a. (State [BlockData] :> es) => Node -> ConduitT a Event (Eff es) ()
+yieldNode (Node st val) = do
+  case val of
+    Object o -> yieldObject o
+    Array a -> yieldArray a
+    String s -> yieldScalar (T.encodeUtf8 s)
+    Integer n -> yieldNum n
+    NDArray nd -> yieldNDArray nd
+    Bool b -> yieldBool b
+    Number n -> yieldNum n
+    Null -> yieldScalar "~"
+ where
+  tag = case st of
+    SchemaTag Nothing -> NoTag
+    SchemaTag (Just s) -> UriTag (unpack s)
+
+  yieldScalar s = yield $ EventScalar s tag Plain Nothing
+
+  yieldNum :: (Num n, Show n) => n -> ConduitT a Event (Eff es) ()
+  yieldNum n = yieldScalar (T.encodeUtf8 $ pack $ show n)
+
+  yieldBool = \case
+    True -> yieldScalar "true"
+    False -> yieldScalar "false"
+
+  yieldObject :: [(Key, Node)] -> ConduitT a Event (Eff es) ()
+  yieldObject o = do
+    yield $ EventMappingStart tag BlockMapping Nothing
+    mapM_ yieldMapping o
+    yield EventMappingEnd
+
+  yieldMapping :: (Key, Node) -> ConduitT a Event (Eff es) ()
+  yieldMapping (key, node) = do
+    yield $ EventScalar (T.encodeUtf8 key) NoTag Plain Nothing
+    yieldNode node
+
+  -- TODO: can we control whether they render inline or not? Depending on the length maybe?
+  yieldArray :: [Node] -> ConduitT a Event (Eff es) ()
+  yieldArray a = do
+    yield $ EventSequenceStart tag seqStyle Nothing
+    mapM_ yieldNode a
+    yield EventSequenceEnd
+   where
+    seqStyle
+      | length a > 10 = BlockSequence
+      | otherwise = FlowSequence
+
+  yieldNDArray :: NDArrayData -> ConduitT a Event (Eff es) ()
+  yieldNDArray nd = do
+    src <- lift $ addBlock nd.bytes
+    yield $ EventMappingStart (UriTag "!core/ndarray-1.0.0") FlowMapping Nothing
+    yieldMapping ("source", toNode src)
+    yieldMapping ("datatype", toNode nd.datatype)
+    yieldMapping ("shape", toNode nd.shape)
+    yieldMapping ("byteorder", toNode nd.byteorder)
+    yield EventMappingEnd
 
 
-yieldValue :: (Monad m) => Value -> ConduitT a Event m ()
-yieldValue _ = do
-  yield $ EventSequenceStart (UriTag "mytag") Yaml.BlockSequence Nothing
-  yield $ EventScalar "woot" NoTag Yaml.Plain Nothing
-  yield $ EventScalar "boot" NoTag Yaml.Plain Nothing
-  yield $ EventScalar "woot" NoTag Yaml.Plain Nothing
-  yield EventSequenceEnd
-
--- testEncode :: IO ()
--- testEncode = do
---   (bs :: BS.ByteString) <- runEff . runResource . runConduit $ yieldNode undefined .| Yaml.encode
---   print $ BS.length bs
---   print bs
+addBlock :: (State [BlockData] :> es) => ByteString -> Eff es BlockSource
+addBlock bytes = do
+  blocks <- get @[BlockData]
+  put $ blocks <> [BlockData bytes]
+  pure $ BlockSource $ length blocks

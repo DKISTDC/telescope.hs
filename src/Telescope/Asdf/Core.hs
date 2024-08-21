@@ -21,7 +21,7 @@ data Unit
 
 
 instance ToAsdf Unit where
-  schema = "unit/unit-1.5.0"
+  schema = "!unit/unit-1.5.0"
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"
@@ -42,7 +42,7 @@ data Quantity = Quantity
   }
   deriving (Generic)
 instance ToAsdf Quantity where
-  schema = "unit/quantity-1.5.0"
+  schema = "!unit/quantity-1.5.0"
 instance FromAsdf Quantity
 
 
@@ -117,9 +117,9 @@ data Software = Software
   , name :: Text
   , version :: Text
   }
-  deriving (Show, Generic, FromAsdf)
+  deriving (Show, Eq, Generic, FromAsdf)
 instance ToAsdf Software where
-  schema = "core/software-1.0.0"
+  schema = "!core/software-1.0.0"
 
 
 telescopeSoftware :: Software
@@ -127,7 +127,7 @@ telescopeSoftware =
   Software
     { author = Just "DKIST Data Center"
     , homepage = Just "https://github.com/dkistdc/telescope.hs"
-    , name = "Telescope"
+    , name = "telescope.hs"
     , version = fromString $ showVersion version
     }
 
@@ -139,7 +139,7 @@ data Asdf = Asdf
   , tree :: Object
   }
 instance ToAsdf Asdf where
-  schema = "core/asdf-1.1.0"
+  schema = "!core/asdf-1.1.0"
   toValue a =
     -- these two required fields are first, then merge keys from the tree
     Object $
@@ -152,9 +152,17 @@ instance FromAsdf Asdf where
     Object o -> do
       library <- o .: "asdf_library"
       history <- o .: "history"
-      pure $ Asdf{history, library, tree = o}
+      let tree = filter (not . isLibraryField) o
+      pure $ Asdf{history, library, tree}
     val -> fail $ expected "Asdf" val
+   where
+    isLibraryField ("asdf_library", _) = True
+    isLibraryField ("history", _) = True
+    isLibraryField _ = False
 
+
+-- coreTag :: Text -> SchemaTag
+-- coreTag t = SchemaTag $ Just $
 
 data History = History
   { extensions :: [ExtensionMetadata]
@@ -168,4 +176,4 @@ data ExtensionMetadata = ExtensionMetadata
   }
   deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
-  schema = "core/extension_metadata-1.0.0"
+  schema = "!core/extension_metadata-1.0.0"

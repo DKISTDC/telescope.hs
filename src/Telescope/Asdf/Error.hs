@@ -1,6 +1,6 @@
 module Telescope.Asdf.Error where
 
-import Control.Exception (Exception)
+import Control.Monad.Catch (Exception)
 
 
 data AsdfError

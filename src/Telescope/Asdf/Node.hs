@@ -105,6 +105,9 @@ instance Show NDArrayData where
 data DataType
   = Float64
   | Int64
+  | Int32
+  | Int16
+  | Int8
   deriving (Show, Eq)
 
 
@@ -116,6 +119,12 @@ instance IsDataType Double where
   dataType = Float64
 instance IsDataType Int64 where
   dataType = Int64
+instance IsDataType Int32 where
+  dataType = Int32
+instance IsDataType Int16 where
+  dataType = Int16
+instance IsDataType Int8 where
+  dataType = Int8
 instance (IsDataType a) => IsDataType [a] where
   dataType = dataType @a
 

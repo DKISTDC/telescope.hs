@@ -31,6 +31,10 @@ newtype BlockData = BlockData {bytes :: ByteString}
   deriving (Eq)
 
 
+newtype BlockSource = BlockSource Int
+  deriving (Eq)
+
+
 instance Show BlockData where
   show (BlockData bs) = "BlockData " <> show (BS.length bs)
 
@@ -134,13 +138,12 @@ data AsdfFile = AsdfFile
 
 splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
 splitAsdfFile dat = evalState dat $ do
-  tree <- parseToBlock
+  tree <- parseToFirstBlock
   blocks <- parseBlocks
   index <- get
   pure $ AsdfFile{tree, blocks, index}
  where
-  -- instead, we could start parsing
-  parseToBlock = state $ BS.breakSubstring blockMagicToken
+  parseToFirstBlock = state $ BS.breakSubstring blockMagicToken
 
   parseBlocks :: (State ByteString :> es, Error AsdfError :> es) => Eff es [BlockData]
   parseBlocks = do
@@ -217,6 +220,10 @@ putBlockHeader h = do
  where
   putCompression _ = putByteString "\0\0\0\0"
   putChecksum (Checksum cs) = putByteString cs
+
+
+putBlocks :: [BlockData] -> Put
+putBlocks = mapM_ putBlock
 
 
 putBlock :: BlockData -> Put

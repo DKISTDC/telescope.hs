@@ -20,6 +20,7 @@ import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Error (AsdfError (..))
 import Telescope.Asdf.File (AsdfFile (..), BlockData (..), splitAsdfFile)
 import Telescope.Asdf.Node
+import Telescope.Asdf.Parser
 import Telescope.Asdf.Parser (ParseError, fromParser)
 import Telescope.Data.Axes
 import Text.Libyaml (Event (..), Tag (..))
@@ -27,17 +28,13 @@ import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
 
 
--- you can't catch monadfail, can you?
--- that's not ideal
--- throwing an error might be better...
--- decode :: forall a m. (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
--- decode bs = liftIO $ runEff $ runErrorNoCallStackWith throwM $ do
---   f <- splitFile bs
---   asdf <- parseAsdf f.tree f.blocks
---   case runParser $ parseValue $ Object asdf.tree of
---     Left e -> fail $ "Parse Error: " ++ e
---     Right a -> pure a
+-- TODO: unsafePerformIO?
+-- TODO: decodeEither
+decodeM :: (FromAsdf a, MonadIO m) => ByteString -> m a
+decodeM bs = liftIO $ runEff . runErrorNoCallStackWith @AsdfError throwM $ decode bs
 
+
+-- actually, this should be unsafePerformIO now?
 decode :: (FromAsdf a, IOE :> es, Error AsdfError :> es) => ByteString -> Eff es a
 decode bs = do
   f <- splitAsdfFile bs
@@ -117,16 +114,14 @@ sinkNDArrayData = do
       Just (Node _ val) -> pure val
 
   parseDatatype val =
-    case val of
-      String "int64" -> pure Int64
-      String "float64" -> pure Float64
-      _ -> lift $ throwError $ NDArrayExpected "DataType" val
+    case runParser $ parseValue val of
+      Left _ -> lift $ throwError $ NDArrayExpected "DataType" val
+      Right a -> pure a
 
   parseByteorder val =
-    case val of
-      String "little" -> pure LittleEndian
-      String "big" -> pure BigEndian
-      _ -> lift $ throwError $ NDArrayExpected "Byteorder" val
+    case runParser $ parseValue val of
+      Left _ -> lift $ throwError $ NDArrayExpected "ByteOrder" val
+      Right a -> pure a
 
   parseShape val =
     case val of

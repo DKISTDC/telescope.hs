@@ -88,6 +88,7 @@ test-suite spec
         Test.ArraySpec
         Test.Asdf.ClassSpec
         Test.Asdf.DecodeSpec
+        Test.Asdf.EncodeSpec
         Test.Asdf.FileSpec
         Test.BinarySpec
         Test.Fits.ChecksumSpec

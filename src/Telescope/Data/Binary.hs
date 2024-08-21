@@ -21,7 +21,7 @@ instance BinaryValue Int8 where
 
 
 instance BinaryValue Int16 where
-  byteSize = 1
+  byteSize = 2
   put BigEndian = putInt16be
   put LittleEndian = putInt16le
   get BigEndian = getInt16be
