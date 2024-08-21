@@ -82,7 +82,7 @@ data Example = Example
   { foo :: Int
   , name :: Text
   }
-  deriving (Generic, FromAsdf)
+  deriving (Generic, FromAsdf, ToAsdf)
 
 
 newtype ExampleAsdfFix = ExampleAsdfFix Asdf

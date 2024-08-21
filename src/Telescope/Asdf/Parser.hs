@@ -16,7 +16,7 @@ data ParseError
 
 instance Show ParseError where
   show (ParseFailure ctx s) =
-    "at " ++ intercalate "." (fmap show $ reverse ctx) ++ "\n" ++ s
+    "at " ++ intercalate "." (fmap show $ reverse ctx) ++ "\n ! " ++ s
 
 
 data Context

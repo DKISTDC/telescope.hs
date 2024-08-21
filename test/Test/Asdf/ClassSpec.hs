@@ -2,6 +2,7 @@ module Test.Asdf.ClassSpec where
 
 import Conduit
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Massiv.Array (Array, Comp (..), D, Ix1, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
@@ -14,8 +15,10 @@ import Skeletest
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Decoding
+import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.File
+import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
 import Test.Asdf.FileSpec (ExampleFileFix (..))
@@ -72,6 +75,14 @@ toAsdfSpec = do
     toValue nums `shouldBe` Array (fmap (Node mempty . Integer) [0 .. 99])
 
 
+-- it "should produce similar example.asdf" $ do
+--   ExampleFileFix inp _ <- getFixture
+--   e <- decodeM @Example inp
+--   -- o <- encodeM e
+--   -- BS.writeFile "dump/test.asdf" o
+--   -- print e
+--   fail ":NOPE"
+
 gObjectSpec :: Spec
 gObjectSpec = do
   it "should gen object" $ do
@@ -123,17 +134,31 @@ data MaybeGen = MaybeGen
 data Example = Example
   { foo :: Int32
   , name :: Text
-  , sequence :: [Int32]
+  , sequence :: [Int64]
   , powers :: Maybe Powers
   }
-  deriving (Generic, FromAsdf)
+  deriving (Generic, Show)
 instance ToAsdf Example where
   schema = "example/woot-1.0"
+instance FromAsdf Example where
+  parseValue = \case
+    Object o -> do
+      foo <- o .: "foo"
+      name <- o .: "name"
+      sq <- o .: "sequence" >>= parseSequence
+      powers <- o .:? "powers"
+      pure $ Example{foo, name, sequence = sq, powers}
+    val -> fail $ expected "Example" val
+   where
+    parseSequence = \case
+      Array ns -> mapM parseNode ns
+      NDArray nd -> fromNDArray nd
+      val -> fail $ expected "Array or NDArray" val
 
 
 data Powers = Powers
   {squares :: Array D Ix1 Int64}
-  deriving (Generic, ToAsdf, FromAsdf)
+  deriving (Generic, Show, ToAsdf, FromAsdf)
 
 
 data Sequence = Sequence (Array D Ix1 Int64)

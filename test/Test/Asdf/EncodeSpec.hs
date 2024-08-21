@@ -20,7 +20,7 @@ import Telescope.Asdf.Error
 import Telescope.Asdf.File
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Test.Asdf.ClassSpec (expectObject)
+import Test.Asdf.ClassSpec (Example (..), expectObject)
 
 
 spec :: Spec
@@ -95,7 +95,7 @@ roundSpec = do
     out <- encodeM $ Matrix mx
 
     -- TODO: we should throw an error if the shapes don't match
-    -- TEST: throws an error if the shapes don't match
+    -- TEST: throws an error if NDArrayData.shape doesn't match
     Matrix ns <- decodeM out
     ns `shouldBe` mx
 
@@ -106,7 +106,6 @@ roundSpec = do
     sd2.number `shouldBe` sd.number
     sd2.tags `shouldBe` sd.tags
     sd2.matrix `shouldBe` sd.matrix
-    pure ()
  where
   matrix ns = M.delay @Ix2 @P $ M.fromLists' Seq ns
 
