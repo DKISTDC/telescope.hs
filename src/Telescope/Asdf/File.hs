@@ -2,12 +2,14 @@
 
 module Telescope.Asdf.File where
 
+import Control.Monad (forM)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
+import Data.List qualified as L
 import Data.Word
 import Effectful
 import Effectful.Error.Static
@@ -26,7 +28,7 @@ yeah, we definitely should
 --   , tree :: Object
 --   }
 
--- | Uncompressed, block data
+-- | Decompressed block data
 newtype BlockData = BlockData {bytes :: ByteString}
   deriving (Eq)
 
@@ -52,9 +54,8 @@ data BlockHeader = BlockHeader
   deriving (Show, Eq)
 
 
--- a bunch of byte offsets
--- yeah, it's fast to lookup with (!?)
 newtype BlockIndex = BlockIndex [Int]
+  deriving (Eq)
 
 
 data Compression
@@ -72,22 +73,6 @@ noChecksum :: Checksum
 noChecksum = Checksum $ BC.replicate 16 '0'
 
 
--- https://asdf-standard.readthedocs.io/en/latest/file_layout.html
--- #ASDF 1.0.0
--- #ASDF_STANDARD 1.5.0 (comments)
--- %YAML 1.1
--- %TAG ! tag:stsci.edu:asdf/
--- --- !core/asdf-1.1.0
--- asdf_library: !core/software-1.0.0 {author: The ASDF Developers, homepage: 'http://github.com/asdf-format/asdf', name: asdf, version: 2.11.0}
-
--- Header
--- Comments, optional
--- Tree, optional
--- Zero or more Blocks
--- Block Index, optional
-
--- TODO: parse the tree as yaml using libyaml
--- TEST: lots of things
 data AsdfFile = AsdfFile
   { tree :: ByteString
   , blocks :: [BlockData]
@@ -95,46 +80,6 @@ data AsdfFile = AsdfFile
   }
   deriving (Show, Eq)
 
-
--- INFO: Block Format
---   block_magic_token = ascii: "\323BLK"
---   header_size: UInt16 = size of remainder of the header in bytes
---   flags: UInt32
---   compression: Ascii[4] - "\0\0\0\0\" for no compression
---   allocated_size: UInt64 uint - size of the block data in bytes
---   used_size: UInt64 - amount of space used in the block
---   data_size: UInt64 - size of block when decoded. If compression = 0, == used_size
---   checksum: ascii[16] optional MD5 checksum. If "000000..." means no checksum should be performed
--- INFO: Flags: STREAMED = 0x1 - block extends to the end of the file. Ignore all the size fields. Must be last
--- INFO: Compression: zlib, bzp2
--- INFO: used_space bytes of meaningful data, then allocated_space - used_space bytes of unused data
---
--- INFO: Block Index
---  optional, if not present, you can "skip along" to find the location of blocks
---  should detect invalid or obselete indices and regenerate the index
-
--- TODO: To find the beginning of the first block, ASDF parsers should search from the end of the tree for the first occurrence of the block_magic_token
--- TODO: find the block index by reading backwards in the file
---  ensure the first offset entry matches the location of the first block in the file. If not, do not use!
---  ensure the last entry in the index refers to a block magic token, and the end of its allocated_space is followed by the block index
---  when using the index, make sure the block magic token exists at that index
-
--- test :: IO ()
--- test = do
---   -- TEST: the tree shouldn't contain any binary data!
---   putStrLn "TEST"
---   inp <- BS.readFile "/Users/shess/Data/VISP_L1_20230501T185359_AOPPO.asdf"
---   dp <- runEff $ runFailIO $ splitDocument inp
---   -- nope, it's the whole document
---   print $ BS.length inp
---   print $ BS.length dp.tree
---   print $ length dp.blocks
---   print $ BS.length dp.index
---
---   n <- runEff $ runFailIO $ parseTree dp.tree
---   print n
-
--- runEff $ testTree dp.tree
 
 splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
 splitAsdfFile dat = evalState dat $ do
@@ -154,11 +99,6 @@ splitAsdfFile dat = evalState dat $ do
         put (BL.toStrict rest)
         pure bs
 
-
--- where
--- handle = \case
---   EventDocumentStart -> _
---   _ -> _
 
 getBlock :: Get BlockData
 getBlock = do
@@ -222,8 +162,23 @@ putBlockHeader h = do
   putChecksum (Checksum cs) = putByteString cs
 
 
-putBlocks :: [BlockData] -> Put
-putBlocks = mapM_ putBlock
+encodeBlock :: BlockData -> EncodedBlock
+encodeBlock b =
+  EncodedBlock $ BL.toStrict $ runPut $ putBlock b
+
+
+blockIndex :: [EncodedBlock] -> BlockIndex
+blockIndex ebs =
+  let ns = scanl go 0 ebs
+   in BlockIndex $ take (length ns - 1) ns
+ where
+  go :: Int -> EncodedBlock -> Int
+  go n eb = n + BS.length eb.bytes
+
+
+newtype EncodedBlock = EncodedBlock
+  { bytes :: ByteString
+  }
 
 
 putBlock :: BlockData -> Put
@@ -247,7 +202,7 @@ blockHeader (BlockData bs) =
 
 getBlockData :: BlockHeader -> Get BlockData
 getBlockData h = do
-  -- TODO: handle compression
+  -- LATER: handle compression
   bytes <- getByteString $ fromIntegral h.usedSize
   _empty <- getByteString $ fromIntegral $ h.allocatedSize - h.usedSize
   pure $ BlockData bytes

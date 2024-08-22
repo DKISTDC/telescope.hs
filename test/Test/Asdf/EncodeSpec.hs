@@ -56,7 +56,7 @@ basicSpec = do
 documentSpec :: Spec
 documentSpec = do
   it "converts to document" $ do
-    asdf <- runEff . runErrorNoCallStackWith @AsdfError throwM $ toDocument $ BasicData "henry"
+    asdf <- runAsdfM $ toAsdfDoc $ BasicData "henry"
     asdf.library `shouldBe` telescopeSoftware
     lookup "username" asdf.tree `shouldBe` Just "henry"
 
@@ -66,11 +66,36 @@ blocksSpec = do
   it "includes blocks" $ do
     let ns = [1 .. 100]
     out <- encodeM (BasicArray ns)
-    af <- runEff . runErrorNoCallStackWith @AsdfError throwM $ splitAsdfFile out
+    af <- runAsdfM $ splitAsdfFile out
     length af.blocks `shouldBe` 1
 
     [BlockData bd] <- pure af.blocks
     bd `shouldBe` (toNDArray ns).bytes
+
+  it "calculates an index" $ do
+    let nd1 = toNDArray ([1 .. 10] :: [Int64])
+    let nd2 = toNDArray $ matrix @Int64 [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    let blks = fmap (encodeBlock . BlockData) [nd1.bytes, nd2.bytes, nd1.bytes]
+    let BlockIndex ix = blockIndex blks
+    print ix
+    length ix `shouldBe` 3
+    [i1, i2, i3] <- pure ix
+    i1 `shouldBe` 0
+    i2 `shouldSatisfy` P.gt (10 * 8)
+    i3 `shouldSatisfy` P.gt i2
+
+  it "calculates same index for Example" $ do
+    inp <- BS.readFile "samples/example.asdf"
+    e <- decodeM @Value inp
+    e `shouldSatisfy` P.con (Object P.anything)
+    (_, blks) <- runAsdfM $ do
+      a <- toAsdfDoc e
+      encodeTreeBlocks a
+    length blks `shouldBe` 3
+
+    -- we currently don't include whitespace after the tree
+    -- the first offset is the offset after the end of the tree, I think
+    blockIndex blks `shouldBe` BlockIndex (fmap (\n -> n - 897) [897, 1751, 2605])
 
 
 roundSpec :: Spec
@@ -94,7 +119,6 @@ roundSpec = do
     let mx = matrix [[1.0 .. 5.0], [2.0 .. 6.0]]
     out <- encodeM $ Matrix mx
 
-    -- TODO: we should throw an error if the shapes don't match
     -- TEST: throws an error if NDArrayData.shape doesn't match
     Matrix ns <- decodeM out
     ns `shouldBe` mx
@@ -106,8 +130,10 @@ roundSpec = do
     sd2.number `shouldBe` sd.number
     sd2.tags `shouldBe` sd.tags
     sd2.matrix `shouldBe` sd.matrix
- where
-  matrix ns = M.delay @Ix2 @P $ M.fromLists' Seq ns
+
+
+matrix :: (M.Prim n) => [[n]] -> Array D Ix2 n
+matrix ns = M.delay @Ix2 @P $ M.fromLists' Seq ns
 
 
 newtype BasicArray = BasicArray [Int64]

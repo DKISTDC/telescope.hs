@@ -90,6 +90,7 @@ test-suite spec
         Test.Asdf.DecodeSpec
         Test.Asdf.EncodeSpec
         Test.Asdf.FileSpec
+        Test.Asdf.NDArraySpec
         Test.BinarySpec
         Test.Fits.ChecksumSpec
         Test.Fits.EncodingSpec

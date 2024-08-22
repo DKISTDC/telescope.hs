@@ -21,7 +21,7 @@ import Telescope.Data.Binary
 
 class ToAsdf a where
   toValue :: a -> Value
-  default toValue :: (Generic a, GObject (Rep a)) => a -> Value
+  default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
   toValue a = Object $ gToObject (from a)
 
 
@@ -32,7 +32,7 @@ class ToAsdf a where
 
 class FromAsdf a where
   parseValue :: Value -> Parser a
-  default parseValue :: (Generic a, GObject (Rep a)) => Value -> Parser a
+  default parseValue :: (Generic a, GParseObject (Rep a)) => Value -> Parser a
   parseValue (Object o) = to <$> gParseObject o
   parseValue val = fail $ expected "Object" val
 
@@ -104,7 +104,7 @@ instance (ToAsdf a) => ToAsdf (Maybe a) where
 instance (BinaryValue a, Prim a, AxesIndex ix) => FromAsdf (Array M.D ix a) where
   parseValue = \case
     NDArray a -> fromNDArray a
-    node -> fail $ expected "Array" node
+    node -> fail $ expected "NDArray" node
 instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToAsdf (Array M.D ix a) where
   toValue as = NDArray $ ndArrayMassiv as
 
@@ -137,6 +137,8 @@ instance ToAsdf DataType where
   toValue Int32 = "int32"
   toValue Int16 = "int16"
   toValue Int8 = "int8"
+  toValue Bool8 = "bool8"
+  toValue (Ucs4 n) = Array ["ucs4", fromValue $ Integer n]
 instance FromAsdf DataType where
   parseValue = \case
     String "float64" -> pure Float64
@@ -144,6 +146,8 @@ instance FromAsdf DataType where
     String "int32" -> pure Int32
     String "int16" -> pure Int16
     String "int8" -> pure Int8
+    String "bool8" -> pure Bool8
+    Array ["ucs4", Node _ (Integer n)] -> pure $ Ucs4 n
     val -> fail $ expected "DataType" val
 
 
@@ -213,48 +217,72 @@ o .:? k = addContext (Child k) $ do
 -- data DataType
 --   = Scalar Scalar
 
-class GObject f where
+class GToObject f where
   gToObject :: f p -> Object
+
+
+instance (GToObject f) => GToObject (M1 D c f) where
+  gToObject (M1 f) = gToObject f
+
+
+instance (GToObject f) => GToObject (M1 C c f) where
+  gToObject (M1 f) = gToObject f
+
+
+instance (GToObject f, GToObject g) => GToObject (f :*: g) where
+  gToObject (f :*: g) = gToObject f <> gToObject g
+
+
+instance (GToNode f, GParseKey f, Selector s) => GToObject (M1 S s f) where
+  gToObject (M1 f) =
+    let s = selName (undefined :: M1 S s f p)
+     in [(pack s, gToNode f)]
+
+
+class GToNode f where
+  gToNode :: f p -> Node
+
+
+instance {-# OVERLAPPABLE #-} (ToAsdf a) => GToNode (K1 R a) where
+  gToNode (K1 a) = toNode a
+
+
+instance {-# OVERLAPPING #-} (ToAsdf a) => GToNode (K1 R (Maybe a)) where
+  gToNode (K1 a) = toNode a
+
+
+class GParseObject f where
   gParseObject :: Object -> Parser (f p)
 
 
-instance (GObject f) => GObject (M1 D c f) where
-  gToObject (M1 f) = gToObject f
+instance (GParseObject f) => GParseObject (M1 D c f) where
   gParseObject o = M1 <$> gParseObject o
 
 
-instance (GObject f) => GObject (M1 C c f) where
-  gToObject (M1 f) = gToObject f
+instance (GParseObject f) => GParseObject (M1 C c f) where
   gParseObject o = M1 <$> gParseObject o
 
 
-instance (GObject f, GObject g) => GObject (f :*: g) where
-  gToObject (f :*: g) = gToObject f <> gToObject g
+instance (GParseObject f, GParseObject g) => GParseObject (f :*: g) where
   gParseObject o = do
     f <- gParseObject o
     g <- gParseObject o
     pure $ f :*: g
 
 
-instance (GNode f, Selector s) => GObject (M1 S s f) where
-  gToObject (M1 f) =
-    let s = selName (undefined :: M1 S s f p)
-     in [(pack s, gToNode f)]
+instance (GParseKey f, Selector s) => GParseObject (M1 S s f) where
   gParseObject o = do
     let k = pack $ selName (undefined :: M1 S s f p)
     M1 <$> gParseKey o k
 
 
-class GNode f where
-  gToNode :: f p -> Node
+class GParseKey f where
   gParseKey :: Object -> Key -> Parser (f p)
 
 
-instance {-# OVERLAPPABLE #-} (ToAsdf a, FromAsdf a) => GNode (K1 R a) where
-  gToNode (K1 a) = toNode a
+instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where
   gParseKey o k = K1 <$> o .: k
 
 
-instance {-# OVERLAPPING #-} (ToAsdf a, FromAsdf a) => GNode (K1 R (Maybe a)) where
-  gToNode (K1 a) = toNode a
+instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R (Maybe a)) where
   gParseKey o k = K1 <$> o .:? k

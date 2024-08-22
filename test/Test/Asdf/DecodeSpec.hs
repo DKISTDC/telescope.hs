@@ -1,34 +1,106 @@
 module Test.Asdf.DecodeSpec where
 
 import Conduit
-import Control.Monad (replicateM)
-import Data.Binary.Get (runGet)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
-import Data.Text (Text)
+import Data.List (find)
+import Data.Massiv.Array (Array, D, Ix1)
+import Data.Text (Text, unpack)
 import Effectful
 import Effectful.Error.Static
 import GHC.Generics (Generic)
 import GHC.Int (Int64)
 import Skeletest
 import Skeletest.Predicate qualified as P
-import System.ByteOrder
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Decoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.File
 import Telescope.Asdf.Node
-import Telescope.Data.Axes
-import Telescope.Data.Binary (BinaryValue (..))
+import Telescope.Asdf.Parser
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 
 
 spec :: Spec
 spec = do
   describe "basic" basicSpec
-  describe "NDArray" ndArraySpec
   describe "example" exampleSpec
+  describe "dkist" dkistSpec
+
+
+data DKISTAsdf = DKISTAsdf
+  { dataset :: Dataset
+  }
+  deriving (Generic, FromAsdf)
+
+
+data Dataset = Dataset
+  { unit :: Unit
+  , meta :: Meta
+  -- , _data :: DatasetData
+  -- , wcs :: WCS
+  }
+  deriving (Generic, FromAsdf)
+
+
+data Meta = Meta
+  { headers :: MetaHeaders
+  , inventory :: MetaInventory
+  }
+  deriving (Generic, FromAsdf)
+
+
+data MetaInventory = MetaInventory
+  { bucket :: Text
+  , datasetId :: Text
+  }
+  deriving (Generic, FromAsdf)
+
+
+-- can we make this work with a generic?
+data MetaHeaders = MetaHeaders
+  { naxis :: Array D Ix1 Int64
+  , naxis2 :: Array D Ix1 Int64
+  , bitpix :: Array D Ix1 Int64
+  }
+
+
+instance FromAsdf MetaHeaders where
+  parseValue = \case
+    Object o -> do
+      Array ns <- o .: "columns"
+
+      -- it might be nice to parse generically
+      -- but... we would need a custom generic class for this
+      -- not sure it's worth it
+      -- easy enough to serialize it
+      -- convert from Object to Table, etc?
+      naxis <- parseColumn "NAXIS" ns
+      naxis2 <- parseColumn "NAXIS2" ns
+      bitpix <- parseColumn "BITPIX" ns
+      pure MetaHeaders{naxis, naxis2, bitpix}
+    val -> fail $ expected "Columns" val
+   where
+    parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
+    parseColumn name ns = do
+      case find (isColumnName name) ns of
+        Just (Node _ (Object o)) -> do
+          o .: "data"
+        _ -> fail $ "Column " ++ unpack name ++ " not found"
+
+    isColumnName n = \case
+      Node _ (Object o) -> do
+        lookup "name" o == Just (Node mempty (String n))
+      _ -> False
+
+
+dkistSpec :: Spec
+dkistSpec = do
+  it "should parse dkist asdf" $ do
+    inp <- BS.readFile "/Users/seanhess/Data/pid_1_118/AVORO/VISP_L1_20220603T173857_AVORO.asdf"
+    d <- decodeM @DKISTAsdf inp
+    d.dataset.unit `shouldBe` Count
+    d.dataset.meta.inventory.datasetId `shouldBe` "AVORO"
 
 
 basicSpec :: Spec
@@ -48,25 +120,6 @@ basicSpec = do
       ExampleAsdfFix a <- getFixture
       lookup "asdf_library" a.tree `shouldSatisfy` P.nothing
       lookup "history" a.tree `shouldSatisfy` P.nothing
-
-
-ndArraySpec :: Spec
-ndArraySpec = do
-  it "should parse NDArrayData" $ do
-    ExampleAsdfFix a <- getFixture
-    nd <- expectNDArray $ lookup "sequence" a.tree
-    nd.byteorder `shouldBe` LittleEndian
-    nd.datatype `shouldBe` Int64
-    nd.shape `shouldBe` axesRowMajor [100]
-    BS.length nd.bytes `shouldBe` (100 * byteSize @Int64)
-
-  it "should contain data" $ do
-    ExampleAsdfFix a <- getFixture
-    nd <- expectNDArray $ lookup "sequence" a.tree
-    decodeNums nd.bytes `shouldBe` [0 :: Int64 .. 99]
- where
-  decodeNums bytes = do
-    runGet (replicateM 100 (get LittleEndian)) (BL.fromStrict bytes) :: [Int64]
 
 
 exampleSpec :: Spec
@@ -89,11 +142,5 @@ newtype ExampleAsdfFix = ExampleAsdfFix Asdf
 instance Fixture ExampleAsdfFix where
   fixtureAction = do
     ExampleFileFix _ f <- getFixture
-    a <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ fromAsdfFile f.tree f.blocks
+    a <- runAsdfM $ fromAsdfFile f.tree f.blocks
     pure $ noCleanup $ ExampleAsdfFix a
-
-
-expectNDArray :: Maybe Node -> IO NDArrayData
-expectNDArray = \case
-  Just (Node _ (NDArray dat)) -> pure dat
-  n -> fail $ "Expected NDArray, but got: " ++ show n

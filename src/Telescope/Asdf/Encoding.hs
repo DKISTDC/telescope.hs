@@ -1,11 +1,9 @@
 module Telescope.Asdf.Encoding where
 
 import Conduit
-import Data.Binary.Put (runPut)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
-import Data.ByteString.Lazy qualified as BL
 import Data.Function ((&))
 import Data.Text (pack, unpack)
 import Data.Text.Encoding qualified as T
@@ -22,18 +20,17 @@ import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (.
 import Text.Libyaml qualified as Yaml
 
 
-encodeM :: (ToAsdf a, MonadIO m) => a -> m ByteString
-encodeM a =
-  liftIO $ runEff . runErrorNoCallStackWith @AsdfError throwM $ encode a
+encodeM :: (ToAsdf a, MonadIO m, MonadThrow m) => a -> m ByteString
+encodeM a = runAsdfM $ encode a
 
 
 encode :: (ToAsdf a, IOE :> es, Error AsdfError :> es) => a -> Eff es ByteString
 encode a = do
-  toDocument a >>= encodeDocument
+  toAsdfDoc a >>= encodeAsdf
 
 
-toDocument :: (ToAsdf a, Error AsdfError :> es) => a -> Eff es Asdf
-toDocument a =
+toAsdfDoc :: (ToAsdf a, Error AsdfError :> es) => a -> Eff es Asdf
+toAsdfDoc a =
   case toValue a of
     Object o -> do
       let history = History []
@@ -42,22 +39,30 @@ toDocument a =
     value -> throwError $ EncodeError $ expected "Top-level Tree Object" value
 
 
-encodeDocument :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es ByteString
-encodeDocument a = do
-  -- liftIO $ putStrLn "ENCODE DOCUMENT"
-  (doc, blks) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
-  -- liftIO $ print headers
-  -- liftIO $ print $ tree doc
+encodeAsdf :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es ByteString
+encodeAsdf a = do
+  (tr, ebks) <- encodeTreeBlocks a
   pure $
     BS.intercalate "\n" $
-      headers <> tree doc <> blocks blks <> emptyIndex
+      headers <> tree tr <> blocks ebks <> index ebks
  where
   headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
   tagDirective = "%TAG ! tag:stsci.edu:asdf/"
   tree doc = ["--- " <> doc, "..."]
-  blocks blks = [BL.toStrict $ runPut $ putBlocks blks]
+  blocks blks = [mconcat $ fmap (.bytes) blks]
   -- TODO: generate a real index
-  emptyIndex = ["%YAML 1.1", "---", "[]", "..."]
+  index blks =
+    let BlockIndex ns = blockIndex blks
+     in ["%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
+  indexEntry n = "- " <> BC.pack (show n)
+
+
+encodeTreeBlocks :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es (ByteString, [EncodedBlock])
+encodeTreeBlocks a = do
+  (tree, bds) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
+  let ebks = fmap encodeBlock bds
+  pure (tree, ebks)
+ where
   format = Yaml.defaultFormatOptions & Yaml.setTagRendering Yaml.renderUriTags
 
 
@@ -97,24 +102,27 @@ yieldNode (Node st val) = do
 
   yieldObject :: [(Key, Node)] -> ConduitT a Event (Eff es) ()
   yieldObject o = do
-    yield $ EventMappingStart tag BlockMapping Nothing
+    yield $ EventMappingStart tag blockStyle Nothing
     mapM_ yieldMapping o
     yield EventMappingEnd
+   where
+    blockStyle
+      | any (isComplexNode . snd) o = BlockMapping
+      | otherwise = FlowMapping
 
   yieldMapping :: (Key, Node) -> ConduitT a Event (Eff es) ()
   yieldMapping (key, node) = do
     yield $ EventScalar (T.encodeUtf8 key) NoTag Plain Nothing
     yieldNode node
 
-  -- TODO: can we control whether they render inline or not? Depending on the length maybe?
   yieldArray :: [Node] -> ConduitT a Event (Eff es) ()
-  yieldArray a = do
+  yieldArray ns = do
     yield $ EventSequenceStart tag seqStyle Nothing
-    mapM_ yieldNode a
+    mapM_ yieldNode ns
     yield EventSequenceEnd
    where
     seqStyle
-      | length a > 10 = BlockSequence
+      | any isComplexNode ns = BlockSequence
       | otherwise = FlowSequence
 
   yieldNDArray :: NDArrayData -> ConduitT a Event (Eff es) ()
@@ -133,3 +141,13 @@ addBlock bytes = do
   blocks <- get @[BlockData]
   put $ blocks <> [BlockData bytes]
   pure $ BlockSource $ length blocks
+
+
+isComplexNode :: Node -> Bool
+isComplexNode (Node _ val) = isComplex val
+ where
+  isComplex = \case
+    Array _ -> True
+    Object _ -> True
+    NDArray _ -> True
+    _ -> False

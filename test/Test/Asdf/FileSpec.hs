@@ -115,5 +115,5 @@ data ExampleFileFix = ExampleFileFix {input :: BS.ByteString, file :: AsdfFile}
 instance Fixture ExampleFileFix where
   fixtureAction = do
     inp <- BS.readFile "samples/example.asdf"
-    f <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ splitAsdfFile inp
+    f <- runAsdfM $ splitAsdfFile inp
     pure $ noCleanup $ ExampleFileFix inp f

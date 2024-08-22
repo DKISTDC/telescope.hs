@@ -117,10 +117,3 @@ testEncode = do
   it "should encode naxes in correct order" $ do
     size array `shouldBe` Sz (2 :. 3)
     sizeAxes (size array) `shouldBe` Axes [3, 2]
-
--- TODO: reimplement
--- it "should encode images" $ do
---   let dim = Dimensions ThirtyTwoBitFloat [3, 2]
---       img = encodeImage arrayFloat
---   arr2 <- decodeImage img
---   arr2 `shouldBe` arrayFloat

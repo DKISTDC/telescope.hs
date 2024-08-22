@@ -18,6 +18,7 @@ data Unit
   = Count
   | Pixel
   | Unit Text
+  deriving (Eq)
 
 
 instance ToAsdf Unit where
@@ -177,3 +178,5 @@ data ExtensionMetadata = ExtensionMetadata
   deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
   schema = "!core/extension_metadata-1.0.0"
+
+

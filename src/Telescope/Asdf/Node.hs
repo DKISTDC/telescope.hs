@@ -83,12 +83,6 @@ fromValue = Node mempty
 but in haskell we can't easily just parse a multi-dimensional array
 we could do a simpler representation. Using an ADT
 -}
-
--- TODO: byteswap before constructing while parsing if byteorder = "little"
---  * NOPE You can't byteswap without knowing the datatype
---  * NOPE You can't parse the bytestring without knowing the datatype
---
---  so we have to pass the byteorder on to the user?
 data NDArrayData = NDArrayData
   { bytes :: ByteString
   , byteorder :: ByteOrder
@@ -108,6 +102,8 @@ data DataType
   | Int32
   | Int16
   | Int8
+  | Bool8
+  | Ucs4 Integer
   deriving (Show, Eq)
 
 

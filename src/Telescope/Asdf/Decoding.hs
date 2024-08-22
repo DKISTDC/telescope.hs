@@ -17,7 +17,7 @@ import Effectful.Resource
 import System.ByteOrder
 import Telescope.Asdf.Class (FromAsdf (..))
 import Telescope.Asdf.Core (Asdf (..))
-import Telescope.Asdf.Error (AsdfError (..))
+import Telescope.Asdf.Error (AsdfError (..), runAsdfM)
 import Telescope.Asdf.File (AsdfFile (..), BlockData (..), splitAsdfFile)
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
@@ -30,8 +30,8 @@ import Text.Read (readMaybe)
 
 -- TODO: unsafePerformIO?
 -- TODO: decodeEither
-decodeM :: (FromAsdf a, MonadIO m) => ByteString -> m a
-decodeM bs = liftIO $ runEff . runErrorNoCallStackWith @AsdfError throwM $ decode bs
+decodeM :: (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
+decodeM bs = runAsdfM $ decode bs
 
 
 -- actually, this should be unsafePerformIO now?
@@ -72,9 +72,6 @@ sinkTree = do
     _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
--- NOTE: START HERE
--- TODO: flesh these out
--- TODO: sinkDocument, should consume everything and produce a single document
 sinkNode :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
   e <- event
@@ -267,13 +264,3 @@ data YamlError
   | NDArrayMissingBlock Integer
   | NDArrayExpected String Value
   deriving (Show)
-
-
-testDecode :: IO ()
-testDecode = do
-  inp <- BS.readFile "samples/example.asdf"
-  a <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ do
-    decode @Asdf inp
-  print a.history
-  print a.library
-  print a.tree

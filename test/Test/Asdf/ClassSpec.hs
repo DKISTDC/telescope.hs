@@ -2,7 +2,6 @@ module Test.Asdf.ClassSpec where
 
 import Conduit
 import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
 import Data.Massiv.Array (Array, Comp (..), D, Ix1, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
@@ -12,15 +11,16 @@ import Effectful.Resource
 import GHC.Generics (Generic, from)
 import GHC.Int (Int32, Int64)
 import Skeletest
+import System.ByteOrder
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Decoding
-import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.File
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
+import Telescope.Data.Axes
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 import Text.Libyaml qualified as Yaml
 
@@ -39,6 +39,7 @@ fromAsdfSpec = do
           [ ("foo", fromValue $ Integer 42)
           , ("name", fromValue $ String "Monty")
           , ("sequence", fromValue $ Array $ fmap (fromValue . Integer) [0 .. 99])
+          , ("random", fromValue $ NDArray $ NDArrayData "" BigEndian Float64 (axesRowMajor [0]))
           ]
     case runParser $ parseValue @Example (Object tree) of
       Left e -> fail e
@@ -58,14 +59,14 @@ fromAsdfSpec = do
 toAsdfSpec :: Spec
 toAsdfSpec = do
   it "should serialize Example" $ do
-    let Node s val = toNode $ Example{foo = 40, name = "Marty", sequence = [], powers = Nothing}
+    let Node s val = toNode $ Example{foo = 40, name = "Marty", sequence = [], powers = Nothing, random = M.empty}
     s `shouldBe` schema @Example
     o <- expectObject val
     lookup "foo" o `shouldBe` Just (Node mempty (Integer 40))
     lookup "name" o `shouldBe` Just (Node mempty (String "Marty"))
 
   it "should serialize Example sequence as list" $ do
-    let val = toValue $ Example{foo = 40, name = "Marty", sequence = [0 .. 99], powers = Nothing}
+    let val = toValue $ Example{foo = 40, name = "Marty", sequence = [0 .. 99], powers = Nothing, random = M.empty}
     o <- expectObject val
     ns <- expectArray $ lookup "sequence" o
     ns `shouldBe` fmap (fromValue . Integer) [0 .. 99]
@@ -108,13 +109,13 @@ newtype ExampleAsdfFix = ExampleAsdfFix Asdf
 instance Fixture ExampleAsdfFix where
   fixtureAction = do
     ExampleFileFix _ f <- getFixture
-    a <- runEff $ runErrorNoCallStackWith @AsdfError throwM $ fromAsdfFile f.tree f.blocks
+    a <- runAsdfM $ fromAsdfFile f.tree f.blocks
     pure $ noCleanup $ ExampleAsdfFix a
 
 
 dumpEvents :: ByteString -> IO ()
 dumpEvents inp = do
-  runEff $ runErrorNoCallStackWith @AsdfError throwM $ do
+  runAsdfM $ do
     a <- splitAsdfFile inp
     runResource $ runConduit $ Yaml.decode a.tree .| takeC 100 .| mapM_C (liftIO . print)
 
@@ -134,8 +135,9 @@ data MaybeGen = MaybeGen
 data Example = Example
   { foo :: Int32
   , name :: Text
-  , sequence :: [Int64]
   , powers :: Maybe Powers
+  , sequence :: [Int64]
+  , random :: Array D Ix1 Double
   }
   deriving (Generic, Show)
 instance ToAsdf Example where
@@ -147,7 +149,8 @@ instance FromAsdf Example where
       name <- o .: "name"
       sq <- o .: "sequence" >>= parseSequence
       powers <- o .:? "powers"
-      pure $ Example{foo, name, sequence = sq, powers}
+      random <- o .: "random"
+      pure $ Example{foo, name, sequence = sq, powers, random}
     val -> fail $ expected "Example" val
    where
     parseSequence = \case

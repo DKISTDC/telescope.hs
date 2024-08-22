@@ -65,9 +65,7 @@ testRenderHeader = do
     it "string" $ do
       runValue (String "Hello World") `shouldBe` "'Hello World'"
 
-  -- describe "render entire header" $ do
-
-  -- TODO: does it matter if e-06 vs e-6? We output e-6.
+  -- TEST: does it matter if e-06 vs e-6? We output e-6.
 
   describe "renderKeyword" $ do
     it "should left justify" $ do
