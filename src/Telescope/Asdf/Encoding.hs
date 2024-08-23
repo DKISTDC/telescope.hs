@@ -41,29 +41,31 @@ toAsdfDoc a =
 
 encodeAsdf :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es ByteString
 encodeAsdf a = do
-  (tr, ebks) <- encodeTreeBlocks a
-  pure $
-    BS.intercalate "\n" $
-      headers <> tree tr <> blocks ebks <> index ebks
+  (tree, ebks) <- encodeTreeBlocks a
+  pure $ mconcat [tree, blocks ebks, index tree ebks]
  where
-  headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
-  tagDirective = "%TAG ! tag:stsci.edu:asdf/"
-  tree doc = ["--- " <> doc, "..."]
-  blocks blks = [mconcat $ fmap (.bytes) blks]
-  -- TODO: generate a real index
-  index blks =
-    let BlockIndex ns = blockIndex blks
-     in ["%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
+  blocks blks =
+    case mconcat $ fmap (.bytes) blks of
+      "" -> ""
+      s -> s <> "\n"
+  index tr blks =
+    let BlockIndex ns = blockIndex tr blks
+     in BS.intercalate "\n" $ ["%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
   indexEntry n = "- " <> BC.pack (show n)
 
 
 encodeTreeBlocks :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es (ByteString, [EncodedBlock])
 encodeTreeBlocks a = do
-  (tree, bds) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
+  (doc, bds) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
   let ebks = fmap encodeBlock bds
-  pure (tree, ebks)
+  let tr = BS.intercalate "\n" $ headers <> tree doc
+  -- has a trailing newline
+  pure (tr <> "\n", ebks)
  where
   format = Yaml.defaultFormatOptions & Yaml.setTagRendering Yaml.renderUriTags
+  headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
+  tagDirective = "%TAG ! tag:stsci.edu:asdf/"
+  tree doc = ["--- " <> doc, "..."]
 
 
 yieldDocument :: (State [BlockData] :> es) => Asdf -> ConduitT a Event (Eff es) ()

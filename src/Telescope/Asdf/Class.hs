@@ -10,7 +10,7 @@ import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
-import Telescope.Asdf.File (BlockSource (..))
+import Telescope.Asdf.File (BlockIndex (..), BlockSource (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
@@ -168,6 +168,12 @@ instance ToAsdf (Axes Row) where
 
 instance ToAsdf BlockSource where
   toValue (BlockSource s) = toValue s
+
+
+instance FromAsdf BlockIndex where
+  parseValue = \case
+    Array ns -> BlockIndex <$> mapM parseNode ns
+    val -> fail $ expected "BlockIndex Array" val
 
 
 -- | Convert to a Node, including the schema tag if specified

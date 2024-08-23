@@ -2,7 +2,6 @@ module Telescope.Asdf.Decoding where
 
 import Conduit
 import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
@@ -14,14 +13,12 @@ import Effectful.Error.Static
 import Effectful.NonDet
 import Effectful.Reader.Dynamic
 import Effectful.Resource
-import System.ByteOrder
 import Telescope.Asdf.Class (FromAsdf (..))
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Error (AsdfError (..), runAsdfM)
-import Telescope.Asdf.File (AsdfFile (..), BlockData (..), splitAsdfFile)
+import Telescope.Asdf.File (AsdfFile (..), BlockData (..), BlockIndex (..), splitAsdfFile)
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
-import Telescope.Asdf.Parser (ParseError, fromParser)
+import Telescope.Asdf.Parser (ParseError, fromParser, runParser)
 import Telescope.Data.Axes
 import Text.Libyaml (Event (..), Tag (..))
 import Text.Libyaml qualified as Yaml
@@ -40,8 +37,6 @@ decode bs = do
   f <- splitAsdfFile bs
   asdf <- fromAsdfFile f.tree f.blocks
   runParseError $ fromParser $ parseValue $ Object asdf.tree
- where
-  runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)
 
 
 -- WARNING: IOE is required to get the MonadResource instance! Dumb
@@ -51,9 +46,6 @@ decode bs = do
 fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => ByteString -> [BlockData] -> Eff es Asdf
 fromAsdfFile inp blocks = do
   runParseError . runYamlError . runResource . runReader blocks . runConduit $ Yaml.decode inp .| sinkAsdf
- where
-  runYamlError = runErrorNoCallStackWith @YamlError (throwError . YamlError . show)
-  runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)
 
 
 sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf
@@ -247,11 +239,15 @@ isNDArray (SchemaTag (Just t)) =
 
 
 expect :: (Error YamlError :> es) => Event -> ConduitT Event o (Eff es) ()
-expect ex = do
+expect ex = expect' ("Exactly " ++ show ex) (== ex)
+
+
+expect' :: (Error YamlError :> es) => String -> (Event -> Bool) -> ConduitT Event o (Eff es) ()
+expect' ex p = do
   e <- event
-  if e == ex
+  if p e
     then pure ()
-    else lift $ throwError $ ExpectedEvent ("Exactly " ++ show ex) e
+    else lift $ throwError $ ExpectedEvent ex e
 
 
 data YamlError
@@ -264,3 +260,41 @@ data YamlError
   | NDArrayMissingBlock Integer
   | NDArrayExpected String Value
   deriving (Show)
+
+
+decodeBlockIndex :: (Error AsdfError :> es, IOE :> es) => ByteString -> Eff es BlockIndex
+decodeBlockIndex inp =
+  runYamlError . runResource . runConduit $ Yaml.decode inp .| sinkIndex
+ where
+  sinkIndex :: (Error YamlError :> es) => ConduitT Event o (Eff es) BlockIndex
+  sinkIndex = do
+    expect EventStreamStart
+    expect EventDocumentStart
+    expect' "EventSequenceStart" isSequence
+    ns <- sinkWhile (/= EventSequenceEnd) sinkIndexEntry
+    expect EventSequenceEnd
+    expect EventDocumentEnd
+    expect EventStreamEnd
+    pure $ BlockIndex ns
+
+  isSequence :: Event -> Bool
+  isSequence EventSequenceStart{} = True
+  isSequence _ = False
+
+  sinkIndexEntry :: (Error YamlError :> es) => ConduitT Event o (Eff es) Int
+  sinkIndexEntry = do
+    e <- event
+    case e of
+      EventScalar s t _ _ -> do
+        case readMaybe (unpack $ decodeUtf8 s) of
+          Just n -> pure n
+          Nothing -> lift $ throwError $ InvalidScalar "Int Index Entry" t s
+      _ -> lift $ throwError $ ExpectedEvent "Scalar Int" e
+
+
+runYamlError :: (Error AsdfError :> es) => Eff (Error YamlError : es) a -> Eff es a
+runYamlError = runErrorNoCallStackWith @YamlError (throwError . YamlError . show)
+
+
+runParseError :: (Error AsdfError :> es) => Eff (Error ParseError : es) a -> Eff es a
+runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)

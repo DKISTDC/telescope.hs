@@ -1,6 +1,7 @@
 module Test.Asdf.EncodeSpec where
 
 import Conduit
+import Control.Monad (forM_)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.Massiv.Array (Array, Comp (Seq), D, Ix2, P)
@@ -72,36 +73,53 @@ blocksSpec = do
     [BlockData bd] <- pure af.blocks
     bd `shouldBe` (toNDArray ns).bytes
 
-  it "calculates an index" $ do
-    let nd1 = toNDArray ([1 .. 10] :: [Int64])
-    let nd2 = toNDArray $ matrix @Int64 [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    let blks = fmap (encodeBlock . BlockData) [nd1.bytes, nd2.bytes, nd1.bytes]
-    let BlockIndex ix = blockIndex blks
-    print ix
-    length ix `shouldBe` 3
-    [i1, i2, i3] <- pure ix
-    i1 `shouldBe` 0
-    i2 `shouldSatisfy` P.gt (10 * 8)
-    i3 `shouldSatisfy` P.gt i2
+  describe "index" $ do
+    it "increeasing" $ do
+      let nd1 = toNDArray ([1 .. 10] :: [Int64])
+      let nd2 = toNDArray $ matrix @Int64 [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+      let blks = fmap (encodeBlock . BlockData) [nd1.bytes, nd2.bytes, nd1.bytes]
+      let tree = "1234567890"
+      let BlockIndex ix = blockIndex tree blks
+      length ix `shouldBe` 3
+      [i1, i2, i3] <- pure ix
+      let start = BS.length tree
+      i1 `shouldBe` start
+      i2 `shouldSatisfy` P.gt (start + (10 * 8))
+      i3 `shouldSatisfy` P.gt i2
 
-  it "calculates same index for Example" $ do
-    inp <- BS.readFile "samples/example.asdf"
-    e <- decodeM @Value inp
-    e `shouldSatisfy` P.con (Object P.anything)
-    (_, blks) <- runAsdfM $ do
-      a <- toAsdfDoc e
-      encodeTreeBlocks a
-    length blks `shouldBe` 3
+    it "equivalent to example.asdf" $ do
+      inp <- BS.readFile "samples/example.asdf"
+      e <- decodeM @Value inp
+      e `shouldSatisfy` P.con (Object P.anything)
+      (tree, blks) <- runAsdfM $ do
+        a <- toAsdfDoc e
+        encodeTreeBlocks a
+      length blks `shouldBe` 3
 
-    -- we currently don't include whitespace after the tree
-    -- the first offset is the offset after the end of the tree, I think
-    blockIndex blks `shouldBe` BlockIndex (fmap (\n -> n - 897) [897, 1751, 2605])
+      let BlockIndex ix = blockIndex tree blks
+      length ix `shouldBe` 3
+      (i1 : _) <- pure ix
+
+      i1 `shouldBe` BS.length tree
+      fmap (subtract i1) ix `shouldBe` fmap (subtract 897) [897, 1751, 2605]
+
+    it "addresses blocks" $ do
+      inp <- BS.readFile "samples/example.asdf"
+      e <- decodeM @Value inp
+      o <- encodeM e
+      BlockIndex ix <- runAsdfM $ do
+        a <- toAsdfDoc e
+        (tree, blks) <- encodeTreeBlocks a
+        pure $ blockIndex tree blks
+      forM_ ix $ \n -> do
+        BS.take 4 (BS.drop n o) `shouldBe` blockMagicToken
 
 
 roundSpec :: Spec
 roundSpec = do
   it "decodes encoded file" $ do
     out <- encodeM (Object [("hello", "world")])
+    print out
     tree <- decodeM @Value out >>= expectObject
     lookup "hello" tree `shouldSatisfy` P.just (P.eq "world")
 

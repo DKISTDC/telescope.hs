@@ -85,7 +85,7 @@ splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
 splitAsdfFile dat = evalState dat $ do
   tree <- parseToFirstBlock
   blocks <- parseBlocks
-  index <- get
+  index <- remainingBytes
   pure $ AsdfFile{tree, blocks, index}
  where
   parseToFirstBlock = state $ BS.breakSubstring blockMagicToken
@@ -98,6 +98,8 @@ splitAsdfFile dat = evalState dat $ do
       Right (rest, _, bs) -> do
         put (BL.toStrict rest)
         pure bs
+
+  remainingBytes = get
 
 
 getBlock :: Get BlockData
@@ -167,9 +169,9 @@ encodeBlock b =
   EncodedBlock $ BL.toStrict $ runPut $ putBlock b
 
 
-blockIndex :: [EncodedBlock] -> BlockIndex
-blockIndex ebs =
-  let ns = scanl go 0 ebs
+blockIndex :: ByteString -> [EncodedBlock] -> BlockIndex
+blockIndex tree ebs =
+  let ns = scanl go (BS.length tree) ebs
    in BlockIndex $ take (length ns - 1) ns
  where
   go :: Int -> EncodedBlock -> Int
