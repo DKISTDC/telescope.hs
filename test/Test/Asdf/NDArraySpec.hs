@@ -18,7 +18,6 @@ spec :: Spec
 spec = do
   -- can we correctly decode an array?
   describe "DataType" $ do
-    -- TODO: create smaller DKIST Asdf via python notebook
     -- TEST: parse bool8
     -- TEST: parse uc4
     pure ()

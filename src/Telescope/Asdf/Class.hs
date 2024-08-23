@@ -43,6 +43,22 @@ instance FromAsdf Int where
   parseValue = fmap (fromIntegral @Int64 @Int) <$> parseValue
 
 
+instance ToAsdf Int8 where
+  toValue n = Integer $ fromIntegral n
+instance FromAsdf Int8 where
+  parseValue = \case
+    Integer n -> pure $ fromIntegral n
+    node -> fail $ expected "Int8" node
+
+
+instance ToAsdf Int16 where
+  toValue n = Integer $ fromIntegral n
+instance FromAsdf Int16 where
+  parseValue = \case
+    Integer n -> pure $ fromIntegral n
+    node -> fail $ expected "Int16" node
+
+
 instance ToAsdf Int32 where
   toValue n = Integer $ fromIntegral n
 instance FromAsdf Int32 where
@@ -83,13 +99,37 @@ instance FromAsdf Double where
 -- this is the generic implementation
 -- but we might want to have specifics!
 
--- NOTE: This is the "correct" instance.
-instance (FromAsdf a) => FromAsdf [a] where
+instance {-# OVERLAPPABLE #-} (FromAsdf a) => FromAsdf [a] where
   parseValue = \case
     Array ns -> mapM (parseNode @a) ns
     node -> fail $ expected "Array" node
-instance (ToAsdf a) => ToAsdf [a] where
+instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf [a] where
   toValue as = Array $ fmap toNode as
+
+
+-- they will always serialize to Array
+instance FromAsdf [Text] where
+  parseValue = parseAnyList
+instance FromAsdf [Int] where
+  parseValue = parseAnyList
+instance FromAsdf [Int8] where
+  parseValue = parseAnyList
+instance FromAsdf [Int16] where
+  parseValue = parseAnyList
+instance FromAsdf [Int32] where
+  parseValue = parseAnyList
+instance FromAsdf [Int64] where
+  parseValue = parseAnyList
+instance FromAsdf [Double] where
+  parseValue = parseAnyList
+
+
+-- | Flexibly parse lists from either Array or NDArray
+parseAnyList :: (FromAsdf a, FromNDArray [a]) => Value -> Parser [a]
+parseAnyList = \case
+  Array ns -> mapM parseNode ns
+  NDArray dat -> fromNDArray dat
+  node -> fail $ expected "[Double]" node
 
 
 instance (FromAsdf a) => FromAsdf (Maybe a) where

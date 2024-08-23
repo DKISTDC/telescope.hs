@@ -65,6 +65,17 @@ instance BinaryValue Double where
   get BigEndian = getDoublebe
   get LittleEndian = getDoublele
 
+-- newtype StringN (n :: Nat) = StringN Text
+--   deriving newtype (Show, IsString, Eq)
+--
+--
+-- instance (KnownNat n) => BinaryValue (StringN n) where
+--   byteSize = fromIntegral $ natVal @n Proxy * 4
+--   put BigEndian (StringN t) = putByteString $ T.encodeUtf32BE t
+--   put LittleEndian (StringN t) = putByteString $ T.encodeUtf32LE t
+--   get BigEndian = StringN . T.decodeUtf32BE <$> getByteString (byteSize @(StringN n))
+--   get LittleEndian = StringN . T.decodeUtf32LE <$> getByteString (byteSize @(StringN n))
+
 -- instance (BinaryValue a) => BinaryValue [a] where
 --   byteSize = byteSize @a
 --   put bo = mapM_ (put bo)

@@ -4,10 +4,12 @@ module Telescope.Asdf.Node where
 
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.Proxy (Proxy (..))
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
 import GHC.Int
+import GHC.TypeLits
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Data.Axes
 

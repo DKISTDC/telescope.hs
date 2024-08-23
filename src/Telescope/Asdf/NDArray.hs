@@ -8,6 +8,8 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
 import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
+import Data.Text (Text)
+import Data.Text.Encoding qualified as T
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
 import Telescope.Asdf.Node
@@ -50,6 +52,22 @@ instance {-# OVERLAPPABLE #-} (BinaryValue a) => FromNDArray [a] where
     getBytes bo axes = do
       let num = totalItems axes
       replicateM num (get bo)
+
+
+instance FromNDArray [Text] where
+  fromNDArray arr = do
+    n <- fromIntegral <$> ucs4Size arr.datatype
+    parseGet (replicateM (totalItems arr.shape) (getString n)) arr.bytes
+   where
+    ucs4Size = \case
+      Ucs4 n -> pure n
+      dt -> fail $ expected "Ucs4" dt
+
+    getString nchars = do
+      decode arr.byteorder <$> getByteString (nchars * 4)
+
+    decode LittleEndian = T.decodeUtf32LE
+    decode BigEndian = T.decodeUtf32BE
 
 
 instance {-# OVERLAPPING #-} (BinaryValue a) => FromNDArray [[a]] where

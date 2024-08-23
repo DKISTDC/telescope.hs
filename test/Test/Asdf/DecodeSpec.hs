@@ -1,16 +1,10 @@
 module Test.Asdf.DecodeSpec where
 
-import Conduit
-import Control.Monad (replicateM)
-import Data.Binary.Get
 import Data.ByteString qualified as BS
 import Data.List (find)
 import Data.Massiv.Array (Array, D, Ix1)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text, unpack)
-import Data.Text.Encoding qualified as T
-import Effectful
-import Effectful.Error.Static
 import GHC.Generics (Generic)
 import GHC.Int (Int64)
 import Skeletest
@@ -20,10 +14,8 @@ import Telescope.Asdf.Core
 import Telescope.Asdf.Decoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.File
-import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
-import Telescope.Data.Axes
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 
 
@@ -32,103 +24,6 @@ spec = do
   describe "basic" basicSpec
   describe "example" exampleSpec
   describe "dkist" dkistSpec
-
-
-data DKISTAsdf = DKISTAsdf
-  { dataset :: Dataset
-  }
-  deriving (Generic, FromAsdf)
-
-
-data Dataset = Dataset
-  { unit :: Unit
-  , meta :: Meta
-  -- , _data :: DatasetData
-  -- , wcs :: WCS
-  }
-  deriving (Generic, FromAsdf)
-
-
-data Meta = Meta
-  { headers :: MetaHeaders
-  , inventory :: MetaInventory
-  }
-  deriving (Generic, FromAsdf)
-
-
-data MetaInventory = MetaInventory
-  { bucket :: Text
-  , datasetId :: Text
-  }
-  deriving (Generic, FromAsdf)
-
-
--- can we make this work with a generic?
-data MetaHeaders = MetaHeaders
-  { naxis :: Array D Ix1 Int64
-  , naxis2 :: Array D Ix1 Int64
-  , bitpix :: Array D Ix1 Int64
-  , bunit :: BUnits
-  }
-
-
-newtype BUnits = BUnits [Text]
-  deriving (Show)
-
-
-instance FromAsdf BUnits where
-  parseValue = \case
-    NDArray dat -> fromNDArray dat
-    val -> fail $ expected "NDArray BUnits" val
-instance FromNDArray BUnits where
-  fromNDArray dat = do
-    Axes [num] <- pure dat.shape
-    Ucs4 n <- pure dat.datatype
-    BUnits <$> parseGet (replicateM num (getUnit n)) dat.bytes
-   where
-    getUnit n = do
-      bs <- getByteString (fromIntegral $ n * 4)
-      pure $ T.decodeUtf32LE bs
-
-
--- T.decodeUtf32LEWith T.strictDecode
-
-instance FromAsdf MetaHeaders where
-  parseValue = \case
-    Object o -> do
-      Array ns <- o .: "columns"
-      naxis <- parseColumn "NAXIS" ns
-      naxis2 <- parseColumn "NAXIS2" ns
-      bitpix <- parseColumn "BITPIX" ns
-      bunit <- parseColumn "BUNIT" ns
-      pure MetaHeaders{naxis, naxis2, bitpix, bunit}
-    val -> fail $ expected "Columns" val
-   where
-    parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
-    parseColumn name ns = do
-      case find (isColumnName name) ns of
-        Just (Node _ (Object o)) -> do
-          o .: "data"
-        _ -> fail $ "Column " ++ unpack name ++ " not found"
-
-    isColumnName n = \case
-      Node _ (Object o) -> do
-        lookup "name" o == Just (Node mempty (String n))
-      _ -> False
-
-
-dkistSpec :: Spec
-dkistSpec = do
-  it "should parse dkist asdf" $ do
-    inp <- BS.readFile "samples/dkist.asdf"
-    d <- decodeM @DKISTAsdf inp
-    d.dataset.unit `shouldBe` Count
-    d.dataset.meta.inventory.datasetId `shouldBe` "AVORO"
-
-    let BUnits us = d.dataset.meta.headers.bunit
-    take 3 us `shouldBe` ["ct", "ct", "ct"]
-
-    take 3 (M.toLists d.dataset.meta.headers.naxis2) `shouldBe` [998, 998, 998]
 
 
 basicSpec :: Spec
@@ -164,6 +59,80 @@ data Example = Example
   , name :: Text
   }
   deriving (Generic, FromAsdf, ToAsdf)
+
+
+dkistSpec :: Spec
+dkistSpec = do
+  it "should parse dkist asdf" $ do
+    inp <- BS.readFile "samples/dkist.asdf"
+    d <- decodeM @DKISTAsdf inp
+    d.dataset.unit `shouldBe` Count
+    d.dataset.meta.inventory.datasetId `shouldBe` "AVORO"
+
+    let us = d.dataset.meta.headers.bunit
+    take 3 us `shouldBe` ["ct", "ct", "ct"]
+
+    take 3 (M.toLists d.dataset.meta.headers.naxis2) `shouldBe` [998, 998, 998]
+
+
+data DKISTAsdf = DKISTAsdf
+  { dataset :: Dataset
+  }
+  deriving (Generic, FromAsdf)
+
+
+data Dataset = Dataset
+  { unit :: Unit
+  , meta :: Meta
+  }
+  deriving (Generic, FromAsdf)
+
+
+data Meta = Meta
+  { headers :: MetaHeaders
+  , inventory :: MetaInventory
+  }
+  deriving (Generic, FromAsdf)
+
+
+data MetaInventory = MetaInventory
+  { bucket :: Text
+  , datasetId :: Text
+  }
+  deriving (Generic, FromAsdf)
+
+
+-- can we make this work with a generic?
+data MetaHeaders = MetaHeaders
+  { naxis :: Array D Ix1 Int64
+  , naxis2 :: Array D Ix1 Int64
+  , bitpix :: [Int64]
+  , bunit :: [Text]
+  }
+
+
+instance FromAsdf MetaHeaders where
+  parseValue = \case
+    Object o -> do
+      Array ns <- o .: "columns"
+      naxis <- parseColumn "NAXIS" ns
+      naxis2 <- parseColumn "NAXIS2" ns
+      bitpix <- parseColumn "BITPIX" ns
+      bunit <- parseColumn "BUNIT" ns
+      pure MetaHeaders{naxis, naxis2, bitpix, bunit}
+    val -> fail $ expected "Columns" val
+   where
+    parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
+    parseColumn name ns = do
+      case find (isColumnName name) ns of
+        Just (Node _ (Object o)) -> do
+          o .: "data"
+        _ -> fail $ "Column " ++ unpack name ++ " not found"
+
+    isColumnName n = \case
+      Node _ (Object o) -> do
+        lookup "name" o == Just (Node mempty (String n))
+      _ -> False
 
 
 newtype ExampleAsdfFix = ExampleAsdfFix Asdf
