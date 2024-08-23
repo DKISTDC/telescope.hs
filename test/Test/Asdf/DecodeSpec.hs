@@ -1,10 +1,14 @@
 module Test.Asdf.DecodeSpec where
 
 import Conduit
+import Control.Monad (replicateM)
+import Data.Binary.Get
 import Data.ByteString qualified as BS
 import Data.List (find)
 import Data.Massiv.Array (Array, D, Ix1)
+import Data.Massiv.Array qualified as M
 import Data.Text (Text, unpack)
+import Data.Text.Encoding qualified as T
 import Effectful
 import Effectful.Error.Static
 import GHC.Generics (Generic)
@@ -16,8 +20,10 @@ import Telescope.Asdf.Core
 import Telescope.Asdf.Decoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.File
+import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
+import Telescope.Data.Axes
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 
 
@@ -62,23 +68,40 @@ data MetaHeaders = MetaHeaders
   { naxis :: Array D Ix1 Int64
   , naxis2 :: Array D Ix1 Int64
   , bitpix :: Array D Ix1 Int64
+  , bunit :: BUnits
   }
 
+
+newtype BUnits = BUnits [Text]
+  deriving (Show)
+
+
+instance FromAsdf BUnits where
+  parseValue = \case
+    NDArray dat -> fromNDArray dat
+    val -> fail $ expected "NDArray BUnits" val
+instance FromNDArray BUnits where
+  fromNDArray dat = do
+    Axes [num] <- pure dat.shape
+    Ucs4 n <- pure dat.datatype
+    BUnits <$> parseGet (replicateM num (getUnit n)) dat.bytes
+   where
+    getUnit n = do
+      bs <- getByteString (fromIntegral $ n * 4)
+      pure $ T.decodeUtf32LE bs
+
+
+-- T.decodeUtf32LEWith T.strictDecode
 
 instance FromAsdf MetaHeaders where
   parseValue = \case
     Object o -> do
       Array ns <- o .: "columns"
-
-      -- it might be nice to parse generically
-      -- but... we would need a custom generic class for this
-      -- not sure it's worth it
-      -- easy enough to serialize it
-      -- convert from Object to Table, etc?
       naxis <- parseColumn "NAXIS" ns
       naxis2 <- parseColumn "NAXIS2" ns
       bitpix <- parseColumn "BITPIX" ns
-      pure MetaHeaders{naxis, naxis2, bitpix}
+      bunit <- parseColumn "BUNIT" ns
+      pure MetaHeaders{naxis, naxis2, bitpix, bunit}
     val -> fail $ expected "Columns" val
    where
     parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
@@ -97,10 +120,15 @@ instance FromAsdf MetaHeaders where
 dkistSpec :: Spec
 dkistSpec = do
   it "should parse dkist asdf" $ do
-    inp <- BS.readFile "/Users/seanhess/Data/pid_1_118/AVORO/VISP_L1_20220603T173857_AVORO.asdf"
+    inp <- BS.readFile "samples/dkist.asdf"
     d <- decodeM @DKISTAsdf inp
     d.dataset.unit `shouldBe` Count
     d.dataset.meta.inventory.datasetId `shouldBe` "AVORO"
+
+    let BUnits us = d.dataset.meta.headers.bunit
+    take 3 us `shouldBe` ["ct", "ct", "ct"]
+
+    take 3 (M.toLists d.dataset.meta.headers.naxis2) `shouldBe` [998, 998, 998]
 
 
 basicSpec :: Spec

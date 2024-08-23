@@ -70,7 +70,6 @@ instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToN
 parseGet :: Get a -> ByteString -> Parser a
 parseGet gt bytes =
   case runGetOrFail gt (BL.fromStrict bytes) of
-    -- TODO: better error message, including source num? Not sure if it's possible if we do it this way
     Left (rest, nused, err) ->
       fail $ "could not decode binary data at (" ++ show nused ++ ") (rest " ++ show (BL.length rest) ++ "): " ++ err
     Right (_, _, a) -> pure a
