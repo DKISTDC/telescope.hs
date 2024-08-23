@@ -1,6 +1,6 @@
 module Telescope.Asdf.Parser where
 
-import Control.Monad.Catch (Exception)
+import Control.Monad.Catch (Exception, MonadCatch (..), MonadThrow)
 import Data.List (intercalate)
 import Data.Text (unpack)
 import Effectful
@@ -31,7 +31,12 @@ instance Show Context where
 newtype Parser a = Parser
   { effect :: Eff '[Error ParseError, Reader [Context]] a
   }
-  deriving newtype (Functor, Applicative, Monad)
+  deriving newtype (Functor, Applicative, Monad, MonadThrow)
+
+
+instance MonadCatch Parser where
+  catch ma onErr = Parser $ do
+    catch ma.effect (\e -> (onErr e).effect)
 
 
 instance MonadFail Parser where

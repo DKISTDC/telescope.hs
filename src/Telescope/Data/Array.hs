@@ -24,7 +24,7 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArray
   :: forall ix a m
-   . (AxesIndex ix, Prim a, BinaryValue a, MonadFail m)
+   . (AxesIndex ix, Prim a, BinaryValue a, MonadFail m, MonadThrow m, MonadCatch m)
   => Axes Row
   -> BS.ByteString
   -> m (Array D ix a)
@@ -53,7 +53,7 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArrayOrder
   :: forall ix a m
-   . (AxesIndex ix, BinaryValue a, MonadFail m)
+   . (AxesIndex ix, BinaryValue a, MonadFail m, MonadThrow m, MonadCatch m)
   => ByteOrder
   -> Axes Row
   -> BS.ByteString
@@ -106,19 +106,22 @@ decodeVector c bo inp =
 -- | Resize a Vector into an Array
 fromVector
   :: forall ix a m
-   . (AxesIndex ix, MonadFail m)
+   . (AxesIndex ix, MonadFail m, MonadThrow m, MonadCatch m)
   => Axes Row
   -> Vector D a
   -> m (Array D ix a)
 fromVector as v = do
   ix <- axesIndex as
-  -- TODO: catch, so we can fail appropriately!
-  pure $ M.resize' (Sz ix) v
+  ea <- try $ M.resizeM (Sz ix) v
+  case ea of
+    Left (e :: M.SizeException) -> throwM $ ResizeMismatch (show e)
+    Right a -> pure a
 
 
 data ArrayError
   = BinaryParseError !ByteOffset String
   | AxesMismatch !(Axes Row)
+  | ResizeMismatch String
   deriving (Show, Exception)
 
 

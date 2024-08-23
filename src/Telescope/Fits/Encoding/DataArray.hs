@@ -1,5 +1,6 @@
 module Telescope.Fits.Encoding.DataArray where
 
+import Control.Monad.Catch (MonadCatch)
 import Data.Massiv.Array as M hiding (isEmpty, product)
 import System.ByteOrder
 import Telescope.Data.Array
@@ -29,7 +30,7 @@ Array D Seq (Sz (2 :. 3))
 
 This creates a delayed (D) array, which will postpone evaluation of cells until needed
 -}
-decodeDataArray :: forall ix a m. (MonadFail m) => (Index ix, AxesIndex ix, Prim a, BinaryValue a) => DataArray -> m (Array D ix a)
+decodeDataArray :: forall ix a m. (MonadFail m, MonadThrow m, MonadCatch m) => (Index ix, AxesIndex ix, Prim a, BinaryValue a) => DataArray -> m (Array D ix a)
 decodeDataArray DataArray{axes, rawData} = do
   decodeArrayOrder BigEndian (toRowMajor axes) rawData
 

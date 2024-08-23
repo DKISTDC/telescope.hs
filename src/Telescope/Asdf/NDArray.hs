@@ -1,9 +1,7 @@
 module Telescope.Asdf.NDArray where
 
-import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
-
 import Control.Monad (replicateM)
+import Control.Monad.Catch (try)
 import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
 import Data.ByteString (ByteString)
@@ -12,6 +10,8 @@ import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
+import Telescope.Asdf.Node
+import Telescope.Asdf.Parser
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
@@ -101,5 +101,8 @@ ndArrayMassiv arr =
 
 
 parseMassiv :: (BinaryValue a, AxesIndex ix) => NDArrayData -> Parser (Array D ix a)
-parseMassiv nda =
-  decodeArrayOrder nda.byteorder nda.shape nda.bytes
+parseMassiv nda = do
+  ea <- try $ decodeArrayOrder nda.byteorder nda.shape nda.bytes
+  case ea of
+    Left (e :: ArrayError) -> fail $ show e
+    Right a -> pure a
