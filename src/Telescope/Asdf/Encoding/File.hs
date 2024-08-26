@@ -2,69 +2,152 @@
 
 module Telescope.Asdf.Encoding.File where
 
+import Control.Applicative (optional)
+import Control.Monad (guard)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
+import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Word
 import Effectful
 import Effectful.Error.Static
+import Effectful.Fail
+import Effectful.NonDet
 import Effectful.State.Static.Local
-import Telescope.Asdf.Error (AsdfError (..))
+import Telescope.Asdf.Error
 
 
 splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
-splitAsdfFile dat = evalState dat $ do
-  tree <- EncodedTree <$> parseToFirstBlock
-  blocks <- parseBlocks
-  index <- remainingBytes
+splitAsdfFile dat = do
+  res <- runFail $ evalState dat parseAsdfFile
+  case res of
+    Left e -> throwError $ ParseError e
+    Right a -> pure a
+
+
+parseAsdfFile :: (State ByteString :> es, Fail :> es) => Eff es AsdfFile
+parseAsdfFile = do
+  -- if it's empty, then give an error
+  tree <- onEmpty "tree" parseTree
+  blocks <- onEmpty "blocks" parseBlocks
+  index <- parseIndex
   pure $ AsdfFile{tree, blocks, index}
  where
-  parseToFirstBlock = state $ BS.breakSubstring blockMagicToken
-
-  parseBlocks :: (State ByteString :> es, Error AsdfError :> es) => Eff es [BlockData]
-  parseBlocks = do
-    inp <- get
-    case runGetOrFail getBlocks (BL.fromStrict inp) of
-      Left (_, num, err) -> throwError $ BlockError $ "at " ++ show num ++ ": " ++ err
-      Right (rest, _, bs) -> do
-        put (BL.toStrict rest)
-        pure bs
-
-  remainingBytes = get
+  onEmpty ex eff = do
+    res <- runNonDet OnEmptyKeep eff
+    case res of
+      Left _ -> do
+        inp <- get @ByteString
+        fail $ "Expected " ++ ex ++ " at " ++ show (BS.take 100 inp)
+      Right a -> pure a
 
 
-concatAsdfFile :: EncodedTree -> [EncodedBlock] -> ByteString
-concatAsdfFile tree ebks =
-  mconcat [tree.bytes, blocks ebks, index tree ebks]
+parseTree :: (State ByteString :> es, NonDet :> es) => Eff es (Encoded Tree)
+parseTree = do
+  t <- parseUntil blockMagicToken <|> parseUntil blockIndexHeader <|> remainingBytes
+  pure $ Encoded t
+
+
+parseIndex :: (State ByteString :> es) => Eff es (Encoded Index)
+parseIndex =
+  Encoded <$> get
+
+
+parseBlocks :: (State ByteString :> es, NonDet :> es) => Eff es [Encoded Block]
+parseBlocks = many parseBlock
+
+
+parseBlock :: (State ByteString :> es, NonDet :> es) => Eff es (Encoded Block)
+parseBlock = do
+  exactly blockMagicToken
+  b <- parseUntil blockMagicToken <|> parseUntil blockIndexHeader <|> nonEmpty
+  case b of
+    "" -> empty
+    _ -> pure $ Encoded $ blockMagicToken <> b
+
+
+exactly :: (State ByteString :> es, NonDet :> es) => ByteString -> Eff es ()
+exactly val = do
+  inp <- get @ByteString
+  if val `BS.isPrefixOf` inp
+    then do
+      put $ BS.drop (BS.length val) inp
+      pure ()
+    else empty
+
+
+parseUntil :: (State ByteString :> es, NonDet :> es) => ByteString -> Eff es ByteString
+parseUntil val = do
+  inp <- get @ByteString
+  let (before, rest) = BS.breakSubstring val inp
+  case rest of
+    "" -> empty
+    _ -> do
+      put rest
+      pure before
+
+
+nonEmpty :: (NonDet :> es, State ByteString :> es) => Eff es ByteString
+nonEmpty = do
+  b <- remainingBytes
+  case b of
+    "" -> empty
+    _ -> pure b
+
+
+remainingBytes :: (NonDet :> es, State ByteString :> es) => Eff es ByteString
+remainingBytes = do
+  inp <- get
+  put @ByteString ""
+  pure inp
+
+
+breakIndex :: (State ByteString :> es) => Eff es (Encoded Index)
+breakIndex = Encoded <$> get
+
+
+concatAsdfFile :: AsdfFile -> ByteString
+concatAsdfFile a =
+  mconcat [a.tree.bytes, blocks a.blocks, index a.index]
  where
-  blocks blks =
-    case mconcat $ fmap (.bytes) blks of
-      "" -> ""
-      s -> s <> "\n"
-  index tr blks =
-    let BlockIndex ns = blockIndex tr blks
-     in BS.intercalate "\n" $ ["%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
-  indexEntry n = "- " <> BC.pack (show n)
+  blocks :: [Encoded Block] -> ByteString
+  blocks ebks = mconcat $ fmap (.bytes) ebks
+  -- case mconcat $ fmap (.bytes) ebks of
+  --   "" -> ""
+  --   s -> s <> "\n"
+  index ix = ix.bytes
 
 
-encodeTree :: ByteString -> EncodedTree
+encodeTree :: ByteString -> Encoded Tree
 encodeTree tr =
-  EncodedTree $ BS.intercalate "\n" (headers <> formatDoc tr) <> "\n" -- has a trailing newline
+  Encoded $ BS.intercalate "\n" (headers <> formatDoc tr) <> "\n" -- has a trailing newline
  where
   formatDoc doc = ["--- " <> doc, "..."]
   headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
   tagDirective = "%TAG ! tag:stsci.edu:asdf/"
 
 
-encodeBlocks :: [BlockData] -> [EncodedBlock]
+encodeBlocks :: [BlockData] -> [Encoded Block]
 encodeBlocks = fmap encodeBlock
 
 
-newtype EncodedTree = EncodedTree {bytes :: ByteString}
+encodeIndex :: BlockIndex -> Encoded Index
+encodeIndex (BlockIndex ns) =
+  Encoded $ BS.intercalate "\n" $ ["#ASDF BLOCK INDEX", "%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
+ where
+  indexEntry n = "- " <> BC.pack (show n)
+
+
+data Index
+data Tree
+data Block
+
+
+newtype Encoded a = Encoded {bytes :: ByteString}
   deriving (Show, Eq)
   deriving newtype (IsString)
 
@@ -115,9 +198,9 @@ noChecksum = Checksum $ BC.replicate 16 '0'
 
 
 data AsdfFile = AsdfFile
-  { tree :: EncodedTree
-  , blocks :: [BlockData]
-  , index :: ByteString
+  { tree :: Encoded Tree
+  , blocks :: [Encoded Block]
+  , index :: Encoded Index
   }
   deriving (Show, Eq)
 
@@ -184,23 +267,18 @@ putBlockHeader h = do
   putChecksum (Checksum cs) = putByteString cs
 
 
-encodeBlock :: BlockData -> EncodedBlock
+encodeBlock :: BlockData -> Encoded Block
 encodeBlock b =
-  EncodedBlock $ BL.toStrict $ runPut $ putBlock b
+  Encoded $ BL.toStrict $ runPut $ putBlock b
 
 
-blockIndex :: EncodedTree -> [EncodedBlock] -> BlockIndex
-blockIndex (EncodedTree bytes) ebs =
+blockIndex :: Encoded Tree -> [Encoded Block] -> BlockIndex
+blockIndex (Encoded bytes) ebs =
   let ns = scanl go (BS.length bytes) ebs
    in BlockIndex $ take (length ns - 1) ns
  where
-  go :: Int -> EncodedBlock -> Int
+  go :: Int -> Encoded Block -> Int
   go n eb = n + BS.length eb.bytes
-
-
-newtype EncodedBlock = EncodedBlock
-  { bytes :: ByteString
-  }
 
 
 putBlock :: BlockData -> Put
@@ -241,8 +319,8 @@ blockIndexHeader = "#ASDF BLOCK INDEX"
 -- TEST: make sure this doesn't consume any input
 checkMagicToken :: Get Bool
 checkMagicToken = do
-  empty <- isEmpty
-  if empty
+  emp <- isEmpty
+  if emp
     then pure False
     else do
       eb <- lookAhead getMagicToken

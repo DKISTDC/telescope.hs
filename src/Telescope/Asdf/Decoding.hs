@@ -1,7 +1,9 @@
 module Telescope.Asdf.Decoding where
 
 import Conduit
+import Data.Binary.Get
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
@@ -42,9 +44,18 @@ decode bs = do
   runParseError $ fromParser $ parseValue $ Object asdf.tree
 
 
-fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => EncodedTree -> [BlockData] -> Eff es Asdf
-fromAsdfFile (EncodedTree inp) blocks = do
+fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es Asdf
+fromAsdfFile (Encoded inp) ebks = do
+  blocks <- mapM decodeBlock ebks
   runParseError . runYamlError . runResource . runReader blocks . runConduit $ Yaml.decode inp .| sinkAsdf
+
+
+decodeBlock :: (Error AsdfError :> es) => Encoded Block -> Eff es BlockData
+decodeBlock (Encoded blk) = do
+  case runGetOrFail getBlock (BL.fromStrict blk) of
+    Left (_, num, err) -> throwError $ BlockError $ "at " ++ show num ++ ": " ++ err
+    Right ("", _, b) -> pure b
+    Right (rest, _, _) -> throwError $ BlockError $ "Unused bytes: " ++ show rest
 
 
 sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf

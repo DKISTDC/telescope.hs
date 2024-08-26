@@ -22,14 +22,18 @@ encodeM a = runAsdfM $ encode a
 encode :: (ToAsdf a, IOE :> es, Error AsdfError :> es) => a -> Eff es ByteString
 encode a = do
   asdf <- toAsdfDoc a
-  (tree, blks) <- encodeTreeBlocks asdf
-  pure $ concatAsdfFile tree (encodeBlocks blks)
+  file <- encodeToAsdfFile asdf
+  pure $ concatAsdfFile file
 
 
 -- | Encode the tree and the data blocks
-encodeTreeBlocks :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es (EncodedTree, [BlockData])
-encodeTreeBlocks a = do
+encodeToAsdfFile :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es AsdfFile
+encodeToAsdfFile a = do
   (doc, bds) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
-  pure (encodeTree doc, bds)
+  let tree = encodeTree doc
+  let blocks = fmap encodeBlock bds
+  let index = encodeIndex $ blockIndex tree blocks
+  pure $
+    AsdfFile{tree, blocks, index}
  where
   format = Yaml.defaultFormatOptions & Yaml.setTagRendering Yaml.renderUriTags

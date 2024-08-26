@@ -67,7 +67,7 @@ blocksSpec = do
     af <- runAsdfM $ splitAsdfFile out
     length af.blocks `shouldBe` 1
 
-    [BlockData bd] <- pure af.blocks
+    [BlockData bd] <- runAsdfM $ mapM decodeBlock af.blocks
     bd `shouldBe` (toNDArray ns).bytes
 
   describe "index" $ do
@@ -88,18 +88,14 @@ blocksSpec = do
       inp <- BS.readFile "samples/example.asdf"
       e <- decodeM @Value inp
       e `shouldSatisfy` P.con (Object P.anything)
-      (tree, blks) <- runAsdfM $ do
-        a <- toAsdfDoc e
-        encodeTreeBlocks a
-      length blks `shouldBe` 3
+      af <- runAsdfM $ toAsdfDoc e >>= encodeToAsdfFile
+      length af.blocks `shouldBe` 3
 
-      let BlockIndex ix = blockIndex tree (encodeBlocks blks)
+      let BlockIndex ix = blockIndex af.tree af.blocks
       length ix `shouldBe` 3
       (i1 : _) <- pure ix
 
-      print ix
-      print tree
-      i1 `shouldBe` BS.length tree.bytes
+      i1 `shouldBe` BS.length af.tree.bytes
       fmap (subtract i1) ix `shouldBe` fmap (subtract 897) [897, 1751, 2605]
 
     it "addresses blocks" $ do
@@ -108,8 +104,8 @@ blocksSpec = do
       o <- encodeM e
       BlockIndex ix <- runAsdfM $ do
         a <- toAsdfDoc e
-        (tree, blks) <- encodeTreeBlocks a
-        pure $ blockIndex tree (encodeBlocks blks)
+        af <- encodeToAsdfFile a
+        pure $ blockIndex af.tree af.blocks
       forM_ ix $ \n -> do
         BS.take 4 (BS.drop n o) `shouldBe` blockMagicToken
 
