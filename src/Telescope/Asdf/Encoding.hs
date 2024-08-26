@@ -5,12 +5,15 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.Function ((&))
+import Data.String (fromString)
 import Data.Text (pack, unpack)
 import Data.Text.Encoding qualified as T
+import Data.Version (showVersion)
 import Effectful
 import Effectful.Error.Static
 import Effectful.Resource
 import Effectful.State.Static.Local
+import Paths_telescope (version)
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Error
@@ -153,3 +156,13 @@ isComplexNode (Node _ val) = isComplex val
     Object _ -> True
     NDArray _ -> True
     _ -> False
+
+
+telescopeSoftware :: Software
+telescopeSoftware =
+  Software
+    { author = Just "DKIST Data Center"
+    , homepage = Just "https://github.com/dkistdc/telescope.hs"
+    , name = "telescope.hs"
+    , version = fromString $ showVersion version
+    }

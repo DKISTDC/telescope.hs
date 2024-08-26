@@ -25,23 +25,22 @@ import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
 
 
--- TODO: unsafePerformIO?
--- TODO: decodeEither
 decodeM :: (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
 decodeM bs = runAsdfM $ decode bs
 
 
--- actually, this should be unsafePerformIO now?
+decodeEither :: forall a m. (FromAsdf a, MonadIO m) => ByteString -> m (Either String a)
+decodeEither bs = do
+  res <- liftIO $ runEff $ runErrorNoCallStack @AsdfError $ decode @a bs
+  pure $ either (Left . show) Right res
+
+
 decode :: (FromAsdf a, IOE :> es, Error AsdfError :> es) => ByteString -> Eff es a
 decode bs = do
   f <- splitAsdfFile bs
   asdf <- fromAsdfFile f.tree f.blocks
   runParseError $ fromParser $ parseValue $ Object asdf.tree
 
-
--- WARNING: IOE is required to get the MonadResource instance! Dumb
--- wild, they use unsafePerformIO
--- https://hackage.haskell.org/package/yaml-0.11.11.2/docs/src/Data.Yaml.html#decodeEither%27
 
 fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => ByteString -> [BlockData] -> Eff es Asdf
 fromAsdfFile inp blocks = do
@@ -217,13 +216,6 @@ event = do
     Just a -> pure a
 
 
--- rootNode :: (Error YamlError :> es) => ConduitT Node Void (Eff es) Node
--- rootNode = do
---   mv <- C.head
---   case mv of
---     Nothing -> fail "Missing Root Value"
---     Just v -> pure v
---
 tag :: Tag -> SchemaTag
 tag (UriTag s) =
   let t = pack s

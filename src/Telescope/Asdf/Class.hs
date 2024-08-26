@@ -19,6 +19,18 @@ import Telescope.Data.Axes
 import Telescope.Data.Binary
 
 
+{- | Convert types to and from an Asdf 'Values'. The generic instance will decode an object
+
+> data Example = Example
+>   { name :: Text
+>   , age :: Int
+>   , tags :: [Text]
+>   }
+>   deriving (Generic, FromAsdf)
+>
+> instance ToAsdf Example where
+>   schema = "tag:example.org/schemas/example-1.0.0"
+-}
 class ToAsdf a where
   toValue :: a -> Value
   default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
@@ -46,33 +58,31 @@ instance FromAsdf Int where
 instance ToAsdf Int8 where
   toValue n = Integer $ fromIntegral n
 instance FromAsdf Int8 where
-  parseValue = \case
-    Integer n -> pure $ fromIntegral n
-    node -> fail $ expected "Int8" node
+  parseValue = parseInteger
 
 
 instance ToAsdf Int16 where
   toValue n = Integer $ fromIntegral n
 instance FromAsdf Int16 where
-  parseValue = \case
-    Integer n -> pure $ fromIntegral n
-    node -> fail $ expected "Int16" node
+  parseValue = parseInteger
 
 
 instance ToAsdf Int32 where
   toValue n = Integer $ fromIntegral n
 instance FromAsdf Int32 where
-  parseValue = \case
-    Integer n -> pure $ fromIntegral n
-    node -> fail $ expected "Int32" node
+  parseValue = parseInteger
 
 
 instance ToAsdf Int64 where
   toValue n = Integer $ fromIntegral n
 instance FromAsdf Int64 where
-  parseValue = \case
-    Integer n -> pure $ fromIntegral n
-    node -> fail $ expected "Int64" node
+  parseValue = parseInteger
+
+
+instance ToAsdf Integer where
+  toValue n = Integer $ fromIntegral n
+instance FromAsdf Integer where
+  parseValue = parseInteger
 
 
 instance ToAsdf Double where
@@ -83,21 +93,11 @@ instance FromAsdf Double where
     node -> fail $ expected "Double" node
 
 
--- Encode 1d lists inline if less than 20 values, otherwise use ndarray
--- instance (ToAsdf a, BinaryValue a, IsDataType a) => ToAsdf [a] where
---   toValue ns =
---     if length ns < 20
---       then Array $ fmap toNode ns
---       else NDArray $ toNDArray ns
--- instance (FromAsdf a, FromNDArray a, BinaryValue a) => FromAsdf [a] where
---   parseValue = \case
---     Array ns -> mapM fromNode ns
---     NDArray a -> fromNDArray a
---     node -> fail $ expected "[Int64]" node
+parseInteger :: (Integral a) => Value -> Parser a
+parseInteger = \case
+  Integer n -> pure $ fromIntegral n
+  node -> fail $ expected "Integer" node
 
--- it has no way to disambiguate these. The type isn't even more specific!
--- this is the generic implementation
--- but we might want to have specifics!
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => FromAsdf [a] where
   parseValue = \case
@@ -208,12 +208,6 @@ instance ToAsdf (Axes Row) where
 
 instance ToAsdf BlockSource where
   toValue (BlockSource s) = toValue s
-
-
-instance FromAsdf BlockIndex where
-  parseValue = \case
-    Array ns -> BlockIndex <$> mapM parseNode ns
-    val -> fail $ expected "BlockIndex Array" val
 
 
 -- | Convert to a Node, including the schema tag if specified

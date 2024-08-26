@@ -2,31 +2,18 @@
 
 module Telescope.Asdf.File where
 
-import Control.Monad (forM)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
-import Data.List qualified as L
 import Data.Word
 import Effectful
 import Effectful.Error.Static
 import Effectful.State.Static.Local
 import Telescope.Asdf.Error (AsdfError (..))
 
-
-{- | The top-level document is always an object with keys: https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/asdf-1.1.0.html#core-asdf-1-1-0
-should we parse the software, etc?
-yeah, we definitely should
--}
-
--- newtype Document = Document
---   { library :: Software
---   , history :: History
---   , tree :: Object
---   }
 
 -- | Decompressed block data
 newtype BlockData = BlockData {bytes :: ByteString}
@@ -136,8 +123,8 @@ getBlockHeader = do
     val <- getByteString 4
     case val of
       "\0\0\0\0" -> pure NoCompression
-      "zlib" -> pure ZLib
-      "bzp2" -> pure BZip2
+      -- "zlib" -> pure ZLib
+      -- "bzp2" -> pure BZip2
       _ -> fail $ "BlockHeader compression invalid, found " <> show val
 
   getChecksum = Checksum <$> getByteString 16

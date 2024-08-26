@@ -125,7 +125,7 @@ instance FromAsdf MetaHeaders where
     parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
     parseColumn name ns = do
       case find (isColumnName name) ns of
-        Just (Node _ (Object o)) -> do
+        Just (Node _ (Object o)) ->
           o .: "data"
         _ -> fail $ "Column " ++ unpack name ++ " not found"
 

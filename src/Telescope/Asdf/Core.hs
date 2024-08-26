@@ -2,11 +2,8 @@
 
 module Telescope.Asdf.Core where
 
-import Data.String (fromString)
 import Data.Text (Text)
-import Data.Version (showVersion)
 import GHC.Generics (Generic)
-import Paths_telescope (version)
 import Telescope.Asdf.Class
 import Telescope.Asdf.Error (expected)
 import Telescope.Asdf.Node
@@ -123,16 +120,6 @@ instance ToAsdf Software where
   schema = "!core/software-1.0.0"
 
 
-telescopeSoftware :: Software
-telescopeSoftware =
-  Software
-    { author = Just "DKIST Data Center"
-    , homepage = Just "https://github.com/dkistdc/telescope.hs"
-    , name = "telescope.hs"
-    , version = fromString $ showVersion version
-    }
-
-
 -- allows "additional properties"...
 data Asdf = Asdf
   { history :: History
@@ -162,9 +149,6 @@ instance FromAsdf Asdf where
     isLibraryField _ = False
 
 
--- coreTag :: Text -> SchemaTag
--- coreTag t = SchemaTag $ Just $
-
 data History = History
   { extensions :: [ExtensionMetadata]
   }
@@ -178,5 +162,3 @@ data ExtensionMetadata = ExtensionMetadata
   deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
   schema = "!core/extension_metadata-1.0.0"
-
-
