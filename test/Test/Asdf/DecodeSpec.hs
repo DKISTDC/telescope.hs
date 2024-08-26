@@ -11,7 +11,7 @@ import Skeletest
 import Skeletest.Predicate qualified as P
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
-import Telescope.Asdf.Decoding
+import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node

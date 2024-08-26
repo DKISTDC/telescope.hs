@@ -14,7 +14,7 @@ import Skeletest
 import System.ByteOrder
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
-import Telescope.Asdf.Decoding
+import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray

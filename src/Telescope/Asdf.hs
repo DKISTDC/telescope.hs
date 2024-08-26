@@ -24,7 +24,6 @@ where
 
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
-import Telescope.Asdf.Decoding
 import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
@@ -33,4 +32,3 @@ import Telescope.Asdf.Parser
 
 
 -- import Telescope.Asdf.File
-

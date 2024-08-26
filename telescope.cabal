@@ -26,7 +26,6 @@ library
         Telescope.Asdf
         Telescope.Asdf.Class
         Telescope.Asdf.Core
-        Telescope.Asdf.Decoding
         Telescope.Asdf.Encoding
         Telescope.Asdf.Encoding.File
         Telescope.Asdf.Encoding.Stream

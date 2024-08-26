@@ -2,15 +2,12 @@
 
 module Telescope.Asdf.Encoding.File where
 
-import Control.Applicative (optional)
-import Control.Monad (guard)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
-import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Word
 import Effectful
