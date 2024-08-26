@@ -10,8 +10,9 @@ import Data.Massiv.Array qualified as M
 import Data.Text (pack)
 import Skeletest
 import Telescope.Fits qualified as Fits
-import Telescope.Fits.Encoding hiding (justify, pad, spaces)
-import Telescope.Fits.Encoding.DataArray
+import Telescope.Fits.DataArray
+import Telescope.Fits.Encoding
+import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
 import Telescope.Fits.Types
 
 

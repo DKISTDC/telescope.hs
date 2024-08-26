@@ -19,6 +19,3 @@ keyword k v mc = Keyword $ KeywordRecord k v mc
 
 addComment :: Text -> KeywordRecord -> KeywordRecord
 addComment c kr = kr{_comment = Just c}
-
--- addComment :: Comment -> Header -> Header
--- addComment c =

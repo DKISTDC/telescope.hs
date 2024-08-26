@@ -27,8 +27,8 @@ test = do
 module Telescope.Fits
   ( decode
   , encode
-  , decodeArray
-  , encodeArray
+  , decodeDataArray
+  , encodeDataArray
 
     -- * Headers
   , lookup
@@ -73,7 +73,7 @@ module Telescope.Fits
 
 import Data.Fits (lookup)
 import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
-import Telescope.Data.Array
+import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
 import Telescope.Fits.Header (addComment, keyword)
 import Telescope.Fits.Types

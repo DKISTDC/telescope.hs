@@ -1,6 +1,14 @@
-module Telescope.Fits.Encoding.DataArray where
+module Telescope.Fits.DataArray
+  ( DataArray (..)
+  , dataArray
+  , decodeDataArray
+  , encodeDataArray
+  )
+where
 
 import Control.Monad.Catch (MonadCatch)
+import Data.ByteString (ByteString)
+import Data.Fits qualified as Fits
 import Data.Massiv.Array as M hiding (isEmpty, product)
 import System.ByteOrder
 import Telescope.Data.Array
@@ -54,7 +62,27 @@ encodeDataArray arr =
       bitpix = bitPix @a
       rawData = encodeArray arr -- O(n)
    in DataArray{bitpix, axes, rawData}
+ where
+  sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
+  sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
 
 
-sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
-sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
+-- | Create a DataArray from raw Fits info
+dataArray :: Fits.Dimensions -> ByteString -> DataArray
+dataArray dim dat =
+  DataArray
+    { bitpix = bitpix dim._bitpix
+    , axes = axes dim._axes
+    , rawData = dat
+    }
+ where
+  bitpix :: Fits.BitPixFormat -> BitPix
+  bitpix Fits.EightBitInt = BPInt8
+  bitpix Fits.SixteenBitInt = BPInt16
+  bitpix Fits.ThirtyTwoBitInt = BPInt32
+  bitpix Fits.SixtyFourBitInt = BPInt64
+  bitpix Fits.ThirtyTwoBitFloat = BPFloat
+  bitpix Fits.SixtyFourBitFloat = BPDouble
+
+  axes :: Fits.Axes -> Axes Column
+  axes = Axes

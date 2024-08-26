@@ -38,8 +38,9 @@ library
         Telescope.Data.Binary
         Telescope.Fits
         Telescope.Fits.Checksum
+        Telescope.Fits.DataArray
         Telescope.Fits.Encoding
-        Telescope.Fits.Encoding.DataArray
+        Telescope.Fits.Encoding.Render
         Telescope.Fits.Header
         Telescope.Fits.Types
     other-modules:

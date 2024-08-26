@@ -10,7 +10,7 @@ import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
-import Telescope.Asdf.File (BlockIndex (..), BlockSource (..))
+import Telescope.Asdf.File (BlockSource (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser

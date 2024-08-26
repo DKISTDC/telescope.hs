@@ -53,6 +53,8 @@ dependencies:
 
 library:
   source-dirs: src
+  other-modules:
+    - Paths_telescope
   c-sources:
     - src/checksum.c
 
