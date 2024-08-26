@@ -2,10 +2,15 @@
 
 module Telescope.Asdf.Core where
 
+import Data.String (fromString)
 import Data.Text (Text)
+import Data.Version (showVersion)
+import Effectful
+import Effectful.Error.Static
 import GHC.Generics (Generic)
+import Paths_telescope (version)
 import Telescope.Asdf.Class
-import Telescope.Asdf.Error (expected)
+import Telescope.Asdf.Error (AsdfError (..), expected)
 import Telescope.Asdf.Node
 
 
@@ -147,6 +152,26 @@ instance FromAsdf Asdf where
     isLibraryField ("asdf_library", _) = True
     isLibraryField ("history", _) = True
     isLibraryField _ = False
+
+
+-- | Convert any ToAsdf into a raw Asdf document
+toAsdfDoc :: (ToAsdf a, Error AsdfError :> es) => a -> Eff es Asdf
+toAsdfDoc a =
+  case toValue a of
+    Object o -> do
+      let history = History []
+      let library = telescopeLibrary
+      pure $ Asdf{history, library, tree = o}
+    value -> throwError $ EncodeError $ expected "Top-level Tree Object" value
+ where
+  telescopeLibrary :: Software
+  telescopeLibrary =
+    Software
+      { author = Just "DKIST Data Center"
+      , homepage = Just "https://github.com/dkistdc/telescope.hs"
+      , name = "telescope.hs"
+      , version = fromString $ showVersion version
+      }
 
 
 data History = History

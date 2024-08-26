@@ -15,8 +15,8 @@ import Effectful.Reader.Dynamic
 import Effectful.Resource
 import Telescope.Asdf.Class (FromAsdf (..))
 import Telescope.Asdf.Core (Asdf (..))
+import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error (AsdfError (..), runAsdfM)
-import Telescope.Asdf.File (AsdfFile (..), BlockData (..), BlockIndex (..), splitAsdfFile)
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser (ParseError, fromParser, runParser)
 import Telescope.Data.Axes
@@ -42,8 +42,8 @@ decode bs = do
   runParseError $ fromParser $ parseValue $ Object asdf.tree
 
 
-fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => ByteString -> [BlockData] -> Eff es Asdf
-fromAsdfFile inp blocks = do
+fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => EncodedTree -> [BlockData] -> Eff es Asdf
+fromAsdfFile (EncodedTree inp) blocks = do
   runParseError . runYamlError . runResource . runReader blocks . runConduit $ Yaml.decode inp .| sinkAsdf
 
 

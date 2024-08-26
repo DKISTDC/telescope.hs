@@ -9,8 +9,8 @@ import Data.Text (Text, pack)
 import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
+import Telescope.Asdf.Encoding.File (BlockSource (..))
 import Telescope.Asdf.Error (expected)
-import Telescope.Asdf.File (BlockSource (..))
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser

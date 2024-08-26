@@ -3,6 +3,7 @@ module Telescope.Fits.DataArray
   , dataArray
   , decodeDataArray
   , encodeDataArray
+  , sizeAxes
   )
 where
 
@@ -62,9 +63,10 @@ encodeDataArray arr =
       bitpix = bitPix @a
       rawData = encodeArray arr -- O(n)
    in DataArray{bitpix, axes, rawData}
- where
-  sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
-  sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
+
+
+sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
+sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
 
 
 -- | Create a DataArray from raw Fits info

@@ -1,14 +1,11 @@
 module Test.Asdf.EncodeSpec where
 
-import Conduit
 import Control.Monad (forM_)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.Massiv.Array (Array, Comp (Seq), D, Ix2, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
-import Effectful
-import Effectful.Error.Static
 import GHC.Generics (Generic)
 import GHC.Int (Int16, Int64)
 import Skeletest
@@ -17,11 +14,11 @@ import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Decoding
 import Telescope.Asdf.Encoding
+import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
-import Telescope.Asdf.File
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Test.Asdf.ClassSpec (Example (..), expectObject)
+import Test.Asdf.ClassSpec (expectObject)
 
 
 spec :: Spec
@@ -58,7 +55,7 @@ documentSpec :: Spec
 documentSpec = do
   it "converts to document" $ do
     asdf <- runAsdfM $ toAsdfDoc $ BasicData "henry"
-    asdf.library `shouldBe` telescopeSoftware
+    asdf.library.name `shouldBe` "telescope.hs"
     lookup "username" asdf.tree `shouldBe` Just "henry"
 
 
@@ -82,7 +79,7 @@ blocksSpec = do
       let BlockIndex ix = blockIndex tree blks
       length ix `shouldBe` 3
       [i1, i2, i3] <- pure ix
-      let start = BS.length tree
+      let start = BS.length tree.bytes
       i1 `shouldBe` start
       i2 `shouldSatisfy` P.gt (start + (10 * 8))
       i3 `shouldSatisfy` P.gt i2
@@ -96,11 +93,13 @@ blocksSpec = do
         encodeTreeBlocks a
       length blks `shouldBe` 3
 
-      let BlockIndex ix = blockIndex tree blks
+      let BlockIndex ix = blockIndex tree (encodeBlocks blks)
       length ix `shouldBe` 3
       (i1 : _) <- pure ix
 
-      i1 `shouldBe` BS.length tree
+      print ix
+      print tree
+      i1 `shouldBe` BS.length tree.bytes
       fmap (subtract i1) ix `shouldBe` fmap (subtract 897) [897, 1751, 2605]
 
     it "addresses blocks" $ do
@@ -110,7 +109,7 @@ blocksSpec = do
       BlockIndex ix <- runAsdfM $ do
         a <- toAsdfDoc e
         (tree, blks) <- encodeTreeBlocks a
-        pure $ blockIndex tree blks
+        pure $ blockIndex tree (encodeBlocks blks)
       forM_ ix $ \n -> do
         BS.take 4 (BS.drop n o) `shouldBe` blockMagicToken
 
@@ -119,7 +118,6 @@ roundSpec :: Spec
 roundSpec = do
   it "decodes encoded file" $ do
     out <- encodeM (Object [("hello", "world")])
-    print out
     tree <- decodeM @Value out >>= expectObject
     lookup "hello" tree `shouldSatisfy` P.just (P.eq "world")
 

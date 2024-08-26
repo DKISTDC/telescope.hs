@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Telescope.Asdf.File where
+module Telescope.Asdf.Encoding.File where
 
 import Data.Binary.Get
 import Data.Binary.Put
@@ -8,11 +8,65 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
+import Data.String (IsString)
 import Data.Word
 import Effectful
 import Effectful.Error.Static
 import Effectful.State.Static.Local
 import Telescope.Asdf.Error (AsdfError (..))
+
+
+splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
+splitAsdfFile dat = evalState dat $ do
+  tree <- EncodedTree <$> parseToFirstBlock
+  blocks <- parseBlocks
+  index <- remainingBytes
+  pure $ AsdfFile{tree, blocks, index}
+ where
+  parseToFirstBlock = state $ BS.breakSubstring blockMagicToken
+
+  parseBlocks :: (State ByteString :> es, Error AsdfError :> es) => Eff es [BlockData]
+  parseBlocks = do
+    inp <- get
+    case runGetOrFail getBlocks (BL.fromStrict inp) of
+      Left (_, num, err) -> throwError $ BlockError $ "at " ++ show num ++ ": " ++ err
+      Right (rest, _, bs) -> do
+        put (BL.toStrict rest)
+        pure bs
+
+  remainingBytes = get
+
+
+concatAsdfFile :: EncodedTree -> [EncodedBlock] -> ByteString
+concatAsdfFile tree ebks =
+  mconcat [tree.bytes, blocks ebks, index tree ebks]
+ where
+  blocks blks =
+    case mconcat $ fmap (.bytes) blks of
+      "" -> ""
+      s -> s <> "\n"
+  index tr blks =
+    let BlockIndex ns = blockIndex tr blks
+     in BS.intercalate "\n" $ ["%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
+  indexEntry n = "- " <> BC.pack (show n)
+
+
+encodeTree :: ByteString -> EncodedTree
+encodeTree tr =
+  EncodedTree $ BS.intercalate "\n" (headers <> formatDoc tr) <> "\n" -- has a trailing newline
+ where
+  formatDoc doc = ["--- " <> doc, "..."]
+  headers = ["#ASDF 1.0.0", "#ASDF_STANDARD 1.5.0", "%YAML 1.1", tagDirective]
+  tagDirective = "%TAG ! tag:stsci.edu:asdf/"
+
+
+encodeBlocks :: [BlockData] -> [EncodedBlock]
+encodeBlocks = fmap encodeBlock
+
+
+newtype EncodedTree = EncodedTree {bytes :: ByteString}
+  deriving (Show, Eq)
+  deriving newtype (IsString)
 
 
 -- | Decompressed block data
@@ -61,32 +115,11 @@ noChecksum = Checksum $ BC.replicate 16 '0'
 
 
 data AsdfFile = AsdfFile
-  { tree :: ByteString
+  { tree :: EncodedTree
   , blocks :: [BlockData]
   , index :: ByteString
   }
   deriving (Show, Eq)
-
-
-splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
-splitAsdfFile dat = evalState dat $ do
-  tree <- parseToFirstBlock
-  blocks <- parseBlocks
-  index <- remainingBytes
-  pure $ AsdfFile{tree, blocks, index}
- where
-  parseToFirstBlock = state $ BS.breakSubstring blockMagicToken
-
-  parseBlocks :: (State ByteString :> es, Error AsdfError :> es) => Eff es [BlockData]
-  parseBlocks = do
-    inp <- get
-    case runGetOrFail getBlocks (BL.fromStrict inp) of
-      Left (_, num, err) -> throwError $ BlockError $ "at " ++ show num ++ ": " ++ err
-      Right (rest, _, bs) -> do
-        put (BL.toStrict rest)
-        pure bs
-
-  remainingBytes = get
 
 
 getBlock :: Get BlockData
@@ -156,9 +189,9 @@ encodeBlock b =
   EncodedBlock $ BL.toStrict $ runPut $ putBlock b
 
 
-blockIndex :: ByteString -> [EncodedBlock] -> BlockIndex
-blockIndex tree ebs =
-  let ns = scanl go (BS.length tree) ebs
+blockIndex :: EncodedTree -> [EncodedBlock] -> BlockIndex
+blockIndex (EncodedTree bytes) ebs =
+  let ns = scanl go (BS.length bytes) ebs
    in BlockIndex $ take (length ns - 1) ns
  where
   go :: Int -> EncodedBlock -> Int

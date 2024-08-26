@@ -1,6 +1,5 @@
 module Test.Asdf.FileSpec where
 
-import Control.Monad.Catch (throwM)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString qualified as BS
@@ -10,8 +9,8 @@ import Effectful.Error.Static
 import Skeletest
 import Skeletest.Predicate ((>>>))
 import Skeletest.Predicate qualified as P
+import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
-import Telescope.Asdf.File
 
 
 spec :: Spec
@@ -94,11 +93,11 @@ testSplit = do
   describe "real asdf file" $ do
     it "tree smaller than document " $ do
       ExampleFileFix inp dp <- getFixture
-      BS.length dp.tree `shouldNotBe` BS.length inp
+      BS.length dp.tree.bytes `shouldNotBe` BS.length inp
 
     it "tree exists" $ do
       ExampleFileFix _ dp <- getFixture
-      BS.length dp.tree `shouldSatisfy` P.gt 0
+      BS.length dp.tree.bytes `shouldSatisfy` P.gt 0
 
     it "blocks exist" $ do
       ExampleFileFix _ dp <- getFixture

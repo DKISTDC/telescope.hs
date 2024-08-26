@@ -15,8 +15,8 @@ import System.ByteOrder
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Decoding
+import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
-import Telescope.Asdf.File
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
@@ -117,7 +117,7 @@ dumpEvents :: ByteString -> IO ()
 dumpEvents inp = do
   runAsdfM $ do
     a <- splitAsdfFile inp
-    runResource $ runConduit $ Yaml.decode a.tree .| takeC 100 .| mapM_C (liftIO . print)
+    runResource $ runConduit $ Yaml.decode a.tree.bytes .| takeC 100 .| mapM_C (liftIO . print)
 
 
 data TinyGen = TinyGen

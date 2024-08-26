@@ -28,8 +28,9 @@ library
         Telescope.Asdf.Core
         Telescope.Asdf.Decoding
         Telescope.Asdf.Encoding
+        Telescope.Asdf.Encoding.File
+        Telescope.Asdf.Encoding.Stream
         Telescope.Asdf.Error
-        Telescope.Asdf.File
         Telescope.Asdf.NDArray
         Telescope.Asdf.Node
         Telescope.Asdf.Parser
