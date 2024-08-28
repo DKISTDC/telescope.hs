@@ -24,7 +24,7 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArray
   :: forall ix a m
-   . (AxesIndex ix, Prim a, BinaryValue a, MonadFail m, MonadThrow m, MonadCatch m)
+   . (AxesIndex ix, Prim a, BinaryValue a, MonadThrow m, MonadCatch m)
   => Axes Row
   -> BS.ByteString
   -> m (Array D ix a)
@@ -53,7 +53,7 @@ Array P Seq (Sz (2 :. 3))
 -}
 decodeArrayOrder
   :: forall ix a m
-   . (AxesIndex ix, BinaryValue a, MonadFail m, MonadThrow m, MonadCatch m)
+   . (AxesIndex ix, BinaryValue a, MonadThrow m, MonadCatch m)
   => ByteOrder
   -> Axes Row
   -> BS.ByteString
@@ -106,7 +106,7 @@ decodeVector c bo inp =
 -- | Resize a Vector into an Array
 fromVector
   :: forall ix a m
-   . (AxesIndex ix, MonadFail m, MonadThrow m, MonadCatch m)
+   . (AxesIndex ix, MonadThrow m, MonadCatch m)
   => Axes Row
   -> Vector D a
   -> m (Array D ix a)
@@ -126,13 +126,13 @@ data ArrayError
 
 
 class (Index ix) => AxesIndex ix where
-  axesIndex :: (MonadFail m) => Axes Row -> m ix
+  axesIndex :: (MonadThrow m) => Axes Row -> m ix
   indexAxes :: ix -> Axes Row
 
 
 instance AxesIndex Ix1 where
   axesIndex (Axes [i]) = pure i
-  axesIndex as = fail $ show $ AxesMismatch as
+  axesIndex as = throwM $ AxesMismatch as
   indexAxes n = Axes [n]
 
 
@@ -140,7 +140,7 @@ instance AxesIndex Ix2 where
   axesIndex (Axes [c, r]) = do
     ix1 <- axesIndex $ Axes [r]
     pure $ c :. ix1
-  axesIndex as = fail $ show $ AxesMismatch as
+  axesIndex as = throwM $ AxesMismatch as
   indexAxes (c :. r) = Axes [c, r]
 
 
@@ -159,11 +159,11 @@ instance AxesIndex Ix5 where
   indexAxes = indexAxesN
 
 
-axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadFail m) => Axes Row -> m (IxN n)
+axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadThrow m) => Axes Row -> m (IxN n)
 axesIndexN (Axes (a : as)) = do
   ixl <- axesIndex (Axes as)
   pure $ a :> ixl
-axesIndexN as = fail $ show $ AxesMismatch as
+axesIndexN as = throwM $ AxesMismatch as
 
 
 indexAxesN :: (AxesIndex (Lower (IxN n))) => IxN n -> Axes Row

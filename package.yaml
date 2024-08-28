@@ -1,5 +1,5 @@
 name:                telescope
-version:             0.1.2
+version:             0.2.0
 synopsis:            Astronomical Observations (FITS, ASDF, WCS, etc)
 description:         Work with astronomical observations from modern telescopes
 homepage:            https://github.com/dkistdc/telescope.hs
