@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Telescope.Asdf.NDArray where
 
 import Control.Monad (replicateM)
@@ -5,18 +7,67 @@ import Control.Monad.Catch (try)
 import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Data.Text.Encoding qualified as T
+import GHC.Int (Int16, Int32, Int64)
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
-import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
+
+
+-- import Telescope.Asdf.Node
+
+{- | In-tree representation of an NDArray. You can parse a file as this and get it back. Not really what we want though
+but in haskell we can't easily just parse a multi-dimensional array
+we could do a simpler representation. Using an ADT
+-}
+data NDArrayData = NDArrayData
+  { bytes :: ByteString
+  , byteorder :: ByteOrder
+  , datatype :: DataType
+  , shape :: Axes Row
+  }
+  deriving (Eq)
+
+
+instance Show NDArrayData where
+  show nd = unwords ["NDArrayData", show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
+
+
+data DataType
+  = Float64
+  | Int64
+  | Int32
+  | Int16
+  | Int8
+  | Bool8
+  | Ucs4 Integer
+  deriving (Show, Eq)
+
+
+class IsDataType a where
+  dataType :: DataType
+
+
+instance IsDataType Double where
+  dataType = Float64
+instance IsDataType Int64 where
+  dataType = Int64
+instance IsDataType Int32 where
+  dataType = Int32
+instance IsDataType Int16 where
+  dataType = Int16
+instance IsDataType Int8 where
+  dataType = Int8
+instance (IsDataType a) => IsDataType [a] where
+  dataType = dataType @a
 
 
 -- https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/ndarray-1.1.0.html
@@ -91,15 +142,6 @@ parseGet gt bytes =
     Left (rest, nused, err) ->
       fail $ "could not decode binary data at (" ++ show nused ++ ") (rest " ++ show (BL.length rest) ++ "): " ++ err
     Right (_, _, a) -> pure a
-
-
-parseNDArray :: (FromNDArray a) => Value -> Parser a
-parseNDArray val = do
-  dat <- ndarray val
-  fromNDArray dat
- where
-  ndarray (NDArray a) = pure a
-  ndarray v = fail $ expected "NDArray" v
 
 
 ndArrayPut :: forall a. (IsDataType a) => (a -> Axes Row) -> (a -> Put) -> a -> NDArrayData

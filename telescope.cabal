@@ -60,7 +60,8 @@ library
         megaparsec ==9.6.*,
         resourcet-effectful,
         scientific,
-        text >=2.0 && <3
+        text >=2.0 && <3,
+        time
     hs-source-dirs:
         src
     default-extensions:
@@ -133,5 +134,6 @@ test-suite spec
         scientific,
         skeletest,
         telescope,
-        text >=2.0 && <3
+        text >=2.0 && <3,
+        time
     default-language: GHC2021

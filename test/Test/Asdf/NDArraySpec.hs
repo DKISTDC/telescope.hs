@@ -8,6 +8,7 @@ import GHC.Int
 import Skeletest
 import System.ByteOrder
 import Telescope.Asdf.Core
+import Telescope.Asdf.NDArray (DataType (..), NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
 import Telescope.Data.Binary

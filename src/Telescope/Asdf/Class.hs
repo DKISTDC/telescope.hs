@@ -5,7 +5,9 @@ module Telescope.Asdf.Class where
 import Data.Massiv.Array (Array, Prim)
 import Data.Massiv.Array qualified as M
 import Data.Scientific (fromFloatDigits, toRealFloat)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format.ISO8601
 import GHC.Generics
 import GHC.Int
 import System.ByteOrder (ByteOrder (..))
@@ -157,6 +159,22 @@ instance FromAsdf Text where
     node -> fail $ expected "Text" node
 
 
+instance ToAsdf String where
+  toValue = String . pack
+instance FromAsdf String where
+  parseValue = \case
+    String t -> pure $ unpack t
+    node -> fail $ expected "Text" node
+
+
+instance ToAsdf Bool where
+  toValue = Bool
+instance FromAsdf Bool where
+  parseValue = \case
+    Bool b -> pure b
+    node -> fail $ expected "Bool" node
+
+
 instance ToAsdf Value where
   toValue = id
 instance FromAsdf Value where
@@ -208,6 +226,14 @@ instance ToAsdf (Axes Row) where
 
 instance ToAsdf BlockSource where
   toValue (BlockSource s) = toValue s
+
+
+instance ToAsdf UTCTime where
+  toValue t = String $ pack $ iso8601Show t
+instance FromAsdf UTCTime where
+  parseValue v = do
+    ts <- parseValue @String v
+    iso8601ParseM ts
 
 
 -- | Convert to a Node, including the schema tag if specified
@@ -273,7 +299,7 @@ instance (GToObject f, GToObject g) => GToObject (f :*: g) where
   gToObject (f :*: g) = gToObject f <> gToObject g
 
 
-instance (GToNode f, GParseKey f, Selector s) => GToObject (M1 S s f) where
+instance (GToNode f, Selector s) => GToObject (M1 S s f) where
   gToObject (M1 f) =
     let s = selName (undefined :: M1 S s f p)
      in [(pack s, gToNode f)]

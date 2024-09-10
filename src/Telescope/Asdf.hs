@@ -15,20 +15,19 @@ module Telescope.Asdf
   , Key
   , Object
   , fromValue
+  , toNode
   , NDArrayData (..)
   , Parser
   , runParser
-  , module Telescope.Asdf.Core
+  , Asdf (..)
   )
 where
 
 import Telescope.Asdf.Class
-import Telescope.Asdf.Core
+import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser
 
-
--- import Telescope.Asdf.File

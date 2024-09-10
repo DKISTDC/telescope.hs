@@ -6,6 +6,15 @@ module Telescope.Fits.Header
   -- , Comment
   , keyword
   , addComment
+
+    -- * Re-exports
+  , toInt
+  , toFloat
+  , toText
+  , LogicalConstant (..)
+  , getKeywords
+  , HeaderRecord (..)
+  , KeywordRecord (..)
   ) where
 
 import Data.Fits

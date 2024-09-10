@@ -1,17 +1,11 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module Telescope.Asdf.Node where
 
-import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
-import Data.Proxy (Proxy (..))
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
-import GHC.Int
-import GHC.TypeLits
-import System.ByteOrder (ByteOrder (..))
-import Telescope.Data.Axes
+import Telescope.Asdf.Error
+import Telescope.Asdf.NDArray
+import Telescope.Asdf.Parser
 
 
 -- | Specify a schema using 'schema' from 'ToAsdf'
@@ -81,50 +75,17 @@ fromValue = Node mempty
 
 -- NDArray -------------------------------------------
 
-{- | In-tree representation of an NDArray. You can parse a file as this and get it back. Not really what we want though
-but in haskell we can't easily just parse a multi-dimensional array
-we could do a simpler representation. Using an ADT
--}
-data NDArrayData = NDArrayData
-  { bytes :: ByteString
-  , byteorder :: ByteOrder
-  , datatype :: DataType
-  , shape :: Axes Row
-  }
-  deriving (Eq)
+parseKey :: Text -> Object -> Parser Node
+parseKey k o = do
+  case lookup k o of
+    Nothing -> fail $ "key " ++ show k ++ " not found"
+    Just node -> pure node
 
 
-instance Show NDArrayData where
-  show nd = unwords ["NDArrayData", show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
-
-
-data DataType
-  = Float64
-  | Int64
-  | Int32
-  | Int16
-  | Int8
-  | Bool8
-  | Ucs4 Integer
-  deriving (Show, Eq)
-
-
-class IsDataType a where
-  dataType :: DataType
-
-
-instance IsDataType Double where
-  dataType = Float64
-instance IsDataType Int64 where
-  dataType = Int64
-instance IsDataType Int32 where
-  dataType = Int32
-instance IsDataType Int16 where
-  dataType = Int16
-instance IsDataType Int8 where
-  dataType = Int8
-instance (IsDataType a) => IsDataType [a] where
-  dataType = dataType @a
-
--- ndArray :: (ToNDArray a) => a -> Value
--- ndArray a = NDArray $ toNDArray a
+parseNDArray :: (FromNDArray a) => Value -> Parser a
+parseNDArray val = do
+  dat <- ndarray val
+  fromNDArray dat
+ where
+  ndarray (NDArray a) = pure a
+  ndarray v = fail $ expected "NDArray" v

@@ -45,6 +45,7 @@ dependencies:
   - text >= 2.0 && <3
   - effectful >= 2.3 && <3
   - aeson
+  - time
   - scientific
   - byte-order
   - libyaml

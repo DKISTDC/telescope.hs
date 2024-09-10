@@ -17,6 +17,7 @@ import Effectful.State.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
+import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Asdf.Parser (ParseError, fromParser, runParser)
 import Telescope.Data.Axes
@@ -331,17 +332,17 @@ sinkIndex = do
   expect EventDocumentEnd
   expect EventStreamEnd
   pure $ BlockIndex ns
-  where
-    isSequence :: Event -> Bool
-    isSequence EventSequenceStart{} = True
-    isSequence _ = False
+ where
+  isSequence :: Event -> Bool
+  isSequence EventSequenceStart{} = True
+  isSequence _ = False
 
-    sinkIndexEntry :: (Error YamlError :> es) => ConduitT Event o (Eff es) Int
-    sinkIndexEntry = do
-      e <- event
-      case e of
-        EventScalar s t _ _ -> do
-          case readMaybe (unpack $ decodeUtf8 s) of
-            Just n -> pure n
-            Nothing -> lift $ throwError $ InvalidScalar "Int Index Entry" t s
-        _ -> lift $ throwError $ ExpectedEvent "Scalar Int" e
+  sinkIndexEntry :: (Error YamlError :> es) => ConduitT Event o (Eff es) Int
+  sinkIndexEntry = do
+    e <- event
+    case e of
+      EventScalar s t _ _ -> do
+        case readMaybe (unpack $ decodeUtf8 s) of
+          Just n -> pure n
+          Nothing -> lift $ throwError $ InvalidScalar "Int Index Entry" t s
+      _ -> lift $ throwError $ ExpectedEvent "Scalar Int" e

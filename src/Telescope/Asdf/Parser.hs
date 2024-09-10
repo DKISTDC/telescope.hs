@@ -2,12 +2,13 @@ module Telescope.Asdf.Parser where
 
 import Control.Monad.Catch (Exception, MonadCatch (..), MonadThrow)
 import Data.List (intercalate)
-import Data.Text (unpack)
+import Data.Text (Text, unpack)
 import Effectful
 import Effectful.Error.Static
 import Effectful.Reader.Static
-import Telescope.Asdf.Node
 
+
+-- import Telescope.Asdf.Node
 
 data ParseError
   = ParseFailure [Context] String
@@ -20,7 +21,7 @@ instance Show ParseError where
 
 
 data Context
-  = Child Key
+  = Child Text
 
 
 instance Show Context where
@@ -57,13 +58,6 @@ fromParser p = do
   case runPureEff . runReader [] . runErrorNoCallStack @ParseError $ p.effect of
     Left e -> throwError e
     Right a -> pure a
-
-
-parseKey :: Key -> Object -> Parser Node
-parseKey k o = do
-  case lookup k o of
-    Nothing -> fail $ "key " ++ show k ++ " not found"
-    Just node -> pure node
 
 
 addContext :: Context -> Parser a -> Parser a
