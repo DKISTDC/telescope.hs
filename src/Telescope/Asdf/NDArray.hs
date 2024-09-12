@@ -1,6 +1,20 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Telescope.Asdf.NDArray where
+module Telescope.Asdf.NDArray
+  ( NDArrayData (..)
+  , FromNDArray (..)
+  , ToNDArray (..)
+  , DataType (..)
+  , IsDataType (..)
+  , parseGet
+  , ndArrayPut
+  , ndArrayMassiv
+  , parseMassiv
+  , ByteOrder (..)
+  , getUcs4
+  , putUcs4
+  )
+where
 
 import Control.Monad (replicateM)
 import Control.Monad.Catch (try)
@@ -13,6 +27,7 @@ import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Data.Text.Encoding qualified as T
+import Debug.Trace
 import GHC.Int (Int16, Int32, Int64)
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
@@ -43,12 +58,13 @@ instance Show NDArrayData where
 
 data DataType
   = Float64
+  | Float32
   | Int64
   | Int32
   | Int16
   | Int8
   | Bool8
-  | Ucs4 Integer
+  | Ucs4 Int
   deriving (Show, Eq)
 
 
@@ -58,6 +74,8 @@ class IsDataType a where
 
 instance IsDataType Double where
   dataType = Float64
+instance IsDataType Float where
+  dataType = Float32
 instance IsDataType Int64 where
   dataType = Int64
 instance IsDataType Int32 where
@@ -108,18 +126,15 @@ instance {-# OVERLAPPABLE #-} (BinaryValue a) => FromNDArray [a] where
 instance FromNDArray [Text] where
   fromNDArray arr = do
     n <- fromIntegral <$> ucs4Size arr.datatype
-    parseGet (replicateM (totalItems arr.shape) (getString n)) arr.bytes
+    parseGet (replicateM (totalItems arr.shape) (getUcs4 arr.byteorder n)) arr.bytes
    where
     ucs4Size = \case
       Ucs4 n -> pure n
       dt -> fail $ expected "Ucs4" dt
 
-    getString nchars = do
-      decode arr.byteorder <$> getByteString (nchars * 4)
 
-    decode LittleEndian = T.decodeUtf32LE
-    decode BigEndian = T.decodeUtf32BE
-
+-- decode LittleEndian = T.decodeUtf32LE
+-- decode BigEndian = T.decodeUtf32BE
 
 instance {-# OVERLAPPING #-} (BinaryValue a) => FromNDArray [[a]] where
   fromNDArray arr = parseGet (getBytes arr.shape) arr.bytes
@@ -165,3 +180,24 @@ parseMassiv nda = do
   case ea of
     Left (e :: ArrayError) -> fail $ show e
     Right a -> pure a
+
+
+putUcs4 :: Int -> Text -> Put
+putUcs4 n t = putByteString $ justifyUcs4 n $ T.encodeUtf32BE t
+
+
+getUcs4 :: ByteOrder -> Int -> Get Text
+getUcs4 bo n =
+  decodeUcs4 <$> getByteString (n * 4)
+ where
+  decodeUcs4 bs =
+    trace (show bs) $
+      case bo of
+        BigEndian -> T.decodeUtf32BE . BS.dropWhileEnd (== 0x0) $ bs
+        LittleEndian -> T.decodeUtf32LE . BS.dropWhile (== 0x0) $ bs
+
+
+justifyUcs4 :: Int -> BS.ByteString -> BS.ByteString
+justifyUcs4 len bs =
+  let nulls = len * 4 - BS.length bs
+   in bs <> BS.replicate nulls 0x0

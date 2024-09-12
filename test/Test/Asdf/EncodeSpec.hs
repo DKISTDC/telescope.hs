@@ -6,6 +6,7 @@ import Data.ByteString.Char8 qualified as BC
 import Data.Massiv.Array (Array, Comp (Seq), D, Ix2, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
+import Effectful
 import GHC.Generics (Generic)
 import GHC.Int (Int16, Int64)
 import Skeletest
@@ -14,6 +15,7 @@ import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
+import Telescope.Asdf.Encoding.Stream
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
@@ -26,6 +28,7 @@ spec = do
   describe "document" documentSpec
   describe "blocks" blocksSpec
   describe "roundtrip" roundSpec
+  describe "stream" streamSpec
 
 
 basicSpec :: Spec
@@ -48,6 +51,16 @@ basicSpec = do
 
   it "should throw if not an object" $ do
     encodeM (Integer 100) `shouldSatisfy` P.throws @AsdfError P.anything
+
+
+streamSpec :: Spec
+streamSpec = do
+  it "should encode an empty string as empty single quotes" $ do
+    let unit = fromValue $ String ""
+    let obj = Object [("unit", unit)]
+    (out, _) <- runAsdfM . encodeNode $ toNode obj
+    print out
+    out `shouldBe` "{unit: ''}\n"
 
 
 documentSpec :: Spec
@@ -87,7 +100,7 @@ blocksSpec = do
       inp <- BS.readFile "samples/example.asdf"
       e <- decodeM @Value inp
       e `shouldSatisfy` P.con (Object P.anything)
-      af <- runAsdfM $ toAsdfDoc e >>= encodeToAsdfFile
+      af <- runAsdfM $ toAsdfDoc e >>= encodeAsdf
       length af.blocks `shouldBe` 3
 
       let BlockIndex ix = blockIndex af.tree af.blocks
@@ -103,7 +116,7 @@ blocksSpec = do
       o <- encodeM e
       BlockIndex ix <- runAsdfM $ do
         a <- toAsdfDoc e
-        af <- encodeToAsdfFile a
+        af <- encodeAsdf a
         pure $ blockIndex af.tree af.blocks
       forM_ ix $ \n -> do
         BS.take 4 (BS.drop n o) `shouldBe` blockMagicToken

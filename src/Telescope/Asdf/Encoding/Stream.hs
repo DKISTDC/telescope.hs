@@ -2,6 +2,7 @@ module Telescope.Asdf.Encoding.Stream where
 
 import Conduit
 import Data.ByteString (ByteString)
+import Data.Conduit (sourceToList)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
@@ -13,6 +14,7 @@ import Effectful
 import Effectful.Error.Static
 import Effectful.NonDet
 import Effectful.Reader.Dynamic
+import Effectful.Resource
 import Effectful.State.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
@@ -26,20 +28,37 @@ import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
 
 
-yieldDocument :: (State [BlockData] :> es) => Asdf -> ConduitT a Event (Eff es) ()
-yieldDocument a = do
+runStream :: (IOE :> es) => ConduitT () Void (Eff (State [BlockData] : Resource : es)) a -> Eff es (a, [BlockData])
+runStream con = do
+  runResource . runState @[BlockData] [] . runConduit $ con
+
+
+runStreamList :: (IOE :> es) => ConduitT () Event (Eff (State [BlockData] : Resource : es)) () -> Eff es [Event]
+runStreamList con = do
+  (res, _) <- runStream $ con .| sinkList
+  pure res
+
+
+-- yieldDocument :: (State [BlockData] :> es, IOE :> es) => Asdf -> ConduitT a Event (Eff es) ()
+-- yieldDocument a = do
+--   yieldDocumentStream $ do
+--     yieldNode $ toNode a
+
+yieldDocument :: (State [BlockData] :> es, IOE :> es) => ConduitT a Event (Eff es) () -> ConduitT a Event (Eff es) ()
+yieldDocument content = do
   yield EventStreamStart
   yield EventDocumentStart
-  yieldNode $ toNode a
+  content
   yield EventDocumentEnd
   yield EventStreamEnd
 
 
-yieldNode :: forall es a. (State [BlockData] :> es) => Node -> ConduitT a Event (Eff es) ()
+yieldNode :: forall es a. (IOE :> es, State [BlockData] :> es) => Node -> ConduitT a Event (Eff es) ()
 yieldNode (Node st val) = do
   case val of
     Object o -> yieldObject o
     Array a -> yieldArray a
+    String "" -> yieldEmptyString
     String s -> yieldScalar (T.encodeUtf8 s)
     Integer n -> yieldNum n
     NDArray nd -> yieldNDArray nd
@@ -52,6 +71,7 @@ yieldNode (Node st val) = do
     SchemaTag (Just s) -> UriTag (unpack s)
 
   yieldScalar s = yield $ EventScalar s tag Plain Nothing
+  yieldEmptyString = yield $ EventScalar "" tag SingleQuoted Nothing
 
   yieldNum :: (Num n, Show n) => n -> ConduitT a Event (Eff es) ()
   yieldNum n = yieldScalar (T.encodeUtf8 $ pack $ show n)

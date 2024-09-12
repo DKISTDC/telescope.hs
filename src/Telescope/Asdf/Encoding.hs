@@ -27,21 +27,33 @@ encodeM a = runAsdfM $ encode a
 encode :: (ToAsdf a, IOE :> es, Error AsdfError :> es) => a -> Eff es ByteString
 encode a = do
   asdf <- toAsdfDoc a
-  file <- encodeToAsdfFile asdf
+  file <- encodeAsdf asdf
   pure $ concatAsdfFile file
 
 
 -- | Encode the tree and the data blocks
-encodeToAsdfFile :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es AsdfFile
-encodeToAsdfFile a = do
-  (doc, bds) <- runResource . runState @[BlockData] [] . runConduit $ yieldDocument a .| Yaml.encodeWith format
+encodeAsdf :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es AsdfFile
+encodeAsdf a = do
+  (doc, bds) <- encodeStream (yieldDocument $ yieldNode $ toNode a)
   let tree = encodeTree doc
   let blocks = fmap encodeBlock bds
   let index = encodeIndex $ blockIndex tree blocks
-  pure $
-    AsdfFile{tree, blocks, index}
+  pure $ AsdfFile{tree, blocks, index}
+
+
+encodeStream :: (IOE :> es, Error AsdfError :> es) => ConduitT () Yaml.Event (Eff (State [BlockData] : Resource : es)) () -> Eff es (ByteString, [BlockData])
+encodeStream con = do
+  runStream $ con .| Yaml.encodeWith format
  where
-  format = Yaml.defaultFormatOptions & Yaml.setTagRendering Yaml.renderUriTags
+  format =
+    Yaml.defaultFormatOptions
+      & Yaml.setTagRendering Yaml.renderUriTags
+      & Yaml.setWidth (Just 100)
+
+
+encodeNode :: (IOE :> es, Error AsdfError :> es) => Node -> Eff es (ByteString, [BlockData])
+encodeNode node = do
+  encodeStream (yieldDocument $ yieldNode node)
 
 
 decodeM :: (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a

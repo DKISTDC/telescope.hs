@@ -51,6 +51,15 @@ data Value
   deriving (Show, Eq)
 instance IsString Value where
   fromString = String . pack
+instance Semigroup Value where
+  String a <> String b = String $ a <> b
+  Array as <> Array bs = Array $ as <> bs
+  Object as <> Object bs = Object $ as <> bs
+  Null <> b = b
+  a <> Null = a
+  a <> _ = a
+instance Monoid Value where
+  mempty = Null
 
 
 type Key = Text

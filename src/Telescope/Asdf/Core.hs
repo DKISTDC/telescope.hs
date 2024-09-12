@@ -24,7 +24,7 @@ data Unit
 
 
 instance ToAsdf Unit where
-  schema = "!unit/unit-1.5.0"
+  schema = "unit/unit-1.5.0"
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"

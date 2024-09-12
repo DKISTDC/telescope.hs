@@ -10,7 +10,6 @@ import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601
 import GHC.Generics
 import GHC.Int
-import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Encoding.File (BlockSource (..))
 import Telescope.Asdf.Error (expected)
 import Telescope.Asdf.NDArray
@@ -191,21 +190,23 @@ instance FromAsdf NDArrayData where
 
 instance ToAsdf DataType where
   toValue Float64 = "float64"
+  toValue Float32 = "float32"
   toValue Int64 = "int64"
   toValue Int32 = "int32"
   toValue Int16 = "int16"
   toValue Int8 = "int8"
   toValue Bool8 = "bool8"
-  toValue (Ucs4 n) = Array ["ucs4", fromValue $ Integer n]
+  toValue (Ucs4 n) = Array ["ucs4", fromValue $ Integer $ fromIntegral n]
 instance FromAsdf DataType where
   parseValue = \case
     String "float64" -> pure Float64
+    String "float32" -> pure Float32
     String "int64" -> pure Int64
     String "int32" -> pure Int32
     String "int16" -> pure Int16
     String "int8" -> pure Int8
     String "bool8" -> pure Bool8
-    Array ["ucs4", Node _ (Integer n)] -> pure $ Ucs4 n
+    Array ["ucs4", Node _ (Integer n)] -> pure $ Ucs4 $ fromIntegral n
     val -> fail $ expected "DataType" val
 
 
