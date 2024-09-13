@@ -26,7 +26,7 @@ spec = do
 
 testBlocks :: Spec
 testBlocks = do
-  let blockHeadZero = BlockHeader 1 NoCompression 0 0 0 noChecksum
+  let blockHeadZero = BlockHeader 1 0 NoCompression 0 0 0 noChecksum
 
   describe "BlockHeader" $ do
     it "should parse zero" $ do
@@ -42,6 +42,7 @@ testBlocks = do
       bh.allocatedSize `shouldBe` 5
       bh.usedSize `shouldBe` 5
       bh.dataSize `shouldBe` 5
+      bh.headerSize `shouldSatisfy` P.gte 48
 
   describe "putBlock" $ do
     it "puts a header" $ do

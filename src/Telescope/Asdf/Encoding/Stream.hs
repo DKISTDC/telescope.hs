@@ -39,11 +39,6 @@ runStreamList con = do
   pure res
 
 
--- yieldDocument :: (State [BlockData] :> es, IOE :> es) => Asdf -> ConduitT a Event (Eff es) ()
--- yieldDocument a = do
---   yieldDocumentStream $ do
---     yieldNode $ toNode a
-
 yieldDocument :: (State [BlockData] :> es, IOE :> es) => ConduitT a Event (Eff es) () -> ConduitT a Event (Eff es) ()
 yieldDocument content = do
   yield EventStreamStart

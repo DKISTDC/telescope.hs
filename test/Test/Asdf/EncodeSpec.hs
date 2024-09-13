@@ -29,6 +29,7 @@ spec = do
   describe "blocks" blocksSpec
   describe "roundtrip" roundSpec
   describe "stream" streamSpec
+  describe "external verification" externalSpec
 
 
 basicSpec :: Spec
@@ -154,6 +155,14 @@ roundSpec = do
     sd2.number `shouldBe` sd.number
     sd2.tags `shouldBe` sd.tags
     sd2.matrix `shouldBe` sd.matrix
+
+
+externalSpec :: Spec
+externalSpec = do
+  it "saves encoded document to an asdf for external verification in python" $ do
+    let sd = SomeData 24 ["one", "two"] $ matrix [[1, 2, 3], [4, 5, 6]]
+    out <- encodeM sd
+    BS.writeFile "samples/generated.asdf" out
 
 
 matrix :: (M.Prim n) => [[n]] -> Array D Ix2 n

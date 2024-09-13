@@ -27,7 +27,6 @@ import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Data.Text.Encoding qualified as T
-import Debug.Trace
 import GHC.Int (Int16, Int32, Int64)
 import System.ByteOrder (ByteOrder (..))
 import Telescope.Asdf.Error (expected)
@@ -191,10 +190,9 @@ getUcs4 bo n =
   decodeUcs4 <$> getByteString (n * 4)
  where
   decodeUcs4 bs =
-    trace (show bs) $
-      case bo of
-        BigEndian -> T.decodeUtf32BE . BS.dropWhileEnd (== 0x0) $ bs
-        LittleEndian -> T.decodeUtf32LE . BS.dropWhile (== 0x0) $ bs
+    case bo of
+      BigEndian -> T.decodeUtf32BE . BS.dropWhileEnd (== 0x0) $ bs
+      LittleEndian -> T.decodeUtf32LE . BS.dropWhile (== 0x0) $ bs
 
 
 justifyUcs4 :: Int -> BS.ByteString -> BS.ByteString

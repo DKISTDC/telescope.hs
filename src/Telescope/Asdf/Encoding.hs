@@ -34,7 +34,7 @@ encode a = do
 -- | Encode the tree and the data blocks
 encodeAsdf :: (IOE :> es, Error AsdfError :> es) => Asdf -> Eff es AsdfFile
 encodeAsdf a = do
-  (doc, bds) <- encodeStream (yieldDocument $ yieldNode $ toNode a)
+  (doc, bds) <- encodeNode (toNode a)
   let tree = encodeTree doc
   let blocks = fmap encodeBlock bds
   let index = encodeIndex $ blockIndex tree blocks
@@ -51,6 +51,7 @@ encodeStream con = do
       & Yaml.setWidth (Just 100)
 
 
+-- Low-level encoding of a node to a yaml tree, without required headers, etc
 encodeNode :: (IOE :> es, Error AsdfError :> es) => Node -> Eff es (ByteString, [BlockData])
 encodeNode node = do
   encodeStream (yieldDocument $ yieldNode node)

@@ -2,6 +2,7 @@
 
 module Telescope.Asdf.Encoding.File where
 
+import Control.Monad (replicateM_)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
@@ -165,8 +166,8 @@ instance Show BlockData where
 -- what's the best way to represent a fixed-length ascii string
 data BlockHeader = BlockHeader
   { headerSize :: Word16
-  , -- , flags :: Word32 -- TODO support streamed
-    compression :: Compression
+  , flags :: Word32
+  , compression :: Compression
   , allocatedSize :: Word64
   , usedSize :: Word64
   , dataSize :: Word64
@@ -224,12 +225,21 @@ getBlockHeader :: Get BlockHeader
 getBlockHeader = do
   expectMagicToken
   headerSize <- label "header_size" getWord16be
-  _flags <- label "flags" getWord32be
-  compression <- label "compression" getCompression
-  allocatedSize <- label "allocated_size" getWord64be
-  usedSize <- label "used_size" getWord64be
-  dataSize <- label "data_size" getWord64be
-  checksum <- label "checksum" getChecksum
+  start <- bytesRead
+
+  -- the remainder is inside the headerSize
+  flags <- label "flags" getWord32be -- 4
+  compression <- label "compression" getCompression -- 4
+  allocatedSize <- label "allocated_size" getWord64be -- 8
+  usedSize <- label "used_size" getWord64be -- 8
+  dataSize <- label "data_size" getWord64be -- 8
+  checksum <- label "checksum" getChecksum -- 2
+  end <- bytesRead
+
+  -- skip until the end of headerSize
+  let usedHead = fromIntegral $ end - start
+  skip $ fromIntegral headerSize - usedHead
+
   pure $ BlockHeader{..}
  where
   getCompression = do
@@ -253,15 +263,22 @@ putBlockHeader :: BlockHeader -> Put
 putBlockHeader h = do
   putByteString blockMagicToken
   putWord16be h.headerSize
-  putWord32be 0 -- flags
-  putCompression NoCompression
-  putWord64be h.allocatedSize
-  putWord64be h.usedSize
-  putWord64be h.dataSize
-  putChecksum h.checksum
+  size <- putHeaderContent
+  let emptyBytes = fromIntegral h.headerSize - size :: Int
+  replicateM_ emptyBytes $ putWord8 0x0
  where
   putCompression _ = putByteString "\0\0\0\0"
   putChecksum (Checksum cs) = putByteString cs
+  putHeaderContent = do
+    let bs = runPut $ do
+          putWord32be 0 -- flags
+          putCompression NoCompression
+          putWord64be h.allocatedSize
+          putWord64be h.usedSize
+          putWord64be h.dataSize
+          putChecksum h.checksum
+    putLazyByteString bs
+    pure $ fromIntegral $ BL.length bs
 
 
 encodeBlock :: BlockData -> Encoded Block
@@ -288,12 +305,13 @@ blockHeader :: BlockData -> BlockHeader
 blockHeader (BlockData bs) =
   let bytes = fromIntegral $ BS.length bs
    in BlockHeader
-        { headerSize = 0
+        { headerSize = 48 -- minimum allowed size. Our encoding uses fewer bytes than this
         , compression = NoCompression
         , allocatedSize = bytes
         , usedSize = bytes
         , dataSize = bytes
         , checksum = noChecksum
+        , flags = 0
         }
 
 
