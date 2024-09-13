@@ -1,14 +1,11 @@
 module Test.Asdf.FileSpec where
 
-import Control.Monad.Catch (throwM)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Effectful
-import Effectful.Error.Static
-import Effectful.Fail
 import Effectful.NonDet
 import Effectful.State.Static.Local
 import Skeletest

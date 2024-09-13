@@ -6,7 +6,6 @@ import Data.ByteString.Char8 qualified as BC
 import Data.Massiv.Array (Array, Comp (Seq), D, Ix2, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
-import Effectful
 import GHC.Generics (Generic)
 import GHC.Int (Int16, Int64)
 import Skeletest
@@ -15,7 +14,6 @@ import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
-import Telescope.Asdf.Encoding.Stream
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node

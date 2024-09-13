@@ -2,7 +2,6 @@ module Telescope.Asdf.Encoding.Stream where
 
 import Conduit
 import Data.ByteString (ByteString)
-import Data.Conduit (sourceToList)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
