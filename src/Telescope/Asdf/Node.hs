@@ -3,9 +3,8 @@ module Telescope.Asdf.Node where
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
-import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
-import Telescope.Asdf.Parser
+import Telescope.Data.Parser
 
 
 -- | Specify a schema using 'schema' from 'ToAsdf'

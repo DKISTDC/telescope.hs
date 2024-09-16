@@ -29,5 +29,5 @@ import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
+import Telescope.Data.Parser
 

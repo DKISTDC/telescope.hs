@@ -19,8 +19,8 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
 import Telescope.Data.Axes
+import Telescope.Data.Parser
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 import Text.Libyaml qualified as Yaml
 
@@ -42,7 +42,7 @@ fromAsdfSpec = do
           , ("random", fromValue $ NDArray $ NDArrayData "" BigEndian Float64 (axesRowMajor [0]))
           ]
     case runParser $ parseValue @Example (Object tree) of
-      Left e -> fail e
+      Left e -> fail $ show e
       Right ex -> do
         ex.foo `shouldBe` 42
         ex.name `shouldBe` "Monty"
@@ -51,7 +51,7 @@ fromAsdfSpec = do
   it "parses sequence from example.asdf as an NDArray" $ do
     ExampleAsdfFix a <- getFixture
     case runParser $ parseValue @Sequence (Object a.tree) of
-      Left e -> fail e
+      Left e -> fail $ show e
       Right (Sequence s) -> do
         s `shouldBe` M.delay (M.fromLists' @P Seq [0 .. 99])
 

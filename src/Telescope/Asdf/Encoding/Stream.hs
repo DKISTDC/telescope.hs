@@ -20,8 +20,8 @@ import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser (ParseError, fromParser, runParser)
 import Telescope.Data.Axes
+import Telescope.Data.Parser (ParseError, fromParser, runParser)
 import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)

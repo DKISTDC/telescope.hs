@@ -20,9 +20,6 @@ instance Show AsdfError where
   show (EncodeError s) = "EncodeError " ++ s
 
 
-expected :: (Show a) => String -> a -> String
-expected ex n = "Expected " ++ ex ++ ", but got: " ++ show n
-
 
 runAsdfM :: (MonadIO m, MonadThrow m) => Eff [Error AsdfError, IOE] a -> m a
 runAsdfM = liftIO . runEff . runErrorNoCallStackWith @AsdfError throwM

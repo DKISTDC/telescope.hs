@@ -11,13 +11,12 @@ import Data.Time.Format.ISO8601
 import GHC.Generics
 import GHC.Int
 import Telescope.Asdf.Encoding.File (BlockSource (..))
-import Telescope.Asdf.Error (expected)
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
+import Telescope.Data.Parser
 
 
 {- | Convert types to and from an Asdf 'Values'. The generic instance will decode an object

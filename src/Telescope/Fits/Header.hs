@@ -15,10 +15,18 @@ module Telescope.Fits.Header
   , getKeywords
   , HeaderRecord (..)
   , KeywordRecord (..)
+  , ToHeader (..)
+  , FromHeader (..)
+  , ToKeyword (..)
+  , FromKeyword (..)
+  , parseKeyword
+  , Parser
   ) where
 
 import Data.Fits
 import Data.Text (Text)
+import Telescope.Data.Parser (Parser)
+import Telescope.Fits.Header.Class
 import Prelude hiding (lookup)
 
 

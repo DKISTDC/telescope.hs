@@ -1,4 +1,4 @@
-module Telescope.Asdf.Parser where
+module Telescope.Data.Parser where
 
 import Control.Monad.Catch (Exception, MonadCatch (..), MonadThrow)
 import Data.List (intercalate)
@@ -12,7 +12,7 @@ import Effectful.Reader.Static
 
 data ParseError
   = ParseFailure [Context] String
-  deriving (Exception)
+  deriving (Exception, Eq)
 
 
 instance Show ParseError where
@@ -22,6 +22,7 @@ instance Show ParseError where
 
 data Context
   = Child Text
+  deriving (Eq)
 
 
 instance Show Context where
@@ -46,11 +47,9 @@ instance MonadFail Parser where
     throwError $ ParseFailure ctx s
 
 
-runParser :: Parser a -> Either String a
+runParser :: Parser a -> Either ParseError a
 runParser p =
-  case runPureEff . runErrorNoCallStack @ParseError $ fromParser p of
-    Left pe -> Left $ show pe
-    Right a -> Right a
+  runPureEff . runErrorNoCallStack @ParseError $ fromParser p
 
 
 fromParser :: (Error ParseError :> es) => Parser a -> Eff es a
@@ -67,3 +66,7 @@ addContext c p = Parser $ do
 
 context :: Parser [Context]
 context = Parser ask
+
+
+expected :: (Show a) => String -> a -> String
+expected ex n = "Expected " ++ ex ++ ", but got: " ++ show n

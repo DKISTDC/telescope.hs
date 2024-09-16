@@ -15,7 +15,7 @@ import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser
+import Telescope.Data.Parser
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 
 

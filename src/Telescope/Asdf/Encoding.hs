@@ -16,7 +16,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Encoding.Stream
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node
-import Telescope.Asdf.Parser (ParseError, fromParser)
+import Telescope.Data.Parser (ParseError, fromParser)
 import Text.Libyaml qualified as Yaml
 
 

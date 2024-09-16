@@ -10,8 +10,9 @@ import Effectful.Error.Static
 import GHC.Generics (Generic)
 import Paths_telescope (version)
 import Telescope.Asdf.Class
-import Telescope.Asdf.Error (AsdfError (..), expected)
+import Telescope.Asdf.Error (AsdfError (..))
 import Telescope.Asdf.Node
+import Telescope.Data.Parser (expected)
 
 
 -- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
@@ -24,7 +25,7 @@ data Unit
 
 
 instance ToAsdf Unit where
-  schema = "unit/unit-1.5.0"
+  schema = "!unit/unit-1.0.0"
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"
@@ -45,7 +46,7 @@ data Quantity = Quantity
   }
   deriving (Generic)
 instance ToAsdf Quantity where
-  schema = "!unit/quantity-1.5.0"
+  schema = "!unit/quantity-1.1.0"
 instance FromAsdf Quantity
 
 

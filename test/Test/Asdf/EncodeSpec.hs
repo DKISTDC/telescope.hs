@@ -17,6 +17,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
+import Telescope.Data.Parser (expected)
 import Test.Asdf.ClassSpec (expectObject)
 
 
