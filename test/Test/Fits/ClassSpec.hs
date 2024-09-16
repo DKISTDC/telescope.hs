@@ -10,19 +10,14 @@ import Telescope.Fits.Header
 
 
 newtype Activity = Activity Text
-  deriving newtype (FromKeyword)
-
-
-instance ToKeyword Activity where
-  toValue (Activity t) = toValue t
-  toKeyword _ = Just "activity"
+  deriving newtype (FromKeyword, ToKeyword)
 
 
 -- toKeywordRecord _ a = KeywordRecord "activity" (toKeywordValue a) Nothing
 
 data Test = Test
   { age :: Int
-  , name :: Text
+  , firstName :: Text
   }
   deriving (Generic, ToHeader, FromHeader)
 
@@ -47,19 +42,21 @@ spec = do
       runParser (parseKeywordValue @Bool $ Logic F) `shouldBe` Right False
 
   describe "ToHeader" $ do
+    it "should uppercase and snake keywords" $ do
+      let h = toHeader (Test 40 "Alice")
+      length h._records `shouldBe` 2
+      [Keyword (KeywordRecord k1 _ _), Keyword (KeywordRecord k2 _ _)] <- pure h._records
+      k1 `shouldBe` "AGE"
+      k2 `shouldBe` "FIRST_NAME"
+
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
-      Fits.lookup "age" h `shouldBe` Just (Integer 40)
-      Fits.lookup "name" h `shouldBe` Just (String "Alice")
-
-    it "Uses custom keyword name from members of ToHeader" $ do
-      let h = toHeader (Test2 (Activity "dancing"))
-      Fits.lookup "hobby" h `shouldBe` Nothing
-      Fits.lookup "activity" h `shouldBe` Just (String "dancing")
+      Fits.lookup "AGE" h `shouldBe` Just (Integer 40)
+      Fits.lookup "FIRST_NAME" h `shouldBe` Just (String "Alice")
 
   describe "FromHeader" $ do
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
       let et = runParser $ parseHeader h
       et `shouldSatisfy` P.right (P.con Test{age = P.eq 40})
-      et `shouldSatisfy` P.right (P.con Test{name = P.eq "Alice"})
+      et `shouldSatisfy` P.right (P.con Test{firstName = P.eq "Alice"})

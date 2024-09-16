@@ -1,20 +1,15 @@
 module Telescope.Fits.Header.Class where
 
 import Data.Fits as Fits
-import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
+import Data.Text qualified as T
 import GHC.Generics
 import Telescope.Data.Parser
+import Text.Casing (fromHumps, toSnake)
 
 
 class ToKeyword a where
   toValue :: a -> Value
-
-
-  -- hmm..... should we....
-  toKeyword :: a -> Maybe Text
-  default toKeyword :: a -> Maybe Text
-  toKeyword _ = Nothing
 
 
 class FromKeyword a where
@@ -91,8 +86,8 @@ instance (GToHeader f, GToHeader g) => GToHeader (f :*: g) where
 
 instance (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
   gToHeader (M1 (K1 a)) =
-    let key = pack $ selName (undefined :: M1 S s f p)
-     in Header [Keyword $ KeywordRecord (fromMaybe key $ toKeyword a) (toValue a) Nothing]
+    let key = cleanKeyword $ selName (undefined :: M1 S s f p)
+     in Header [Keyword $ KeywordRecord key (toValue a) Nothing]
 
 
 class GFromHeader f where
@@ -116,5 +111,9 @@ instance (GFromHeader f, GFromHeader g) => GFromHeader (f :*: g) where
 
 instance (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1 R a)) where
   gParseHeader h = do
-    let k = pack $ selName (undefined :: M1 S s f p)
+    let k = cleanKeyword $ selName (undefined :: M1 S s f p)
     M1 . K1 <$> parseKeyword k h
+
+
+cleanKeyword :: String -> Text
+cleanKeyword = T.toUpper . pack . toSnake . fromHumps

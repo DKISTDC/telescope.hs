@@ -47,6 +47,7 @@ dependencies:
   - time
   - scientific
   - byte-order
+  - casing
   - libyaml
   - conduit
   - resourcet-effectful

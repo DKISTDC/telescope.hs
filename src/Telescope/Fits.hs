@@ -71,11 +71,10 @@ module Telescope.Fits
   -- , test
   ) where
 
-import Data.Fits (lookup)
 import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
 import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
-import Telescope.Fits.Header (addComment, keyword)
+import Telescope.Fits.Header (addComment, keyword, lookup)
 import Telescope.Fits.Types
 import Prelude hiding (lookup)
 
