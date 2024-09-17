@@ -22,19 +22,25 @@ data Test = Test
   deriving (Generic, ToHeader, FromHeader)
 
 
-data Test2 = Test2
-  { hobby :: Activity
+data Woot = Woot
+  { woot :: Float
   }
-  deriving (Generic, ToHeader, FromHeader)
+
+
+data Parent = Parent
+  { test :: Test
+  , woot :: Woot
+  }
+  deriving (Generic)
 
 
 spec :: Spec
 spec = do
   describe "To/From KeywordValue" $ do
     it "should toKeywordValue" $ do
-      toValue (23 :: Int) `shouldBe` Integer 23
-      toValue ("hello" :: Text) `shouldBe` String "hello"
-      toValue True `shouldBe` Logic T
+      toKeywordValue (23 :: Int) `shouldBe` Integer 23
+      toKeywordValue ("hello" :: Text) `shouldBe` String "hello"
+      toKeywordValue True `shouldBe` Logic T
 
     it "should parseKeywordValue" $ do
       runParser (parseKeywordValue @Int $ Integer 23) `shouldBe` Right 23
@@ -51,8 +57,14 @@ spec = do
 
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
-      Fits.lookup "AGE" h `shouldBe` Just (Integer 40)
-      Fits.lookup "FIRST_NAME" h `shouldBe` Just (String "Alice")
+      lookupKeyword "AGE" h `shouldBe` Just (Integer 40)
+      lookupKeyword "FIRST_NAME" h `shouldBe` Just (String "Alice")
+
+  -- it "should mconcat fields that are members of toHeader" $ do
+  --   let h = toHeader $ Parent (Test 40 "Alice") (Woot 123.456)
+  --   lookupKeyword "age" h `shouldBe` Just (Integer 40)
+  --   lookupKeyword "first_name" h `shouldBe` Just (String "Alice")
+  --   lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.eq 123.456)))
 
   describe "FromHeader" $ do
     it "should convert datatype" $ do

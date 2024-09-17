@@ -1,6 +1,7 @@
 module Telescope.Fits.Header.Class where
 
-import Data.Fits as Fits
+import Data.Fits as Fits hiding (isKeyword)
+import Data.List qualified as L
 import Data.Text (Text, pack)
 import Data.Text qualified as T
 import GHC.Generics
@@ -9,15 +10,11 @@ import Text.Casing (fromHumps, toSnake)
 
 
 class ToKeyword a where
-  toValue :: a -> Value
-
-
-class FromKeyword a where
-  parseKeywordValue :: Value -> Parser a
+  toKeywordValue :: a -> Value
 
 
 instance ToKeyword Int where
-  toValue = Integer
+  toKeywordValue = Integer
 instance FromKeyword Int where
   parseKeywordValue = \case
     Integer n -> pure n
@@ -25,7 +22,7 @@ instance FromKeyword Int where
 
 
 instance ToKeyword Float where
-  toValue = Float
+  toKeywordValue = Float
 instance FromKeyword Float where
   parseKeywordValue = \case
     Float n -> pure n
@@ -33,7 +30,7 @@ instance FromKeyword Float where
 
 
 instance ToKeyword Text where
-  toValue = String
+  toKeywordValue = String
 instance FromKeyword Text where
   parseKeywordValue = \case
     String n -> pure n
@@ -41,12 +38,16 @@ instance FromKeyword Text where
 
 
 instance ToKeyword Bool where
-  toValue True = Logic T
-  toValue False = Logic F
+  toKeywordValue True = Logic T
+  toKeywordValue False = Logic F
 instance FromKeyword Bool where
   parseKeywordValue = \case
     Logic c -> pure $ c == T
     v -> fail $ expected "Logic" v
+
+
+class FromKeyword a where
+  parseKeywordValue :: Value -> Parser a
 
 
 class ToHeader a where
@@ -84,10 +85,29 @@ instance (GToHeader f, GToHeader g) => GToHeader (f :*: g) where
   gToHeader (f :*: g) = gToHeader f <> gToHeader g
 
 
-instance (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
+-- instance {-# OVERLAPPABLE #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
+--   gToHeader (M1 (K1 a)) =
+--     let key = cleanKeyword $ selName (undefined :: M1 S s f p)
+--      in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
+--
+
+-- wait, this isn't true.... if it's
+-- if they return exactly ONE keyword, with an empty thing
+instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R a)) where
   gToHeader (M1 (K1 a)) =
     let key = cleanKeyword $ selName (undefined :: M1 S s f p)
-     in Header [Keyword $ KeywordRecord key (toValue a) Nothing]
+     in replaceEmptyKey key $ toHeader a
+   where
+    -- if the child provides exactly one empty keyword field, replace it with the selector name
+    replaceEmptyKey key = \case
+      Header [Keyword (KeywordRecord "" value comment)] ->
+        Header [Keyword (KeywordRecord key value comment)]
+      other -> other
+
+
+instance (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (Maybe a))) where
+  gToHeader (M1 (K1 Nothing)) = Header []
+  gToHeader (M1 (K1 (Just a))) = gToHeader (M1 (K1 a))
 
 
 class GFromHeader f where
@@ -117,3 +137,17 @@ instance (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1 R a)) where
 
 cleanKeyword :: String -> Text
 cleanKeyword = T.toUpper . pack . toSnake . fromHumps
+
+
+lookupKeyword :: Text -> Header -> Maybe Value
+lookupKeyword k = findKeyword (isKeyword k)
+
+
+findKeyword :: (KeywordRecord -> Bool) -> Header -> Maybe Value
+findKeyword p h = do
+  kr <- L.find p (getKeywords h)
+  pure kr._value
+
+
+isKeyword :: Text -> KeywordRecord -> Bool
+isKeyword k (KeywordRecord k2 _ _) = T.toLower k == T.toLower k2

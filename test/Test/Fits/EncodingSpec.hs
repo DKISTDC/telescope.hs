@@ -9,10 +9,10 @@ import Data.Massiv.Array (Ix2)
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
 import Skeletest
-import Telescope.Fits qualified as Fits
 import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
 import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
+import Telescope.Fits.Header
 import Telescope.Fits.Types
 
 
@@ -34,7 +34,7 @@ testDecodeFits = do
           hds = f.primaryHDU.header
       dat.axes `shouldBe` Axes [3, 2]
       dat.bitpix `shouldBe` BPInt64
-      Fits.lookup "CUSTOM" hds `shouldBe` Just (Integer 123456)
+      lookupKeyword "CUSTOM" hds `shouldBe` Just (Integer 123456)
 
     it "should load data array" $ do
       f <- decode =<< BS.readFile "samples/simple2x3.fits"
@@ -198,11 +198,11 @@ testEncodePrimary = do
   describe "decoded encoded primary hdu" $ do
     it "Has custom header" $ do
       FitsDecodedFix f <- getFixture
-      Fits.lookup "WOOT" f.primaryHDU.header `shouldBe` Just (Integer 123)
+      lookupKeyword "WOOT" f.primaryHDU.header `shouldBe` Just (Integer 123)
 
     it "Has required headers" $ do
       FitsDecodedFix f <- getFixture
-      Fits.lookup "EXTEND" f.primaryHDU.header `shouldBe` Just (Logic T)
+      lookupKeyword "EXTEND" f.primaryHDU.header `shouldBe` Just (Logic T)
 
     it "Matches data metadata" $ do
       FitsDecodedFix f <- getFixture
@@ -235,7 +235,7 @@ testRoundTrip = do
       f2 <- decode $ encode fs
       let hs = fs.primaryHDU.header
           h2 = f2.primaryHDU.header
-      Fits.lookup "NAXIS" h2 `shouldBe` Just (Integer 2)
+      lookupKeyword "NAXIS" h2 `shouldBe` Just (Integer 2)
 
       let ks = getKeywords hs :: [KeywordRecord]
           k2 = getKeywords h2 :: [KeywordRecord]
