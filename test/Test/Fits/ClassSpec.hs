@@ -12,8 +12,6 @@ newtype Activity = Activity Text
   deriving newtype (FromKeyword, ToKeyword)
 
 
--- toKeywordRecord _ a = KeywordRecord "activity" (toKeywordValue a) Nothing
-
 data Test = Test
   { age :: Int
   , firstName :: Text
@@ -28,8 +26,8 @@ data Woot = Woot
 
 
 data Parent = Parent
-  { test :: HeaderField Test
-  , woot :: HeaderField Woot
+  { test :: HeaderFor Test
+  , woot :: HeaderFor Woot
   }
   deriving (Generic, ToHeader)
 
@@ -61,7 +59,7 @@ spec = do
       lookupKeyword "FIRST_NAME" h `shouldBe` Just (String "Alice")
 
   it "should mconcat fields that are members of toHeader" $ do
-    let h = toHeader $ Parent (HeaderField $ Test 40 "Alice") (HeaderField $ Woot 123.456)
+    let h = toHeader $ Parent (HeaderFor $ Test 40 "Alice") (HeaderFor $ Woot 123.456)
     lookupKeyword "age" h `shouldBe` Just (Integer 40)
     lookupKeyword "first_name" h `shouldBe` Just (String "Alice")
     lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.eq 123.456)))

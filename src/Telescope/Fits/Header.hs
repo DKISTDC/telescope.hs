@@ -19,7 +19,7 @@ module Telescope.Fits.Header
   , lookupKeyword
   , isKeyword
   , Parser
-  , HeaderField (..)
+  , HeaderFor (..)
   ) where
 
 import Data.Fits hiding (isKeyword, lookup)

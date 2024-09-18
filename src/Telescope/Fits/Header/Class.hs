@@ -86,20 +86,16 @@ instance (GToHeader f, GToHeader g) => GToHeader (f :*: g) where
 
 
 instance {-# OVERLAPPABLE #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
-  gToHeader (M1 (K1 a)) =
-    let key = cleanKeyword $ selName (undefined :: M1 S s f p)
-     in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
+  gToHeader (M1 (K1 a)) = keywordForField (selName (undefined :: M1 S s f p)) a
 
 
 instance {-# OVERLAPS #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R (Maybe a))) where
   gToHeader (M1 (K1 Nothing)) = Header []
-  gToHeader (M1 (K1 (Just a))) =
-    let key = cleanKeyword $ selName (undefined :: M1 S s f p)
-     in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
+  gToHeader (M1 (K1 (Just a))) = keywordForField (selName (undefined :: M1 S s f p)) a
 
 
-instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (HeaderField a))) where
-  gToHeader (M1 (K1 (HeaderField a))) = toHeader a
+instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (HeaderFor a))) where
+  gToHeader (M1 (K1 (HeaderFor a))) = toHeader a
 
 
 class GFromHeader f where
@@ -145,4 +141,9 @@ isKeyword :: Text -> KeywordRecord -> Bool
 isKeyword k (KeywordRecord k2 _ _) = T.toLower k == T.toLower k2
 
 
-newtype HeaderField a = HeaderField a
+newtype HeaderFor a = HeaderFor a
+
+
+keywordForField :: (ToKeyword a) => String -> a -> Header
+keywordForField selector a =
+  Header [Keyword $ KeywordRecord (cleanKeyword selector) (toKeywordValue a) Nothing]
