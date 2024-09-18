@@ -85,29 +85,21 @@ instance (GToHeader f, GToHeader g) => GToHeader (f :*: g) where
   gToHeader (f :*: g) = gToHeader f <> gToHeader g
 
 
--- instance {-# OVERLAPPABLE #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
---   gToHeader (M1 (K1 a)) =
---     let key = cleanKeyword $ selName (undefined :: M1 S s f p)
---      in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
---
-
--- wait, this isn't true.... if it's
--- if they return exactly ONE keyword, with an empty thing
-instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R a)) where
+instance {-# OVERLAPPABLE #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R a)) where
   gToHeader (M1 (K1 a)) =
     let key = cleanKeyword $ selName (undefined :: M1 S s f p)
-     in replaceEmptyKey key $ toHeader a
-   where
-    -- if the child provides exactly one empty keyword field, replace it with the selector name
-    replaceEmptyKey key = \case
-      Header [Keyword (KeywordRecord "" value comment)] ->
-        Header [Keyword (KeywordRecord key value comment)]
-      other -> other
+     in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
 
 
-instance (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (Maybe a))) where
+instance {-# OVERLAPS #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R (Maybe a))) where
   gToHeader (M1 (K1 Nothing)) = Header []
-  gToHeader (M1 (K1 (Just a))) = gToHeader (M1 (K1 a))
+  gToHeader (M1 (K1 (Just a))) =
+    let key = cleanKeyword $ selName (undefined :: M1 S s f p)
+     in Header [Keyword $ KeywordRecord key (toKeywordValue a) Nothing]
+
+
+instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (HeaderField a))) where
+  gToHeader (M1 (K1 (HeaderField a))) = toHeader a
 
 
 class GFromHeader f where
@@ -151,3 +143,6 @@ findKeyword p h = do
 
 isKeyword :: Text -> KeywordRecord -> Bool
 isKeyword k (KeywordRecord k2 _ _) = T.toLower k == T.toLower k2
+
+
+newtype HeaderField a = HeaderField a

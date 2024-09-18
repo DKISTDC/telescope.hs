@@ -5,7 +5,6 @@ import GHC.Generics
 import Skeletest
 import Skeletest.Predicate qualified as P
 import Telescope.Data.Parser
-import Telescope.Fits qualified as Fits
 import Telescope.Fits.Header
 
 
@@ -25,13 +24,14 @@ data Test = Test
 data Woot = Woot
   { woot :: Float
   }
+  deriving (Generic, ToHeader)
 
 
 data Parent = Parent
-  { test :: Test
-  , woot :: Woot
+  { test :: HeaderField Test
+  , woot :: HeaderField Woot
   }
-  deriving (Generic)
+  deriving (Generic, ToHeader)
 
 
 spec :: Spec
@@ -60,11 +60,11 @@ spec = do
       lookupKeyword "AGE" h `shouldBe` Just (Integer 40)
       lookupKeyword "FIRST_NAME" h `shouldBe` Just (String "Alice")
 
-  -- it "should mconcat fields that are members of toHeader" $ do
-  --   let h = toHeader $ Parent (Test 40 "Alice") (Woot 123.456)
-  --   lookupKeyword "age" h `shouldBe` Just (Integer 40)
-  --   lookupKeyword "first_name" h `shouldBe` Just (String "Alice")
-  --   lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.eq 123.456)))
+  it "should mconcat fields that are members of toHeader" $ do
+    let h = toHeader $ Parent (HeaderField $ Test 40 "Alice") (HeaderField $ Woot 123.456)
+    lookupKeyword "age" h `shouldBe` Just (Integer 40)
+    lookupKeyword "first_name" h `shouldBe` Just (String "Alice")
+    lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.eq 123.456)))
 
   describe "FromHeader" $ do
     it "should convert datatype" $ do
