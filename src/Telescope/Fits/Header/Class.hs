@@ -13,6 +13,13 @@ class ToKeyword a where
   toKeywordValue :: a -> Value
 
 
+  -- Can ignore the selector name, modify it, etc
+  toKeywordRecord :: Text -> a -> KeywordRecord
+  default toKeywordRecord :: Text -> a -> KeywordRecord
+  toKeywordRecord key a =
+    KeywordRecord key (toKeywordValue a) Nothing
+
+
 instance ToKeyword Int where
   toKeywordValue = Integer
 instance FromKeyword Int where
@@ -54,6 +61,15 @@ class ToHeader a where
   toHeader :: a -> Header
   default toHeader :: (Generic a, GToHeader (Rep a)) => a -> Header
   toHeader = gToHeader . from
+
+
+instance (ToHeader a) => ToHeader (Maybe a) where
+  toHeader Nothing = mempty
+  toHeader (Just a) = toHeader a
+
+
+instance (ToHeader a) => ToHeader [a] where
+  toHeader = mconcat . fmap toHeader
 
 
 class FromHeader a where
@@ -146,4 +162,4 @@ newtype HeaderFor a = HeaderFor a
 
 keywordForField :: (ToKeyword a) => String -> a -> Header
 keywordForField selector a =
-  Header [Keyword $ KeywordRecord (cleanKeyword selector) (toKeywordValue a) Nothing]
+  Header [Keyword $ toKeywordRecord (cleanKeyword selector) a]

@@ -28,7 +28,6 @@ import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Data.Text.Encoding qualified as T
 import GHC.Int (Int16, Int32, Int64)
-import System.ByteOrder (ByteOrder (..))
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary

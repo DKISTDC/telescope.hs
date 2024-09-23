@@ -17,6 +17,7 @@ module Telescope.Fits.Header
   , FromKeyword (..)
   , parseKeyword
   , lookupKeyword
+  , findKeyword
   , isKeyword
   , Parser
   , HeaderFor (..)

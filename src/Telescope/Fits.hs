@@ -34,7 +34,7 @@ module Telescope.Fits
   , lookupKeyword
   , Header (..)
   , Value (..)
-  , LogicalConstant
+  , LogicalConstant (..)
   , ToKeyword (..)
   , FromKeyword (..)
   , ToHeader (..)

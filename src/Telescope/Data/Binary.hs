@@ -1,6 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Telescope.Data.Binary where
+module Telescope.Data.Binary
+  ( BinaryValue (..)
+  , ByteOrder (..)
+  ) where
 
 import Data.Binary.Get
 import Data.Binary.Put
