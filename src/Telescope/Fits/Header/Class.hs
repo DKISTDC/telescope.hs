@@ -4,6 +4,7 @@ import Data.Fits as Fits hiding (isKeyword)
 import Data.List qualified as L
 import Data.Text (Text, pack)
 import Data.Text qualified as T
+import Effectful
 import GHC.Generics
 import Telescope.Data.Parser
 import Text.Casing (fromHumps, toSnake)
@@ -25,7 +26,7 @@ instance ToKeyword Int where
 instance FromKeyword Int where
   parseKeywordValue = \case
     Integer n -> pure n
-    v -> fail $ expected "Integer" v
+    v -> expected "Integer" v
 
 
 instance ToKeyword Float where
@@ -33,7 +34,7 @@ instance ToKeyword Float where
 instance FromKeyword Float where
   parseKeywordValue = \case
     Float n -> pure n
-    v -> fail $ expected "Float" v
+    v -> expected "Float" v
 
 
 instance ToKeyword Text where
@@ -41,7 +42,7 @@ instance ToKeyword Text where
 instance FromKeyword Text where
   parseKeywordValue = \case
     String n -> pure n
-    v -> fail $ expected "String" v
+    v -> expected "String" v
 
 
 instance ToKeyword Bool where
@@ -50,11 +51,11 @@ instance ToKeyword Bool where
 instance FromKeyword Bool where
   parseKeywordValue = \case
     Logic c -> pure $ c == T
-    v -> fail $ expected "Logic" v
+    v -> expected "Logic" v
 
 
 class FromKeyword a where
-  parseKeywordValue :: Value -> Parser a
+  parseKeywordValue :: (Parser :> es) => Value -> Eff es a
 
 
 class ToHeader a where
@@ -73,16 +74,16 @@ instance (ToHeader a) => ToHeader [a] where
 
 
 class FromHeader a where
-  parseHeader :: Header -> Parser a
-  default parseHeader :: (Generic a, GFromHeader (Rep a)) => Header -> Parser a
+  parseHeader :: (Parser :> es) => Header -> Eff es a
+  default parseHeader :: (Generic a, GFromHeader (Rep a), Parser :> es) => Header -> Eff es a
   parseHeader h = to <$> gParseHeader h
 
 
-parseKeyword :: (FromKeyword a) => Text -> Header -> Parser a
+parseKeyword :: (FromKeyword a, Parser :> es) => Text -> Header -> Eff es a
 parseKeyword k h =
   case Fits.lookup k h of
-    Nothing -> fail $ "Missing key: " ++ show k
-    Just v -> addContext (Child k) $ parseKeywordValue v
+    Nothing -> parseFail $ "Missing key: " ++ show k
+    Just v -> parseAt (Child k) $ parseKeywordValue v
 
 
 class GToHeader f where
@@ -115,7 +116,7 @@ instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (H
 
 
 class GFromHeader f where
-  gParseHeader :: Header -> Parser (f p)
+  gParseHeader :: (Parser :> es) => Header -> Eff es (f p)
 
 
 instance (GFromHeader f) => GFromHeader (M1 D c f) where

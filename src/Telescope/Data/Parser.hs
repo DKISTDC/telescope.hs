@@ -1,72 +1,106 @@
 module Telescope.Data.Parser where
 
-import Control.Monad.Catch (Exception, MonadCatch (..), MonadThrow)
+import Control.Monad.Catch (Exception)
 import Data.List (intercalate)
 import Data.Text (Text, unpack)
 import Effectful
+import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static
+import Effectful.Fail
 import Effectful.Reader.Static
+
+
+data Parser :: Effect where
+  ParseFail :: String -> Parser m a
+  PathAdd :: PathSegment -> m a -> Parser m a
+
+
+-- PathGet :: Parser m Path
+
+type instance DispatchOf Parser = 'Dynamic
+
+
+-- do each of them provide their own?
+runParser
+  :: (Error ParseError :> es)
+  => Eff (Parser : es) a
+  -> Eff es a
+runParser = reinterpret (runReader @[PathSegment] []) $ \env -> \case
+  ParseFail e -> do
+    ps <- ask
+    let path = Path (reverse ps)
+    throwError $ ParseFailure path e
+  PathAdd p m -> do
+    -- copied from Effectful.Reader.Dynamic
+    localSeqUnlift env $ \unlift -> local (p :) (unlift m)
+
+
+-- runPureParseError :: Eff '[Error ParseError] a -> Either ParseError a
+-- runPureParseError = runPureEff . runErrorNoCallStack @ParseError
+
+runPureParser :: Eff '[Parser, Error ParseError] a -> Either ParseError a
+runPureParser eff = runPureEff . runErrorNoCallStack @ParseError $ runParser eff
 
 
 -- import Telescope.Asdf.Node
 
 data ParseError
-  = ParseFailure [Context] String
+  = ParseFailure Path String
   deriving (Exception, Eq)
 
 
 instance Show ParseError where
-  show (ParseFailure ctx s) =
-    "at " ++ intercalate "." (fmap show $ reverse ctx) ++ "\n ! " ++ s
+  show (ParseFailure (Path ps) s) =
+    "at " ++ intercalate "." (fmap show ps) ++ "\n ! " ++ s
 
 
-data Context
+newtype Path = Path [PathSegment]
+  deriving (Show, Eq)
+  deriving newtype (Semigroup, Monoid)
+
+
+data PathSegment
   = Child Text
+  | Index Int
   deriving (Eq)
 
 
-instance Show Context where
+instance Show PathSegment where
   show (Child c) = unpack c
+  show (Index n) = show n
 
 
--- the parser requires specific errors?
-newtype Parser a = Parser
-  { effect :: Eff '[Error ParseError, Reader [Context]] a
-  }
-  deriving newtype (Functor, Applicative, Monad, MonadThrow)
+type Parser' es a = Eff (Fail : Reader [PathSegment] : es) a
 
 
-instance MonadCatch Parser where
-  catch ma onErr = Parser $ do
-    catch ma.effect (\e -> (onErr e).effect)
+-- runPureParser :: Parser' '[Error ParseError] a -> Either ParseError a
+-- runPureParser = runPureEff . runErrorNoCallStack @ParseError . parse
+
+-- parse :: (Error ParseError :> es) => Parser' es a -> Eff es a
+-- parse eff = runReader @[PathSegment] mempty $ do
+--   ea <- runFail eff
+--   case ea of
+--     Left e -> do
+--       p <- currentPath
+--       throwError $ ParseFailure p e
+--     Right a -> pure a
+
+addPath :: (Reader [PathSegment] :> es) => PathSegment -> Eff es a -> Eff es a
+addPath p = local (p :)
 
 
-instance MonadFail Parser where
-  fail s = Parser $ do
-    ctx <- ask
-    throwError $ ParseFailure ctx s
+-- context :: Parser [Context]
+-- context = Parser ask
+
+expected :: (Show value, Parser :> es) => String -> value -> Eff es a
+expected ex n =
+  parseFail $ "Expected " ++ ex ++ ", but got: " ++ show n
 
 
-runParser :: Parser a -> Either ParseError a
-runParser p =
-  runPureEff . runErrorNoCallStack @ParseError $ fromParser p
+parseFail :: (Parser :> es) => String -> Eff es a
+parseFail e = send $ ParseFail e
 
 
-fromParser :: (Error ParseError :> es) => Parser a -> Eff es a
-fromParser p = do
-  case runPureEff . runReader [] . runErrorNoCallStack @ParseError $ p.effect of
-    Left e -> throwError e
-    Right a -> pure a
-
-
-addContext :: Context -> Parser a -> Parser a
-addContext c p = Parser $ do
-  local (c :) p.effect
-
-
-context :: Parser [Context]
-context = Parser ask
-
-
-expected :: (Show a) => String -> a -> String
-expected ex n = "Expected " ++ ex ++ ", but got: " ++ show n
+parseAt :: (Parser :> es) => PathSegment -> Eff es a -> Eff es a
+parseAt p parse = do
+  send $ PathAdd p parse

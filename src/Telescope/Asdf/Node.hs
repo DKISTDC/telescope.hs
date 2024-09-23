@@ -3,7 +3,7 @@ module Telescope.Asdf.Node where
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
-import Telescope.Asdf.NDArray
+import Telescope.Asdf.NDArray.Types
 import Telescope.Data.Parser
 
 
@@ -36,7 +36,7 @@ instance IsString Node where
   fromString s = Node mempty $ String $ pack s
 
 
--- We can't use Aeson's Value, because it doesn't support tags or binary data
+-- We can't use Aeson's Value, because it doesn't support tags, binary data, or references
 data Value
   = Bool !Bool
   | Number !Scientific
@@ -46,6 +46,8 @@ data Value
     NDArray !NDArrayData
   | Array ![Node]
   | Object !Object
+  | External !Reference
+  | Pointer !Path -- resolveable during parsing
   | Null
   deriving (Show, Eq)
 instance IsString Value where
@@ -70,6 +72,14 @@ fromValue :: Value -> Node
 fromValue = Node mempty
 
 
+-- always $ref: uri#path
+data Reference = Reference
+  { uri :: Text
+  , pointer :: Path
+  }
+  deriving (Show, Eq)
+
+
 -- schemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => SchemaTag
 -- schemaTag = SchemaTag $ pack $ symbolVal @(Tag a) Proxy
 
@@ -83,17 +93,3 @@ fromValue = Node mempty
 
 -- NDArray -------------------------------------------
 
-parseKey :: Text -> Object -> Parser Node
-parseKey k o = do
-  case lookup k o of
-    Nothing -> fail $ "key " ++ show k ++ " not found"
-    Just node -> pure node
-
-
-parseNDArray :: (FromNDArray a) => Value -> Parser a
-parseNDArray val = do
-  dat <- ndarray val
-  fromNDArray dat
- where
-  ndarray (NDArray a) = pure a
-  ndarray v = fail $ expected "NDArray" v

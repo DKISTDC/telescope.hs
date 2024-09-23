@@ -2,12 +2,15 @@
 
 module Telescope.Asdf.Class where
 
+import Data.List ((!?))
 import Data.Massiv.Array (Array, Prim)
 import Data.Massiv.Array qualified as M
 import Data.Scientific (fromFloatDigits, toRealFloat)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601
+import Effectful
+import Effectful.Fail
 import GHC.Generics
 import GHC.Int
 import Telescope.Asdf.Encoding.File (BlockSource (..))
@@ -42,11 +45,13 @@ class ToAsdf a where
   schema = mempty
 
 
+-- type Parser a = Eff [Reader Object, Fail, Reader [PathSegment], Error ParseError] a
+
 class FromAsdf a where
-  parseValue :: Value -> Parser a
-  default parseValue :: (Generic a, GParseObject (Rep a)) => Value -> Parser a
+  parseValue :: (Parser :> es) => Value -> Eff es a
+  default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es) => Value -> Eff es a
   parseValue (Object o) = to <$> gParseObject o
-  parseValue val = fail $ expected "Object" val
+  parseValue val = expected "Object" val
 
 
 instance ToAsdf Int where
@@ -90,19 +95,19 @@ instance ToAsdf Double where
 instance FromAsdf Double where
   parseValue = \case
     Number n -> pure $ toRealFloat n
-    node -> fail $ expected "Double" node
+    node -> expected "Double" node
 
 
-parseInteger :: (Integral a) => Value -> Parser a
+parseInteger :: (Integral a, Parser :> es) => Value -> Eff es a
 parseInteger = \case
   Integer n -> pure $ fromIntegral n
-  node -> fail $ expected "Integer" node
+  node -> expected "Integer" node
 
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => FromAsdf [a] where
   parseValue = \case
     Array ns -> mapM (parseNode @a) ns
-    node -> fail $ expected "Array" node
+    node -> expected "Array" node
 instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf [a] where
   toValue as = Array $ fmap toNode as
 
@@ -125,11 +130,11 @@ instance FromAsdf [Double] where
 
 
 -- | Flexibly parse lists from either Array or NDArray
-parseAnyList :: (FromAsdf a, FromNDArray [a]) => Value -> Parser [a]
+parseAnyList :: (FromAsdf a, FromNDArray [a], Parser :> es) => Value -> Eff es [a]
 parseAnyList = \case
   Array ns -> mapM parseNode ns
   NDArray dat -> fromNDArray dat
-  node -> fail $ expected "[Double]" node
+  node -> expected "[Double]" node
 
 
 instance (FromAsdf a) => FromAsdf (Maybe a) where
@@ -144,7 +149,7 @@ instance (ToAsdf a) => ToAsdf (Maybe a) where
 instance (BinaryValue a, Prim a, AxesIndex ix) => FromAsdf (Array M.D ix a) where
   parseValue = \case
     NDArray a -> fromNDArray a
-    node -> fail $ expected "NDArray" node
+    node -> expected "NDArray" node
 instance (BinaryValue a, IsDataType a, Prim a, AxesIndex ix, PutArray ix) => ToAsdf (Array M.D ix a) where
   toValue as = NDArray $ ndArrayMassiv as
 
@@ -154,7 +159,7 @@ instance ToAsdf Text where
 instance FromAsdf Text where
   parseValue = \case
     String t -> pure t
-    node -> fail $ expected "Text" node
+    node -> expected "Text" node
 
 
 instance ToAsdf String where
@@ -162,7 +167,7 @@ instance ToAsdf String where
 instance FromAsdf String where
   parseValue = \case
     String t -> pure $ unpack t
-    node -> fail $ expected "Text" node
+    node -> expected "Text" node
 
 
 instance ToAsdf Bool where
@@ -170,7 +175,7 @@ instance ToAsdf Bool where
 instance FromAsdf Bool where
   parseValue = \case
     Bool b -> pure b
-    node -> fail $ expected "Bool" node
+    node -> expected "Bool" node
 
 
 instance ToAsdf Value where
@@ -184,7 +189,7 @@ instance ToAsdf NDArrayData where
 instance FromAsdf NDArrayData where
   parseValue = \case
     NDArray nda -> pure nda
-    node -> fail $ expected "NDArray" node
+    node -> expected "NDArray" node
 
 
 instance ToAsdf DataType where
@@ -206,7 +211,7 @@ instance FromAsdf DataType where
     String "int8" -> pure Int8
     String "bool8" -> pure Bool8
     Array ["ucs4", Node _ (Integer n)] -> pure $ Ucs4 $ fromIntegral n
-    val -> fail $ expected "DataType" val
+    val -> expected "DataType" val
 
 
 instance ToAsdf ByteOrder where
@@ -217,7 +222,7 @@ instance FromAsdf ByteOrder where
   parseValue = \case
     String "big" -> pure BigEndian
     String "little" -> pure LittleEndian
-    node -> fail $ expected "ByteOrder" node
+    node -> expected "ByteOrder" node
 
 
 instance ToAsdf (Axes Row) where
@@ -233,7 +238,10 @@ instance ToAsdf UTCTime where
 instance FromAsdf UTCTime where
   parseValue v = do
     ts <- parseValue @String v
-    iso8601ParseM ts
+    res <- runFail $ iso8601ParseM ts
+    case res of
+      Left e -> parseFail e
+      Right a -> pure a
 
 
 -- | Convert to a Node, including the schema tag if specified
@@ -242,21 +250,33 @@ toNode a = Node (schema @a) $ toValue a
 
 
 -- | Parse a node, ignoring the schema tag
-parseNode :: (FromAsdf a) => Node -> Parser a
+parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a
 parseNode (Node _ v) = parseValue v
 
 
-(.:) :: (FromAsdf a) => Object -> Key -> Parser a
-o .: k = addContext (Child k) $ do
-  node <- parseKey k o
-  parseNode node
+(.:) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es a
+o .: k = do
+  case lookup k o of
+    Nothing -> parseFail $ "key " ++ show k ++ " not found"
+    Just node ->
+      parseAt (Child k) $ parseNode node
 
 
-(.:?) :: (FromAsdf a) => Object -> Key -> Parser (Maybe a)
-o .:? k = addContext (Child k) $ do
+(.:?) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es (Maybe a)
+o .:? k = do
   case lookup k o of
     Nothing -> pure Nothing
-    Just a -> Just <$> parseNode a
+    Just a ->
+      Just <$> do
+        parseAt (Child k) $ parseNode a
+
+
+(!) :: (FromAsdf a, Parser :> es) => [Node] -> Int -> Eff es a
+ns ! n = do
+  case ns !? n of
+    Nothing -> parseFail $ "Index " ++ show n ++ " not found"
+    Just node ->
+      parseAt (Index n) $ parseNode node
 
 
 -- data Scalar
@@ -318,7 +338,7 @@ instance {-# OVERLAPPING #-} (ToAsdf a) => GToNode (K1 R (Maybe a)) where
 
 
 class GParseObject f where
-  gParseObject :: Object -> Parser (f p)
+  gParseObject :: (Parser :> es) => Object -> Eff es (f p)
 
 
 instance (GParseObject f) => GParseObject (M1 D c f) where
@@ -343,7 +363,7 @@ instance (GParseKey f, Selector s) => GParseObject (M1 S s f) where
 
 
 class GParseKey f where
-  gParseKey :: Object -> Key -> Parser (f p)
+  gParseKey :: (Parser :> es) => Object -> Key -> Eff es (f p)
 
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where

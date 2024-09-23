@@ -31,7 +31,9 @@ library
         Telescope.Asdf.Encoding.Stream
         Telescope.Asdf.Error
         Telescope.Asdf.NDArray
+        Telescope.Asdf.NDArray.Types
         Telescope.Asdf.Node
+        Telescope.Asdf.Reference
         Telescope.Data.Array
         Telescope.Data.Axes
         Telescope.Data.Binary

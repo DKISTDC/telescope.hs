@@ -18,7 +18,6 @@ module Telescope.Asdf
   , toNode
   , NDArrayData (..)
   , Parser
-  , runParser
   , Asdf (..)
   )
 where
@@ -29,5 +28,4 @@ import Telescope.Asdf.Encoding
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Data.Parser
 

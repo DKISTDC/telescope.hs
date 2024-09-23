@@ -19,13 +19,13 @@ module Telescope.Fits.Header
   , lookupKeyword
   , findKeyword
   , isKeyword
-  , Parser
+  , Parser'
   , HeaderFor (..)
   ) where
 
 import Data.Fits hiding (isKeyword, lookup)
 import Data.Text (Text)
-import Telescope.Data.Parser (Parser)
+import Telescope.Data.Parser (Parser')
 import Telescope.Fits.Header.Class
 import Prelude hiding (lookup)
 

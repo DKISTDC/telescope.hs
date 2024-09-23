@@ -18,10 +18,10 @@ import Effectful.State.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
-import Telescope.Asdf.NDArray (NDArrayData (..))
+import Telescope.Asdf.NDArray (ByteOrder (..), DataType (..), NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
-import Telescope.Data.Parser (ParseError, fromParser, runParser)
+import Telescope.Data.Parser (ParseError, runParser, runPureParser)
 import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
@@ -132,7 +132,7 @@ isComplexNode (Node _ val) = isComplex val
 sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf
 sinkAsdf = do
   tree <- sinkTree
-  lift $ fromParser (parseValue $ Object tree)
+  lift $ runParser (parseValue $ Object tree)
 
 
 sinkTree :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
@@ -152,6 +152,7 @@ sinkNode = do
     EventScalar s t _ _ -> lift $ parseScalar s t
     EventMappingStart tg _ _ -> do
       let stag = parseSchemaTag tg
+      -- TODO: support references
       if isNDArray stag
         then sinkNDArray stag
         else sinkObject stag
@@ -169,7 +170,7 @@ sinkNode = do
     pure $ Node stag $ NDArray dat
 
 
-sinkNDArrayData :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) NDArrayData
+sinkNDArrayData :: forall es o. (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) NDArrayData
 sinkNDArrayData = do
   kvs <- sinkMappings
   bytes <- require "source" kvs >>= findSource
@@ -184,12 +185,12 @@ sinkNDArrayData = do
       Just (Node _ val) -> pure val
 
   parseDatatype val =
-    case runParser $ parseValue val of
+    case runPureParser $ parseValue val of
       Left _ -> lift $ throwError $ NDArrayExpected "DataType" val
       Right a -> pure a
 
   parseByteorder val =
-    case runParser $ parseValue val of
+    case runPureParser $ parseValue val of
       Left _ -> lift $ throwError $ NDArrayExpected "ByteOrder" val
       Right a -> pure a
 

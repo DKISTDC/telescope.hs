@@ -16,7 +16,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Encoding.Stream
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node
-import Telescope.Data.Parser (ParseError, fromParser)
+import Telescope.Data.Parser (ParseError, runParser)
 import Text.Libyaml qualified as Yaml
 
 
@@ -71,7 +71,10 @@ decode :: (FromAsdf a, IOE :> es, Error AsdfError :> es) => ByteString -> Eff es
 decode bs = do
   f <- splitAsdfFile bs
   asdf <- fromAsdfFile f.tree f.blocks
-  runParseError $ fromParser $ parseValue $ Object asdf.tree
+
+  -- TODO: resolve references?
+
+  runParseError $ runParser $ parseValue $ Object asdf.tree
 
 
 fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es Asdf

@@ -36,7 +36,7 @@ instance FromAsdf Unit where
     String "pixel" -> pure Pixel
     String "pix" -> pure Pixel
     String t -> pure $ Unit t
-    val -> fail $ "Expected String, but got: " ++ show val
+    val -> expected "String" val
 
 
 -- it seems silly to parse into these. this is dynamic typing!
@@ -112,7 +112,7 @@ instance FromAsdf BoundingBox where
   parseValue = \case
     Array [n1, n2] -> do
       BoundingBox <$> parseNode n1 <*> parseNode n2
-    node -> fail $ expected "BoundingBox" node
+    node -> expected "BoundingBox" node
 
 
 data Software = Software
@@ -148,7 +148,7 @@ instance FromAsdf Asdf where
       history <- o .: "history"
       let tree = filter (not . isLibraryField) o
       pure $ Asdf{history, library, tree}
-    val -> fail $ expected "Asdf" val
+    val -> expected "Asdf" val
    where
     isLibraryField ("asdf_library", _) = True
     isLibraryField ("history", _) = True
@@ -163,7 +163,7 @@ toAsdfDoc a =
       let history = History []
       let library = telescopeLibrary
       pure $ Asdf{history, library, tree = o}
-    value -> throwError $ EncodeError $ expected "Top-level Tree Object" value
+    value -> throwError $ EncodeError $ "Expected Top-level Tree Object, but got: " ++ show value
  where
   telescopeLibrary :: Software
   telescopeLibrary =
