@@ -78,7 +78,7 @@ testBlocks = do
 
 testSplit :: Spec
 testSplit = do
-  describe "parse tree" $ withMarkers ["focus"] $ do
+  describe "parse tree" $ do
     it "empty" $ do
       t <- runParse "" parseTree
       t `shouldBe` Encoded ""
@@ -114,7 +114,7 @@ testSplit = do
       t <- runParse inp parseTree
       t `shouldBe` Encoded "value\n"
 
-  describe "parse blocks" $ withMarkers ["focus"] $ do
+  describe "parse blocks" $ do
     it "one block" $ do
       let Encoded blks = encodeBlock (BlockData "woot")
       n <- runParse blks parseBlock

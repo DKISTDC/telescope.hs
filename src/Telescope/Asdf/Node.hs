@@ -1,10 +1,15 @@
 module Telescope.Asdf.Node where
 
+import Control.Monad (guard)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
+import Data.Text qualified as T
 import Telescope.Asdf.NDArray.Types
 import Telescope.Data.Parser
+import Text.Read (readMaybe)
 
 
 -- | Specify a schema using 'schema' from 'ToAsdf'
@@ -46,8 +51,8 @@ data Value
     NDArray !NDArrayData
   | Array ![Node]
   | Object !Object
-  | External !Reference
-  | Pointer !Path -- resolveable during parsing
+  | ExternalRef !Reference
+  | InternalRef !Pointer
   | Null
   deriving (Show, Eq)
 instance IsString Value where
@@ -72,13 +77,42 @@ fromValue :: Value -> Node
 fromValue = Node mempty
 
 
+newtype Tree = Tree Object
+  deriving newtype (Semigroup, Monoid)
+
+
 -- always $ref: uri#path
 data Reference = Reference
   { uri :: Text
-  , pointer :: Path
+  , pointer :: Pointer
   }
   deriving (Show, Eq)
 
+
+reference :: Text -> Maybe Reference
+reference t = do
+  [uri, rest] <- pure $ T.split (== '#') t
+  guard (not $ T.null uri)
+  let point = pointer rest
+  pure $ Reference uri point
+
+
+pointer :: Text -> Pointer
+pointer t =
+  let segs = filter (not . T.null) $ T.splitOn "/" $ T.dropWhile (== '#') t
+   in Pointer $ Path (fmap ref segs)
+ where
+  ref :: Text -> Ref
+  ref s = fromMaybe (Child s) $ do
+    n <- readMaybe (unpack s)
+    pure $ Index n
+
+
+newtype Pointer = Pointer Path
+  deriving (Show, Eq)
+
+--
+-- pure $ Reference uri _
 
 -- schemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => SchemaTag
 -- schemaTag = SchemaTag $ pack $ symbolVal @(Tag a) Proxy
@@ -92,4 +126,3 @@ data Reference = Reference
 --     fail $ "Mismatched Schema Tag." ++ expected (show sexp) s
 
 -- NDArray -------------------------------------------
-

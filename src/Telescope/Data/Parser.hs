@@ -12,7 +12,7 @@ import Effectful.Reader.Static
 
 data Parser :: Effect where
   ParseFail :: String -> Parser m a
-  PathAdd :: PathSegment -> m a -> Parser m a
+  PathAdd :: Ref -> m a -> Parser m a
 
 
 -- PathGet :: Parser m Path
@@ -25,14 +25,13 @@ runParser
   :: (Error ParseError :> es)
   => Eff (Parser : es) a
   -> Eff es a
-runParser = reinterpret (runReader @[PathSegment] []) $ \env -> \case
+runParser = reinterpret (runReader @Path mempty) $ \env -> \case
   ParseFail e -> do
-    ps <- ask
-    let path = Path (reverse ps)
+    path <- ask @Path
     throwError $ ParseFailure path e
   PathAdd p m -> do
     -- copied from Effectful.Reader.Dynamic
-    localSeqUnlift env $ \unlift -> local (p :) (unlift m)
+    localSeqUnlift env $ \unlift -> local (<> Path [p]) (unlift m)
 
 
 -- runPureParseError :: Eff '[Error ParseError] a -> Either ParseError a
@@ -50,27 +49,27 @@ data ParseError
 
 
 instance Show ParseError where
-  show (ParseFailure (Path ps) s) =
-    "at " ++ intercalate "." (fmap show ps) ++ "\n ! " ++ s
+  show (ParseFailure path s) =
+    "at " ++ show path ++ "\n ! " ++ s
 
 
-newtype Path = Path [PathSegment]
-  deriving (Show, Eq)
-  deriving newtype (Semigroup, Monoid)
-
-
-data PathSegment
+data Ref
   = Child Text
   | Index Int
   deriving (Eq)
 
 
-instance Show PathSegment where
+instance Show Ref where
   show (Child c) = unpack c
   show (Index n) = show n
 
 
-type Parser' es a = Eff (Fail : Reader [PathSegment] : es) a
+newtype Path = Path [Ref]
+  deriving (Eq)
+  deriving newtype (Semigroup, Monoid)
+instance Show Path where
+  show (Path ps) =
+    intercalate "." (fmap show ps)
 
 
 -- runPureParser :: Parser' '[Error ParseError] a -> Either ParseError a
@@ -85,7 +84,7 @@ type Parser' es a = Eff (Fail : Reader [PathSegment] : es) a
 --       throwError $ ParseFailure p e
 --     Right a -> pure a
 
-addPath :: (Reader [PathSegment] :> es) => PathSegment -> Eff es a -> Eff es a
+addPath :: (Reader [Path] :> es) => Path -> Eff es a -> Eff es a
 addPath p = local (p :)
 
 
@@ -101,6 +100,6 @@ parseFail :: (Parser :> es) => String -> Eff es a
 parseFail e = send $ ParseFail e
 
 
-parseAt :: (Parser :> es) => PathSegment -> Eff es a -> Eff es a
+parseAt :: (Parser :> es) => Ref -> Eff es a -> Eff es a
 parseAt p parse = do
   send $ PathAdd p parse

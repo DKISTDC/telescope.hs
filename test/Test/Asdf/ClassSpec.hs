@@ -7,6 +7,7 @@ import Data.Massiv.Array qualified as M
 import Data.Text (Text)
 import Effectful
 import Effectful.Error.Static
+import Effectful.Reader.Dynamic
 import Effectful.Resource
 import GHC.Generics (Generic, from)
 import GHC.Int (Int32, Int64)
@@ -41,19 +42,16 @@ fromAsdfSpec = do
           , ("sequence", fromValue $ Array $ fmap (fromValue . Integer) [0 .. 99])
           , ("random", fromValue $ NDArray $ NDArrayData "" BigEndian Float64 (axesRowMajor [0]))
           ]
-    case runParser $ parseValue @Example (Object tree) of
-      Left e -> fail $ show e
-      Right ex -> do
-        ex.foo `shouldBe` 42
-        ex.name `shouldBe` "Monty"
-        ex.sequence `shouldBe` [0 .. 99]
+    ex <- parseIO mempty $ parseValue @Example (Object tree)
+    ex.foo `shouldBe` 42
+    ex.name `shouldBe` "Monty"
+    ex.sequence `shouldBe` [0 .. 99]
 
   it "parses sequence from example.asdf as an NDArray" $ do
     ExampleAsdfFix a <- getFixture
-    case runParser $ parseValue @Sequence (Object a.tree) of
-      Left e -> fail $ show e
-      Right (Sequence s) -> do
-        s `shouldBe` M.delay (M.fromLists' @P Seq [0 .. 99])
+    let Tree tree = a.tree
+    (Sequence s) <- parseIO a.tree $ parseValue @Sequence (Object tree)
+    s `shouldBe` M.delay (M.fromLists' @P Seq [0 .. 99])
 
 
 toAsdfSpec :: Spec
@@ -98,10 +96,10 @@ gObjectSpec = do
 
   it "should allow maybes" $ do
     let val = Object [("hello", fromValue (String "world"))]
-    m1 <- parseIO (parseValue val)
+    m1 <- parseIO mempty (parseValue val)
     m1 `shouldBe` MaybeGen (Just "world")
 
-    m2 <- parseIO (parseValue $ Object [])
+    m2 <- parseIO mempty (parseValue $ Object [])
     m2 `shouldBe` MaybeGen Nothing
 
 
@@ -151,12 +149,12 @@ instance FromAsdf Example where
       powers <- o .:? "powers"
       random <- o .: "random"
       pure $ Example{foo, name, sequence = sq, powers, random}
-    val -> fail $ expected "Example" val
+    val -> expected "Example" val
    where
     parseSequence = \case
       Array ns -> mapM parseNode ns
       NDArray nd -> fromNDArray nd
-      val -> fail $ expected "Array or NDArray" val
+      val -> expected "Array or NDArray" val
 
 
 data Powers = Powers
@@ -171,7 +169,7 @@ instance FromAsdf Sequence where
     Object o -> do
       sql <- o .: "sequence"
       pure $ Sequence sql
-    node -> fail $ expected "Example Sequence" node
+    node -> expected "Example Sequence" node
 
 
 expectArray :: Maybe Node -> IO [Node]
@@ -186,5 +184,5 @@ expectObject = \case
   n -> fail $ "Expected Object, but got: " ++ show n
 
 
-parseIO :: Parser a -> IO a
-parseIO p = runEff $ runErrorNoCallStackWith @ParseError throwM $ fromParser p
+parseIO :: Tree -> Eff '[Parser, Reader Tree, Error ParseError, IOE] a -> IO a
+parseIO tree p = runEff $ runErrorNoCallStackWith @ParseError throwM $ runAsdfParser tree p

@@ -68,7 +68,8 @@ documentSpec = do
   it "converts to document" $ do
     asdf <- runAsdfM $ toAsdfDoc $ BasicData "henry"
     asdf.library.name `shouldBe` "telescope.hs"
-    lookup "username" asdf.tree `shouldBe` Just "henry"
+    let Tree tree = asdf.tree
+    lookup "username" tree `shouldBe` Just "henry"
 
 
 blocksSpec :: Spec
@@ -179,7 +180,7 @@ instance FromAsdf BasicArray where
       nd <- o .: "values"
       ns <- fromNDArray nd
       pure $ BasicArray ns
-    val -> fail $ expected "BasicArray.values" val
+    val -> expected "BasicArray.values" val
 
 
 data Matrix = Matrix

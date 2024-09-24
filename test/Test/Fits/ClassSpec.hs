@@ -41,9 +41,9 @@ spec = do
       toKeywordValue True `shouldBe` Logic T
 
     it "should parseKeywordValue" $ do
-      runParser (parseKeywordValue @Int $ Integer 23) `shouldBe` Right 23
-      runParser (parseKeywordValue @Text $ String "woot") `shouldBe` Right "woot"
-      runParser (parseKeywordValue @Bool $ Logic F) `shouldBe` Right False
+      runPureParser (parseKeywordValue @Int $ Integer 23) `shouldBe` Right 23
+      runPureParser (parseKeywordValue @Text $ String "woot") `shouldBe` Right "woot"
+      runPureParser (parseKeywordValue @Bool $ Logic F) `shouldBe` Right False
 
   describe "ToHeader" $ do
     it "should uppercase and snake keywords" $ do
@@ -67,6 +67,6 @@ spec = do
   describe "FromHeader" $ do
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
-      let et = runParser $ parseHeader h
+      let et = runPureParser $ parseHeader h
       et `shouldSatisfy` P.right (P.con Test{age = P.eq 40})
       et `shouldSatisfy` P.right (P.con Test{firstName = P.eq "Alice"})

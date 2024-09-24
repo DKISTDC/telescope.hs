@@ -17,6 +17,7 @@ import Effectful.Fail
 import Effectful.NonDet
 import Effectful.State.Static.Local
 import Telescope.Asdf.Error
+import Telescope.Asdf.Node (Tree)
 
 
 splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
@@ -141,7 +142,6 @@ encodeIndex (BlockIndex ns) =
 
 
 data Index
-data Tree
 data Block
 
 

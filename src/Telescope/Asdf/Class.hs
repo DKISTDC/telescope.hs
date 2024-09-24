@@ -10,7 +10,9 @@ import Data.Text (Text, pack, unpack)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601
 import Effectful
+import Effectful.Error.Static
 import Effectful.Fail
+import Effectful.Reader.Dynamic
 import GHC.Generics
 import GHC.Int
 import Telescope.Asdf.Encoding.File (BlockSource (..))
@@ -34,6 +36,10 @@ import Telescope.Data.Parser
 > instance ToAsdf Example where
 >   schema = "tag:example.org/schemas/example-1.0.0"
 -}
+runAsdfParser :: (Error ParseError :> es) => Tree -> Eff (Parser : Reader Tree : es) a -> Eff es a
+runAsdfParser tree = runReader @Tree tree . runParser
+
+
 class ToAsdf a where
   toValue :: a -> Value
   default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
@@ -45,11 +51,11 @@ class ToAsdf a where
   schema = mempty
 
 
--- type Parser a = Eff [Reader Object, Fail, Reader [PathSegment], Error ParseError] a
+-- type Parser a = Eff [Reader Tree, Fail, Reader [PathSegment], Error ParseError] a
 
 class FromAsdf a where
-  parseValue :: (Parser :> es) => Value -> Eff es a
-  default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es) => Value -> Eff es a
+  parseValue :: (Parser :> es, Reader Tree :> es) => Value -> Eff es a
+  default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es, Reader Tree :> es) => Value -> Eff es a
   parseValue (Object o) = to <$> gParseObject o
   parseValue val = expected "Object" val
 
@@ -130,7 +136,7 @@ instance FromAsdf [Double] where
 
 
 -- | Flexibly parse lists from either Array or NDArray
-parseAnyList :: (FromAsdf a, FromNDArray [a], Parser :> es) => Value -> Eff es [a]
+parseAnyList :: (FromAsdf a, FromNDArray [a], Parser :> es, Reader Tree :> es) => Value -> Eff es [a]
 parseAnyList = \case
   Array ns -> mapM parseNode ns
   NDArray dat -> fromNDArray dat
@@ -182,6 +188,20 @@ instance ToAsdf Value where
   toValue = id
 instance FromAsdf Value where
   parseValue = pure
+
+
+instance ToAsdf Node where
+  toValue (Node _ val) = val
+instance FromAsdf Node where
+  parseValue val = pure $ Node mempty val
+
+
+instance ToAsdf Pointer where
+  toValue = InternalRef
+instance FromAsdf Pointer where
+  parseValue = \case
+    InternalRef p -> pure p
+    val -> expected "Internal Ref" val
 
 
 instance ToAsdf NDArrayData where
@@ -250,11 +270,11 @@ toNode a = Node (schema @a) $ toValue a
 
 
 -- | Parse a node, ignoring the schema tag
-parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a
+parseNode :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Node -> Eff es a
 parseNode (Node _ v) = parseValue v
 
 
-(.:) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es a
+(.:) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es a
 o .: k = do
   case lookup k o of
     Nothing -> parseFail $ "key " ++ show k ++ " not found"
@@ -262,7 +282,7 @@ o .: k = do
       parseAt (Child k) $ parseNode node
 
 
-(.:?) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es (Maybe a)
+(.:?) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es (Maybe a)
 o .:? k = do
   case lookup k o of
     Nothing -> pure Nothing
@@ -271,7 +291,7 @@ o .:? k = do
         parseAt (Child k) $ parseNode a
 
 
-(!) :: (FromAsdf a, Parser :> es) => [Node] -> Int -> Eff es a
+(!) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => [Node] -> Int -> Eff es a
 ns ! n = do
   case ns !? n of
     Nothing -> parseFail $ "Index " ++ show n ++ " not found"
@@ -338,7 +358,7 @@ instance {-# OVERLAPPING #-} (ToAsdf a) => GToNode (K1 R (Maybe a)) where
 
 
 class GParseObject f where
-  gParseObject :: (Parser :> es) => Object -> Eff es (f p)
+  gParseObject :: (Parser :> es, Reader Tree :> es) => Object -> Eff es (f p)
 
 
 instance (GParseObject f) => GParseObject (M1 D c f) where
@@ -363,7 +383,7 @@ instance (GParseKey f, Selector s) => GParseObject (M1 S s f) where
 
 
 class GParseKey f where
-  gParseKey :: (Parser :> es) => Object -> Key -> Eff es (f p)
+  gParseKey :: (Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es (f p)
 
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where

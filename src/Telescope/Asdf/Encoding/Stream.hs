@@ -5,7 +5,7 @@ import Data.ByteString (ByteString)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
-import Data.Text (pack, unpack)
+import Data.Text (Text, pack, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
 import Data.Text.Encoding qualified as T
@@ -18,7 +18,7 @@ import Effectful.State.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
-import Telescope.Asdf.NDArray (ByteOrder (..), DataType (..), NDArrayData (..))
+import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
 import Telescope.Data.Parser (ParseError, runParser, runPureParser)
@@ -131,17 +131,17 @@ isComplexNode (Node _ val) = isComplex val
 
 sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf
 sinkAsdf = do
-  tree <- sinkTree
-  lift $ runParser (parseValue $ Object tree)
+  Tree tree <- sinkTree
+  lift $ runParser $ runReader @Tree (Tree tree) $ parseValue $ Object tree
 
 
-sinkTree :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
+sinkTree :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Tree
 sinkTree = do
   expect EventStreamStart
   expect EventDocumentStart
   Node _ v <- sinkNode
   case v of
-    Object o -> pure o
+    Object o -> pure $ Tree o
     _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
@@ -152,66 +152,77 @@ sinkNode = do
     EventScalar s t _ _ -> lift $ parseScalar s t
     EventMappingStart tg _ _ -> do
       let stag = parseSchemaTag tg
-      -- TODO: support references
-      if isNDArray stag
-        then sinkNDArray stag
-        else sinkObject stag
+      maps <- sinkMappings
+      val <- lift $ fromMappings stag maps
+      pure $ Node stag val
     EventSequenceStart tg _ _ -> do
       ns <- sinkSequence
       pure $ Node (parseSchemaTag tg) $ Array ns
     ev -> lift $ throwError $ ExpectedEvent "Not Handled" ev
  where
-  sinkObject stag = do
-    kvs <- sinkMappings
-    pure $ Node stag $ Object kvs
+  fromMappings :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => SchemaTag -> [(Key, Node)] -> Eff es Value
+  fromMappings stag maps = do
+    res <- runNonDet OnEmptyKeep (tryNDArray stag maps <|> tryReference maps) :: Eff es (Either CallStack Value)
+    case res of
+      Left _ -> pure $ Object maps
+      Right val -> pure val
 
-  sinkNDArray stag = do
-    dat <- sinkNDArrayData
-    pure $ Node stag $ NDArray dat
+  tryNDArray :: (NonDet :> es, Error YamlError :> es, Reader [BlockData] :> es) => SchemaTag -> [(Key, Node)] -> Eff es Value
+  tryNDArray stag maps
+    | isNDArray stag = NDArray <$> ndArrayDataFromMaps maps
+    | otherwise = empty
+
+  tryReference :: (NonDet :> es, Error YamlError :> es) => [(Key, Node)] -> Eff es Value
+  tryReference maps = do
+    case lookup "$ref" maps of
+      Nothing -> empty
+      Just (Node _ (String s)) -> pure $ parseReference s
+      Just (Node _ value) -> throwError $ InvalidReference value
+
+  parseReference :: Text -> Value
+  parseReference t =
+    maybe (InternalRef $ pointer t) ExternalRef $ reference t
 
 
-sinkNDArrayData :: forall es o. (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) NDArrayData
-sinkNDArrayData = do
-  kvs <- sinkMappings
-  bytes <- require "source" kvs >>= findSource
-  datatype <- require "datatype" kvs >>= parseDatatype
-  byteorder <- require "byteorder" kvs >>= parseByteorder
-  shape <- require "shape" kvs >>= parseShape
+ndArrayDataFromMaps :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => [(Key, Node)] -> Eff es NDArrayData
+ndArrayDataFromMaps maps = do
+  bytes <- require "source" >>= findSource
+  datatype <- require "datatype" >>= parseDatatype
+  byteorder <- require "byteorder" >>= parseByteorder
+  shape <- require "shape" >>= parseShape
   pure $ NDArrayData{bytes, datatype, byteorder, shape}
  where
-  require key kvs =
-    case lookup key kvs of
-      Nothing -> lift $ throwError $ NDArrayMissingKey (unpack key)
+  require key =
+    case lookup key maps of
+      Nothing -> throwError $ NDArrayMissingKey (unpack key)
       Just (Node _ val) -> pure val
 
-  parseDatatype val =
-    case runPureParser $ parseValue val of
-      Left _ -> lift $ throwError $ NDArrayExpected "DataType" val
-      Right a -> pure a
-
-  parseByteorder val =
-    case runPureParser $ parseValue val of
-      Left _ -> lift $ throwError $ NDArrayExpected "ByteOrder" val
-      Right a -> pure a
-
+  parseDatatype = parseLocal "DataType"
+  parseByteorder = parseLocal "ByteOrder"
   parseShape val =
     case val of
       Array ns -> axesRowMajor <$> mapM (parseAxis . (.value)) ns
-      _ -> lift $ throwError $ NDArrayExpected "Shape" val
+      _ -> throwError $ NDArrayExpected "Shape" val
 
   parseAxis val =
     case val of
       Integer n -> pure $ fromIntegral n
-      _ -> lift $ throwError $ NDArrayExpected "Shape Axis" val
+      _ -> throwError $ NDArrayExpected "Shape Axis" val
 
   findSource val =
     case val of
       Integer s -> do
-        blocks <- lift ask
+        blocks <- ask
         case blocks !? fromIntegral s of
-          Nothing -> lift $ throwError $ NDArrayMissingBlock s
+          Nothing -> throwError $ NDArrayMissingBlock s
           Just (BlockData b) -> pure b
-      _ -> lift $ throwError $ NDArrayExpected "Source" val
+      _ -> throwError $ NDArrayExpected "Source" val
+
+  parseLocal :: (FromAsdf a, Error YamlError :> es) => String -> Value -> Eff es a
+  parseLocal expected val =
+    case runPureParser . runReader @Tree mempty $ parseValue val of
+      Left _ -> throwError $ NDArrayExpected expected val
+      Right a -> pure a
 
 
 sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) (Key, Node)
@@ -226,6 +237,7 @@ sinkMapping = do
       ev -> lift $ throwError $ ExpectedEvent "Scalar Key" ev
 
 
+-- we don't have to parse this into an object...
 sinkMappings :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
 sinkMappings = do
   sinkWhile (/= EventMappingEnd) sinkMapping
@@ -239,7 +251,7 @@ sinkWhile p parse = do
     then do
       a <- parse
       as <- sinkWhile p parse
-      pure (a : reverse as)
+      pure $ a : as
     else do
       -- consume the one we matched
       C.drop 1
@@ -334,6 +346,7 @@ data YamlError
   | NDArrayMissingKey String
   | NDArrayMissingBlock Integer
   | NDArrayExpected String Value
+  | InvalidReference Value
   deriving (Show)
 
 

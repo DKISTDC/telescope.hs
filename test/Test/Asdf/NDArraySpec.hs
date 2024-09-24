@@ -7,12 +7,11 @@ import Data.ByteString.Lazy qualified as BL
 import GHC.Int
 import Skeletest
 import System.ByteOrder
-import Telescope.Asdf.Core
 import Telescope.Asdf.NDArray (DataType (..), NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
 import Telescope.Data.Binary
-import Test.Asdf.DecodeSpec (ExampleAsdfFix (..))
+import Test.Asdf.DecodeSpec (ExampleTreeFix (..))
 
 
 spec :: Spec
@@ -24,16 +23,16 @@ spec = do
     pure ()
 
   it "should parse NDArrayData" $ do
-    ExampleAsdfFix a <- getFixture
-    nd <- expectNDArray $ lookup "sequence" a.tree
+    ExampleTreeFix tree <- getFixture
+    nd <- expectNDArray $ lookup "sequence" tree
     nd.byteorder `shouldBe` LittleEndian
     nd.datatype `shouldBe` Int64
     nd.shape `shouldBe` axesRowMajor [100]
     BS.length nd.bytes `shouldBe` (100 * byteSize @Int64)
 
   it "should contain data" $ do
-    ExampleAsdfFix a <- getFixture
-    nd <- expectNDArray $ lookup "sequence" a.tree
+    ExampleTreeFix tree <- getFixture
+    nd <- expectNDArray $ lookup "sequence" tree
     decodeNums nd.bytes `shouldBe` [0 :: Int64 .. 99]
  where
   decodeNums bytes = do

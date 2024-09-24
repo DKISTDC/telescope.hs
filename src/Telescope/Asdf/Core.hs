@@ -130,23 +130,24 @@ instance ToAsdf Software where
 data Asdf = Asdf
   { history :: History
   , library :: Software
-  , tree :: Object
+  , tree :: Tree
   }
 instance ToAsdf Asdf where
   schema = "!core/asdf-1.1.0"
   toValue a =
-    -- these two required fields are first, then merge keys from the tree
-    Object $
-      [ ("asdf_library", toNode a.library)
-      , ("history", toNode a.history)
-      ]
-        <> a.tree
+    let Tree tree = a.tree
+     in -- these two required fields are first, then merge keys from the tree
+        Object $
+          [ ("asdf_library", toNode a.library)
+          , ("history", toNode a.history)
+          ]
+            <> tree
 instance FromAsdf Asdf where
   parseValue = \case
     Object o -> do
       library <- o .: "asdf_library"
       history <- o .: "history"
-      let tree = filter (not . isLibraryField) o
+      let tree = Tree $ filter (not . isLibraryField) o
       pure $ Asdf{history, library, tree}
     val -> expected "Asdf" val
    where
@@ -162,7 +163,7 @@ toAsdfDoc a =
     Object o -> do
       let history = History []
       let library = telescopeLibrary
-      pure $ Asdf{history, library, tree = o}
+      pure $ Asdf{history, library, tree = Tree o}
     value -> throwError $ EncodeError $ "Expected Top-level Tree Object, but got: " ++ show value
  where
   telescopeLibrary :: Software

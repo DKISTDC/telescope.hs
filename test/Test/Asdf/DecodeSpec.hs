@@ -1,10 +1,14 @@
 module Test.Asdf.DecodeSpec where
 
+import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
 import Data.List (find)
 import Data.Massiv.Array (Array, D, Ix1)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text, unpack)
+import Effectful
+import Effectful.Error.Static
+import Effectful.Reader.Dynamic
 import GHC.Generics (Generic)
 import GHC.Int (Int64)
 import Skeletest
@@ -15,6 +19,7 @@ import Telescope.Asdf.Encoding
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node
+import Telescope.Asdf.Reference
 import Telescope.Data.Parser
 import Test.Asdf.FileSpec (ExampleFileFix (..))
 
@@ -24,6 +29,7 @@ spec = do
   describe "basic" basicSpec
   describe "example" exampleSpec
   describe "dkist" dkistSpec
+  describe "references" referenceSpec
 
 
 basicSpec :: Spec
@@ -35,14 +41,14 @@ basicSpec = do
       length a.history.extensions `shouldBe` 1
 
     it "should parse tree" $ do
-      ExampleAsdfFix a <- getFixture
-      lookup "foo" a.tree `shouldBe` Just (Node mempty (Integer 42))
-      lookup "name" a.tree `shouldBe` Just (Node mempty (String "Monty"))
+      ExampleTreeFix tree <- getFixture
+      lookup "foo" tree `shouldBe` Just (Node mempty (Integer 42))
+      lookup "name" tree `shouldBe` Just (Node mempty (String "Monty"))
 
     it "removes asdf_library and history from tree" $ do
-      ExampleAsdfFix a <- getFixture
-      lookup "asdf_library" a.tree `shouldSatisfy` P.nothing
-      lookup "history" a.tree `shouldSatisfy` P.nothing
+      ExampleTreeFix tree <- getFixture
+      lookup "asdf_library" tree `shouldSatisfy` P.nothing
+      lookup "history" tree `shouldSatisfy` P.nothing
 
 
 exampleSpec :: Spec
@@ -59,6 +65,66 @@ data Example = Example
   , name :: Text
   }
   deriving (Generic, FromAsdf, ToAsdf)
+
+
+referenceSpec :: Spec
+referenceSpec = withMarkers ["focus"] $ do
+  it "should parse pointers" $ do
+    pointer "/users/1/name" `shouldBe` Pointer (Path [Child "users", Index 1, Child "name"])
+    pointer "" `shouldBe` Pointer (Path [])
+    pointer "#" `shouldBe` Pointer (Path [])
+    pointer "/" `shouldBe` Pointer (Path [])
+    pointer "users" `shouldBe` Pointer (Path [Child "users"])
+    pointer "/users" `shouldBe` Pointer (Path [Child "users"])
+    pointer "#users" `shouldBe` Pointer (Path [Child "users"])
+
+  it "should locate pointer" $ do
+    RefTreeFix tree <- getFixture
+    n0 <- runParse $ runAsdfParser tree $ findPointer (pointer "#/users/0/name")
+    n0 `shouldBe` "Monty"
+
+    n1 <- runParse $ runAsdfParser tree $ findPointer (pointer "/users/1/name")
+    n1 `shouldBe` "Harold"
+
+  it "parses InternalRef to CurrentUsername with tree" $ do
+    RefTreeFix (Tree tree) <- getFixture
+    cu <- runParse $ runAsdfParser (Tree tree) $ parseValue @CurrentUsername (InternalRef $ pointer "#/users/2/name")
+    cu `shouldBe` CurrentUsername "Sandra"
+
+  it "parses InternalRef to RefResolved with tree" $ do
+    RefTreeFix (Tree tree) <- getFixture
+    r <- runParse $ runAsdfParser (Tree tree) $ parseValue @RefResolved (Object tree)
+    length r.users `shouldBe` 3
+    r.currentUsername `shouldBe` CurrentUsername "Harold"
+
+  it "should parse internal references from sample file" $ do
+    inp <- BS.readFile "./samples/reference.asdf"
+    r <- decodeM @RefResolved inp
+    length r.users `shouldBe` 3
+    fmap (.name) r.users `shouldBe` ["Monty", "Harold", "Sandra"]
+    r.currentUsername `shouldBe` CurrentUsername "Harold"
+
+
+data RefResolved = RefResolved
+  { currentUsername :: CurrentUsername
+  , users :: [RefUser]
+  }
+  deriving (Generic, FromAsdf, Show)
+
+
+data RefUser = RefUser
+  { name :: Text
+  }
+  deriving (Generic, FromAsdf, Show)
+
+
+newtype CurrentUsername = CurrentUsername Text
+  deriving (Show, Eq)
+instance FromAsdf CurrentUsername where
+  parseValue = \case
+    String s -> pure $ CurrentUsername s
+    InternalRef p -> parsePointer p
+    val -> expected "UsernameRef" val
 
 
 dkistSpec :: Spec
@@ -114,20 +180,20 @@ data MetaHeaders = MetaHeaders
 instance FromAsdf MetaHeaders where
   parseValue = \case
     Object o -> do
-      Array ns <- o .: "columns"
+      ns <- o .: "columns"
       naxis <- parseColumn "NAXIS" ns
       naxis2 <- parseColumn "NAXIS2" ns
       bitpix <- parseColumn "BITPIX" ns
       bunit <- parseColumn "BUNIT" ns
       pure MetaHeaders{naxis, naxis2, bitpix, bunit}
-    val -> fail $ expected "Columns" val
+    val -> expected "Columns" val
    where
-    parseColumn :: forall a. (FromAsdf a) => Text -> [Node] -> Parser a
+    parseColumn :: forall a es. (FromAsdf a, Reader Tree :> es, Parser :> es) => Text -> [Node] -> Eff es a
     parseColumn name ns = do
       case find (isColumnName name) ns of
         Just (Node _ (Object o)) ->
           o .: "data"
-        _ -> fail $ "Column " ++ unpack name ++ " not found"
+        _ -> parseFail $ "Column " ++ unpack name ++ " not found"
 
     isColumnName n = \case
       Node _ (Object o) -> do
@@ -141,3 +207,25 @@ instance Fixture ExampleAsdfFix where
     ExampleFileFix _ f <- getFixture
     a <- runAsdfM $ fromAsdfFile f.tree f.blocks
     pure $ noCleanup $ ExampleAsdfFix a
+
+
+newtype ExampleTreeFix = ExampleTreeFix Object
+instance Fixture ExampleTreeFix where
+  fixtureAction = do
+    ExampleAsdfFix a <- getFixture
+    let Tree tree = a.tree
+    pure $ noCleanup $ ExampleTreeFix tree
+
+
+newtype RefTreeFix = RefTreeFix Tree
+instance Fixture RefTreeFix where
+  fixtureAction = do
+    let user n = toNode $ Object [("name", toNode (String n))]
+    let users = toNode $ Array [user "Monty", user "Harold", user "Sandra"]
+    let curr = toNode $ InternalRef $ pointer "#/users/1/name"
+    let tree = Tree [("users", users), ("currentUsername", toNode curr)]
+    pure $ noCleanup $ RefTreeFix tree
+
+
+runParse :: Eff '[Error ParseError, IOE] a -> IO a
+runParse = runEff . runErrorNoCallStackWith @ParseError throwM
