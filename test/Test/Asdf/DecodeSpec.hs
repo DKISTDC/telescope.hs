@@ -58,11 +58,13 @@ exampleSpec = do
     e <- decodeM @Example inp
     e.name `shouldBe` "Monty"
     e.foo `shouldBe` 42
+    e.items `shouldBe` ["one", "two", "three", "four", "five"]
 
 
 data Example = Example
   { foo :: Int
   , name :: Text
+  , items :: [Text]
   }
   deriving (Generic, FromAsdf, ToAsdf)
 
