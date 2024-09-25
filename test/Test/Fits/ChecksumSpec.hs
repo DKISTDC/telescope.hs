@@ -1,12 +1,12 @@
-module Test.ChecksumSpec where
+module Test.Fits.ChecksumSpec where
 
 import Data.ByteString qualified as BS
 import Data.Word
-import Telescope.Fits qualified as Fits (lookup)
+import Skeletest
+import Telescope.Fits
 import Telescope.Fits.Checksum
 import Telescope.Fits.Encoding
 import Telescope.Fits.Types
-import Test.Syd
 
 
 spec :: Spec
@@ -37,7 +37,7 @@ specChecksum = do
       inp <- BS.readFile "./samples/ones10x10.fits"
       f :: Fits <- decode inp
 
-      let datasumHeader = Fits.lookup "DATASUM" f.primaryHDU.header
+      let datasumHeader = lookupKeyword "DATASUM" f.primaryHDU.header
           datasumCalc = checksum f.primaryHDU.dataArray.rawData
           datasumCalcHeader = Just $ checksumValue datasumCalc
       datasumCalcHeader `shouldBe` datasumHeader

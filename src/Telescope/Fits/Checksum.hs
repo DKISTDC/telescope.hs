@@ -28,7 +28,7 @@ encodeChecksum (Checksum csum) =
     let comp = complement csum
     let str = replicate 16 ' '
     out <- withCString str $ \cs -> do
-      char_encode (fromIntegral comp) cs
+      c_char_encode (fromIntegral comp) cs
       peekCString cs
     pure $ pack out
 
@@ -48,7 +48,7 @@ checksumValue :: Checksum -> Value
 checksumValue (Checksum s) = String (pack (show s))
 
 
-foreign import ccall "char_encode" char_encode :: CUInt -> CString -> IO ()
+foreign import ccall "char_encode" c_char_encode :: CUInt -> CString -> IO ()
 
 
 add1s :: Word32 -> Word32 -> Word32

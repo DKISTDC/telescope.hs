@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Telescope.Fits.Types
   ( Fits (..)
   , PrimaryHDU (..)
@@ -9,8 +11,6 @@ module Telescope.Fits.Types
   , Axes (..)
   , Row
   , Column
-  , rowMajor
-  , columnMajor
   , BitPix (..)
   , bitPixBits
   , Header (..)
@@ -21,12 +21,15 @@ module Telescope.Fits.Types
   , LogicalConstant (..)
   , hduBlockSize
   , emptyDataArray
+  , IsBitPix (..)
   ) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
 import Data.List qualified as L
+import GHC.Int
+import Telescope.Data.Axes
 
 
 -- we know the first one is an image
@@ -114,21 +117,6 @@ instance Show Extension where
   show (BinTable b) = show b
 
 
-type Axis = Int
-newtype Axes a = Axes {axes :: [Axis]}
-  deriving (Show, Eq)
-data Row
-data Column
-
-
-rowMajor :: Axes Column -> Axes Row
-rowMajor (Axes as) = Axes (L.reverse as)
-
-
-columnMajor :: Axes Row -> Axes Column
-columnMajor (Axes as) = Axes (L.reverse as)
-
-
 data Fits = Fits
   { primaryHDU :: PrimaryHDU
   , extensions :: [Extension]
@@ -163,3 +151,21 @@ bitPixBits BPInt32 = 32
 bitPixBits BPInt64 = 64
 bitPixBits BPFloat = 32
 bitPixBits BPDouble = 64
+
+
+class IsBitPix a where
+  bitPix :: BitPix
+
+
+instance IsBitPix Int8 where
+  bitPix = BPInt8
+instance IsBitPix Int16 where
+  bitPix = BPInt16
+instance IsBitPix Int32 where
+  bitPix = BPInt32
+instance IsBitPix Int64 where
+  bitPix = BPInt64
+instance IsBitPix Float where
+  bitPix = BPFloat
+instance IsBitPix Double where
+  bitPix = BPDouble

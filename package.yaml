@@ -1,5 +1,5 @@
 name:                telescope
-version:             0.1.2
+version:             0.2.0
 synopsis:            Astronomical Observations (FITS, ASDF, WCS, etc)
 description:         Work with astronomical observations from modern telescopes
 homepage:            https://github.com/dkistdc/telescope.hs
@@ -17,6 +17,7 @@ language: GHC2021
 
 ghc-options:
   - -Wall
+  - -fdefer-typed-holes
 
 default-extensions:
   - DataKinds
@@ -36,16 +37,25 @@ default-extensions:
 dependencies:
   - base >= 4.7 && < 5
   - binary >= 0.8.9 && <0.9
-  - bytestring >= 0.11 && <0.12
+  - bytestring >= 0.11 && <0.13
   - exceptions >= 0.10 && <0.11
   - fits-parse >= 0.4.2 && < 0.5
   - massiv >= 1.0 && < 1.1
   - megaparsec >= 9.6 && <9.7
   - text >= 2.0 && <3
   - effectful >= 2.3 && <3
+  - time
+  - scientific
+  - byte-order
+  - casing
+  - libyaml
+  - conduit
+  - resourcet-effectful
 
 library:
   source-dirs: src
+  other-modules:
+    - Paths_telescope
   c-sources:
     - src/checksum.c
 
@@ -54,19 +64,17 @@ tests:
   spec:
     main: Spec.hs
     source-dirs: test/
-    build-tools: sydtest-discover
+    build-tools: skeletest:skeletest-preprocessor
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -F -pgmF=skeletest-preprocessor
     dependencies:
     - telescope
     - binary
     - containers
-
-    # envparse 0.5 gives error in sydtest
-    - sydtest >= 0.15
-    - envparse >= 0.4 && <= 0.5
+    - skeletest
 
 
 

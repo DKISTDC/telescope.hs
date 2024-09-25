@@ -27,14 +27,18 @@ test = do
 module Telescope.Fits
   ( decode
   , encode
-  , decodeArray
-  , encodeArray
+  , decodeDataArray
+  , encodeDataArray
 
     -- * Headers
-  , lookup
+  , lookupKeyword
   , Header (..)
   , Value (..)
-  , LogicalConstant
+  , LogicalConstant (..)
+  , ToKeyword (..)
+  , FromKeyword (..)
+  , ToHeader (..)
+  , FromHeader (..)
 
     -- * Types
   , Fits (..)
@@ -71,12 +75,11 @@ module Telescope.Fits
   -- , test
   ) where
 
-import Data.Fits (lookup)
+import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
+import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
-import Telescope.Fits.Encoding.DataArray
-import Telescope.Fits.Header (addComment, keyword)
+import Telescope.Fits.Header (FromHeader (..), FromKeyword (..), ToHeader (..), ToKeyword (..), addComment, keyword, lookupKeyword)
 import Telescope.Fits.Types
-import Prelude hiding (lookup)
 
 
 -- import Data.ByteString qualified as BS
