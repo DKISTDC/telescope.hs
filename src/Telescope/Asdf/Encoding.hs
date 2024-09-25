@@ -51,7 +51,7 @@ encodeStream con = do
       & Yaml.setWidth (Just 100)
 
 
--- Low-level encoding of a node to a yaml tree, without required headers, etc
+-- | Low-level encoding of a node to a yaml tree, without required headers, etc. For testing and debugging
 encodeNode :: (IOE :> es, Error AsdfError :> es) => Node -> Eff es (ByteString, [BlockData])
 encodeNode node = do
   encodeStream (yieldDocument $ yieldNode node)

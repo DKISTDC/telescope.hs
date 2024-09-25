@@ -59,6 +59,8 @@ yieldNode (Node st val) = do
     Bool b -> yieldBool b
     Number n -> yieldNum n
     Null -> yieldScalar "~"
+    InternalRef p -> yieldObject [("$ref", toNode $ String (pack $ show p))]
+    ExternalRef ref -> yieldObject [("$ref", toNode $ String (pack $ show ref))]
  where
   tag = case st of
     SchemaTag Nothing -> NoTag

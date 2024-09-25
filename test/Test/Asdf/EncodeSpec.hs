@@ -17,6 +17,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
+import Telescope.Asdf.Reference
 import Telescope.Data.Parser (expected)
 import Test.Asdf.ClassSpec (expectObject)
 
@@ -29,6 +30,37 @@ spec = do
   describe "roundtrip" roundSpec
   describe "stream" streamSpec
   describe "external verification" externalSpec
+  describe "references" referenceSpec
+
+
+referenceSpec :: Spec
+referenceSpec = withMarkers ["reference"] $ do
+  it "should encode a pointer" $ do
+    let ref = InternalRef (pointer "#/users/1/name")
+    (out, _) <- runAsdfM . encodeNode $ toNode ref
+    out `shouldBe` "{$ref: '#/users/1/name'}\n"
+
+  it "should encode a reference" $ do
+    let ref = ExternalRef (Reference "https://woot.com/" (pointer "#/users/1/name"))
+    (out, _) <- runAsdfM . encodeNode $ toNode ref
+    out `shouldBe` "{$ref: 'https://woot.com/#/users/1/name'}\n"
+
+  it "should roundtrip reference" $ do
+    let ref = InternalRef (pointer "#/users/1/name")
+    let tree = Object [("username", toNode ref)]
+    out <- encodeM tree
+    obj <- decodeM @Value out >>= expectObject
+    lookup "username" obj `shouldBe` Just (Node mempty ref)
+
+  it "should rountrip and resolve references" $ do
+    let pn = PointyName "pip"
+    toValue pn `shouldBe` InternalRef (pointer "/names/2")
+
+    let pd = PointyData pn ["bob", "pip", "will"]
+    out <- encodeM pd
+    pd2 <- decodeM @PointyData out
+
+    pd2.other `shouldBe` PointyName "will"
 
 
 basicSpec :: Spec
@@ -202,5 +234,23 @@ data SomeData = SomeData
   }
   deriving (Generic, ToAsdf, FromAsdf)
 
+
 -- TEST: round trip file parts
 -- TEST: round trip is the only good way
+
+data PointyData = PointyData
+  { other :: PointyName
+  , names :: [Text]
+  }
+  deriving (Generic, FromAsdf, ToAsdf, Show, Eq)
+
+
+newtype PointyName = PointyName Text
+  deriving (Show, Eq)
+instance ToAsdf PointyName where
+  toValue (PointyName _) = InternalRef (pointer "/names/2")
+instance FromAsdf PointyName where
+  parseValue = \case
+    String s -> pure $ PointyName s
+    InternalRef p -> parsePointer p
+    other -> expected "PointyName Ref" other

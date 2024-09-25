@@ -80,6 +80,15 @@ referenceSpec = withMarkers ["focus"] $ do
     pointer "/users" `shouldBe` Pointer (Path [Child "users"])
     pointer "#users" `shouldBe` Pointer (Path [Child "users"])
 
+  it "should show pointers" $ do
+    let point = Pointer (Path [Child "users", Index 0, Child "name"])
+    show point `shouldBe` "#/users/0/name"
+
+  it "should show references" $ do
+    let point = Pointer (Path [Child "users", Index 0, Child "name"])
+    let uri = "https://example.com/document.asdf/"
+    show (Reference uri point) `shouldBe` "https://example.com/document.asdf/#/users/0/name"
+
   it "should locate pointer" $ do
     RefTreeFix tree <- getFixture
     n0 <- runParse $ runAsdfParser tree $ findPointer (pointer "#/users/0/name")
@@ -125,8 +134,11 @@ newtype CurrentUsername = CurrentUsername Text
 instance FromAsdf CurrentUsername where
   parseValue = \case
     String s -> pure $ CurrentUsername s
+    -- TODO: this should be automagic
     InternalRef p -> parsePointer p
     val -> expected "UsernameRef" val
+instance ToAsdf CurrentUsername where
+  toValue (CurrentUsername _) = InternalRef $ pointer "/users/2/name"
 
 
 dkistSpec :: Spec

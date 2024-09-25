@@ -1,7 +1,6 @@
 module Telescope.Asdf.Node where
 
 import Control.Monad (guard)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
@@ -86,7 +85,9 @@ data Reference = Reference
   { uri :: Text
   , pointer :: Pointer
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+instance Show Reference where
+  show ref = unpack ref.uri ++ show ref.pointer
 
 
 reference :: Text -> Maybe Reference
@@ -109,7 +110,9 @@ pointer t =
 
 
 newtype Pointer = Pointer Path
-  deriving (Show, Eq)
+  deriving (Eq)
+instance Show Pointer where
+  show (Pointer ps) = "#/" ++ show ps
 
 --
 -- pure $ Reference uri _

@@ -6,7 +6,6 @@ import Data.Text (Text, unpack)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static
-import Effectful.Fail
 import Effectful.Reader.Static
 
 
@@ -14,8 +13,6 @@ data Parser :: Effect where
   ParseFail :: String -> Parser m a
   PathAdd :: Ref -> m a -> Parser m a
 
-
--- PathGet :: Parser m Path
 
 type instance DispatchOf Parser = 'Dynamic
 
@@ -34,14 +31,9 @@ runParser = reinterpret (runReader @Path mempty) $ \env -> \case
     localSeqUnlift env $ \unlift -> local (<> Path [p]) (unlift m)
 
 
--- runPureParseError :: Eff '[Error ParseError] a -> Either ParseError a
--- runPureParseError = runPureEff . runErrorNoCallStack @ParseError
-
 runPureParser :: Eff '[Parser, Error ParseError] a -> Either ParseError a
 runPureParser eff = runPureEff . runErrorNoCallStack @ParseError $ runParser eff
 
-
--- import Telescope.Asdf.Node
 
 data ParseError
   = ParseFailure Path String
@@ -69,27 +61,8 @@ newtype Path = Path [Ref]
   deriving newtype (Semigroup, Monoid)
 instance Show Path where
   show (Path ps) =
-    intercalate "." (fmap show ps)
+    intercalate "/" (fmap show ps)
 
-
--- runPureParser :: Parser' '[Error ParseError] a -> Either ParseError a
--- runPureParser = runPureEff . runErrorNoCallStack @ParseError . parse
-
--- parse :: (Error ParseError :> es) => Parser' es a -> Eff es a
--- parse eff = runReader @[PathSegment] mempty $ do
---   ea <- runFail eff
---   case ea of
---     Left e -> do
---       p <- currentPath
---       throwError $ ParseFailure p e
---     Right a -> pure a
-
-addPath :: (Reader [Path] :> es) => Path -> Eff es a -> Eff es a
-addPath p = local (p :)
-
-
--- context :: Parser [Context]
--- context = Parser ask
 
 expected :: (Show value, Parser :> es) => String -> value -> Eff es a
 expected ex n =

@@ -36,10 +36,6 @@ import Telescope.Data.Parser
 > instance ToAsdf Example where
 >   schema = "tag:example.org/schemas/example-1.0.0"
 -}
-runAsdfParser :: (Error ParseError :> es) => Tree -> Eff (Parser : Reader Tree : es) a -> Eff es a
-runAsdfParser tree = runReader @Tree tree . runParser
-
-
 class ToAsdf a where
   toValue :: a -> Value
   default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
@@ -392,3 +388,7 @@ instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R (Maybe a)) where
   gParseKey o k = K1 <$> o .:? k
+
+
+runAsdfParser :: (Error ParseError :> es) => Tree -> Eff (Parser : Reader Tree : es) a -> Eff es a
+runAsdfParser tree = runReader @Tree tree . runParser
