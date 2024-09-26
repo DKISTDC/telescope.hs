@@ -17,6 +17,9 @@ module Telescope.Asdf
   , fromValue
   , toNode
   , NDArrayData (..)
+  , pointer
+  , reference
+  , Reference (..)
   , Parser
   , Asdf (..)
   )
