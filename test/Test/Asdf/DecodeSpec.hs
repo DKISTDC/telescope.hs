@@ -70,7 +70,7 @@ data Example = Example
 
 
 referenceSpec :: Spec
-referenceSpec = withMarkers ["focus"] $ do
+referenceSpec = do
   it "should parse pointers" $ do
     pointer "/users/1/name" `shouldBe` Pointer (Path [Child "users", Index 1, Child "name"])
     pointer "" `shouldBe` Pointer (Path [])

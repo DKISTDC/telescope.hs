@@ -41,6 +41,14 @@ testDecodeFits = do
       arr <- decodeDataArray @Ix2 @Int f.primaryHDU.dataArray
       M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
+  describe "NSO L2 Data" $ do
+    it "should load" $ do
+      f <- decode =<< BS.readFile "samples/dkistL2.fits"
+      length f.extensions `shouldBe` 1
+
+
+-- arr <- decodeDataArray @Ix2 @Int f.primaryHDU.dataArray
+-- M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
 testRenderHeader :: Spec
 testRenderHeader = do
@@ -248,6 +256,14 @@ testRoundTrip = do
       Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.axes `shouldBe` fs.primaryHDU.dataArray.axes
+
+  describe "image fits" $ withMarkers ["focus"] $ do
+    it "should roundtrip image extensions" $ do
+      let prim = PrimaryHDU mempty emptyDataArray
+      let img = Image $ ImageHDU mempty emptyDataArray
+      let out = encode $ Fits prim [img]
+      fits2 <- decode out
+      length fits2.extensions `shouldBe` 1
  where
   matchKeyword k (KeywordRecord k2 _ _) = k == k2
 

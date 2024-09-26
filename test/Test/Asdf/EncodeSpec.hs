@@ -34,7 +34,7 @@ spec = do
 
 
 referenceSpec :: Spec
-referenceSpec = withMarkers ["reference"] $ do
+referenceSpec = do
   it "should encode a pointer" $ do
     let ref = InternalRef (pointer "#/users/1/name")
     (out, _) <- runAsdfM . encodeNode $ toNode ref
