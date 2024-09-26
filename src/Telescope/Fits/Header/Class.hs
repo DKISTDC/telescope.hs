@@ -134,10 +134,21 @@ instance (GFromHeader f, GFromHeader g) => GFromHeader (f :*: g) where
     pure $ f :*: g
 
 
-instance (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1 R a)) where
+instance {-# OVERLAPPABLE #-} (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1 R a)) where
   gParseHeader h = do
     let k = cleanKeyword $ selName (undefined :: M1 S s f p)
     M1 . K1 <$> parseKeyword k h
+
+
+instance {-# OVERLAPS #-} (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1 R (Maybe a))) where
+  gParseHeader h = do
+    let k = cleanKeyword $ selName (undefined :: M1 S s f p)
+    let mval = lookupKeyword k h :: Maybe Value
+    M1 . K1 <$> case mval of
+      Nothing -> pure Nothing
+      Just v -> do
+        a <- parseAt (Child k) $ parseKeywordValue v
+        pure $ Just a
 
 
 cleanKeyword :: String -> Text
