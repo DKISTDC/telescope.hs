@@ -24,7 +24,7 @@ renderImageHeader :: Header -> DataArray -> Checksum -> BuilderBlock
 renderImageHeader h d dsum =
   fillBlock spaces $
     mconcat
-      [ renderKeywordLine "XTENSION" (String "IMAGE") (Just "Image Extension")
+      [ renderKeywordLine "XTENSION" (String "IMAGE   ") (Just "Image Extension")
       , renderDataKeywords d.bitpix d.axes
       , renderKeywordLine "PCOUNT" (Integer 0) Nothing
       , renderKeywordLine "GCOUNT" (Integer 1) Nothing
