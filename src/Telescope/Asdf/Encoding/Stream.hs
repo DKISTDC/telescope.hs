@@ -97,7 +97,7 @@ yieldNode (Node st anc val) = do
 
   yieldMapping :: (Key, Node) -> ConduitT a Event (Eff es) ()
   yieldMapping (key, node) = do
-    yield $ EventScalar (T.encodeUtf8 key) NoTag Plain anchor
+    yield $ EventScalar (T.encodeUtf8 key) NoTag Plain Nothing
     yieldNode node
 
   yieldArray :: [Node] -> ConduitT a Event (Eff es) ()

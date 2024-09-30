@@ -6,6 +6,8 @@ import Data.ByteString.Char8 qualified as BC
 import Data.Massiv.Array (Array, Comp (Seq), D, Ix2, P)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import GHC.Generics (Generic)
 import GHC.Int (Int16, Int64)
 import Skeletest
@@ -43,6 +45,18 @@ anchorSpec = withMarkers ["focus"] $ do
   it "should encode an anchor" $ do
     (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "woot") "hello"
     out `shouldBe` "&woot 'hello'\n"
+
+  it "should not encode anchors to mappings" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "thing") (Object [("hello", "world")])
+    let outt = T.decodeUtf8 out
+    length (T.splitOn "&thing" outt) `shouldBe` 2
+    out `shouldBe` "&thing {hello: world}\n"
+
+  it "should not encode anchors to array members" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "thing") (Array ["one", "two"])
+    let outt = T.decodeUtf8 out
+    length (T.splitOn "&thing" outt) `shouldBe` 2
+    out `shouldBe` "&thing [one, two]\n"
 
 
 referenceSpec :: Spec

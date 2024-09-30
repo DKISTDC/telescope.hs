@@ -10,9 +10,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601
 import Effectful
-import Effectful.Error.Static
 import Effectful.Fail
-import Effectful.Reader.Dynamic
 import GHC.Generics
 import GHC.Int
 import Telescope.Asdf.Encoding.File (BlockSource (..))
@@ -394,6 +392,3 @@ instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R (Maybe a)) where
   gParseKey o k = K1 <$> o .:? k
-
--- runAsdfParser :: (Error ParseError :> es) => Anchors -> Eff (Parser : Reader Anchors : es) a -> Eff es a
--- runAsdfParser tree = runReader @Anchors tree . runParser
