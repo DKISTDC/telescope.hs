@@ -17,9 +17,11 @@ module Telescope.Asdf
   , fromValue
   , toNode
   , NDArrayData (..)
-  , pointer
-  , reference
-  , Reference (..)
+  , jsonPointer
+  , jsonReference
+  , JSONReference (..)
+  , JSONPointer (..)
+  , Anchor (..)
   , Parser
   , Asdf (..)
   )

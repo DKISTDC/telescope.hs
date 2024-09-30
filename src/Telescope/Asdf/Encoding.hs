@@ -10,13 +10,14 @@ import Effectful.Error.Static
 import Effectful.Reader.Dynamic
 import Effectful.Resource
 import Effectful.State.Static.Local
+import Effectful.Writer.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Encoding.Stream
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node
-import Telescope.Data.Parser (ParseError)
+import Telescope.Data.Parser (ParseError, runParser)
 import Text.Libyaml qualified as Yaml
 
 
@@ -54,7 +55,7 @@ encodeStream con = do
 -- | Low-level encoding of a node to a yaml tree, without required headers, etc. For testing and debugging
 encodeNode :: (IOE :> es, Error AsdfError :> es) => Node -> Eff es (ByteString, [BlockData])
 encodeNode node = do
-  encodeStream (yieldDocument $ yieldNode node)
+  encodeStream (yieldDocumentStream $ yieldNode node)
 
 
 decodeM :: (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
@@ -70,18 +71,53 @@ decodeEither bs = do
 decode :: (FromAsdf a, IOE :> es, Error AsdfError :> es) => ByteString -> Eff es a
 decode bs = do
   f <- splitAsdfFile bs
-  asdf <- fromAsdfFile f.tree f.blocks
-  runParseError $ parseAsdfTree asdf.tree
+  tree <- parseAsdfTree f.tree f.blocks
+  decodeFromTree tree
 
 
-parseAsdfTree :: (FromAsdf a, Error ParseError :> es) => Tree -> Eff es a
-parseAsdfTree (Tree tree) = runAsdfParser (Tree tree) $ parseValue (Object tree)
+decodeFromTree :: forall a es. (Error AsdfError :> es) => (FromAsdf a) => Tree -> Eff es a
+decodeFromTree (Tree o) = do
+  runParseError $ runParser $ parseValue @a (Object o)
 
 
-fromAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es Asdf
-fromAsdfFile (Encoded inp) ebks = do
+parseAsdfTree :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es Tree
+parseAsdfTree etree eblks = do
+  (root, anchors) <- streamAsdfFile etree eblks
+  resolveAnchors anchors root
+
+
+streamAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es (Object, Anchors)
+streamAsdfFile (Encoded inp) ebks = do
   blocks <- mapM decodeBlock ebks
-  runParseError . runYamlError . runResource . runReader blocks . runConduit $ Yaml.decode inp .| sinkAsdf
+  runParseError . runYamlError $ do
+    runReader blocks . runWriter . runResource . runConduit $ Yaml.decode inp .| sinkTree
+
+
+resolveAnchors :: (Error AsdfError :> es) => Anchors -> Object -> Eff es Tree
+resolveAnchors (Anchors anchors) root = do
+  ores <- mapM resolveObjectKey root
+  pure $ Tree ores
+ where
+  resolveAnchor :: (Error AsdfError :> es) => Anchor -> Eff es Value
+  resolveAnchor anc = do
+    case lookup anc anchors of
+      Nothing -> throwError $ MissingAnchor anc (Anchors anchors)
+      Just v -> pure v
+
+  resolveValue :: (Error AsdfError :> es) => Value -> Eff es Value
+  resolveValue = \case
+    Alias anc -> resolveAnchor anc
+    Array ns -> Array <$> mapM resolveNode ns
+    Object o -> Object <$> mapM resolveObjectKey o
+    val -> pure val
+
+  resolveNode (Node s a v) = do
+    val <- resolveValue v
+    pure $ Node s a val
+
+  resolveObjectKey (k, n) = do
+    nres <- resolveNode n
+    pure (k, nres)
 
 
 decodeBlock :: (Error AsdfError :> es) => Encoded Block -> Eff es BlockData

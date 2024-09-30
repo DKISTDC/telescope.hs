@@ -8,7 +8,6 @@ import Data.Massiv.Array qualified as M
 import Data.Text (Text, unpack)
 import Effectful
 import Effectful.Error.Static
-import Effectful.Reader.Dynamic
 import GHC.Generics (Generic)
 import GHC.Int (Int64)
 import Skeletest
@@ -30,25 +29,22 @@ spec = do
   describe "example" exampleSpec
   describe "dkist" dkistSpec
   describe "references" referenceSpec
+  describe "anchors" anchorSpec
 
 
 basicSpec :: Spec
 basicSpec = do
   describe "basic" $ do
     it "should parse asdf" $ do
-      ExampleAsdfFix a <- getFixture
+      ExampleTreeFix tree <- getFixture
+      a :: Asdf <- runAsdfM $ decodeFromTree tree
       a.library.name `shouldBe` "asdf"
       length a.history.extensions `shouldBe` 1
 
     it "should parse tree" $ do
-      ExampleTreeFix tree <- getFixture
-      lookup "foo" tree `shouldBe` Just (Node mempty (Integer 42))
-      lookup "name" tree `shouldBe` Just (Node mempty (String "Monty"))
-
-    it "removes asdf_library and history from tree" $ do
-      ExampleTreeFix tree <- getFixture
-      lookup "asdf_library" tree `shouldSatisfy` P.nothing
-      lookup "history" tree `shouldSatisfy` P.nothing
+      ExampleTreeFix (Tree tree) <- getFixture
+      lookup "foo" tree `shouldBe` Just (Node mempty Nothing (Integer 42))
+      lookup "name" tree `shouldBe` Just (Node mempty Nothing (String "Monty"))
 
 
 exampleSpec :: Spec
@@ -69,77 +65,111 @@ data Example = Example
   deriving (Generic, FromAsdf, ToAsdf)
 
 
+anchorSpec :: Spec
+anchorSpec = withMarkers ["focus"] $ do
+  it "should resolve anchors" $ do
+    let root = [("message", toNode $ Alias "hello")]
+    let anchors = Anchors [("hello", String "world")]
+    Tree tree <- runAsdfM $ resolveAnchors anchors root
+    lookup "message" tree `shouldBe` Just "world"
+
+  it "should throw missing anchors" $ do
+    let root = [("message", toNode $ Alias "hello")]
+    runAsdfM (resolveAnchors mempty root) `shouldSatisfy` P.throws @AsdfError P.anything
+
+  it "should find anchors" $ do
+    let root = [("message", toNode $ Alias "hello"), ("hello", Node mempty (Just "hello") (String "world"))] :: Object
+    out <- runAsdfM $ encode (Object root)
+
+    f <- runAsdfM $ splitAsdfFile out
+    (_, ancs) <- runAsdfM $ streamAsdfFile f.tree f.blocks
+    ancs `shouldBe` Anchors [("hello", String "world")]
+
+  it "should decode anchors" $ do
+    let root = [("message", toNode $ Alias "hello"), ("hello", Node mempty (Just "hello") (String "world"))] :: Object
+    out <- runAsdfM $ encode (Object root)
+    Tree tree <- decodeM @Tree out
+    lookup "message" tree `shouldBe` Just "world"
+
+
 referenceSpec :: Spec
 referenceSpec = do
   it "should parse pointers" $ do
-    pointer "/users/1/name" `shouldBe` Pointer (Path [Child "users", Index 1, Child "name"])
-    pointer "" `shouldBe` Pointer (Path [])
-    pointer "#" `shouldBe` Pointer (Path [])
-    pointer "/" `shouldBe` Pointer (Path [])
-    pointer "users" `shouldBe` Pointer (Path [Child "users"])
-    pointer "/users" `shouldBe` Pointer (Path [Child "users"])
-    pointer "#users" `shouldBe` Pointer (Path [Child "users"])
+    jsonPointer "/users/1/name" `shouldBe` JSONPointer (Path [Child "users", Index 1, Child "name"])
+    jsonPointer "" `shouldBe` JSONPointer (Path [])
+    jsonPointer "#" `shouldBe` JSONPointer (Path [])
+    jsonPointer "/" `shouldBe` JSONPointer (Path [])
+    jsonPointer "users" `shouldBe` JSONPointer (Path [Child "users"])
+    jsonPointer "/users" `shouldBe` JSONPointer (Path [Child "users"])
+    jsonPointer "#users" `shouldBe` JSONPointer (Path [Child "users"])
+
+  it "should parse an internal pointer as a reference" $ do
+    jsonReference "#/users/1/name" `shouldBe` JSONReference mempty (jsonPointer "#/users/1/name")
+
+  it "should parse an external reference" $ do
+    let url = "https://woot.com/asdf"
+    let point = "#/users/1/name"
+    jsonReference (url <> point) `shouldBe` JSONReference url (jsonPointer point)
 
   it "should show pointers" $ do
-    let point = Pointer (Path [Child "users", Index 0, Child "name"])
+    let point = JSONPointer (Path [Child "users", Index 0, Child "name"])
     show point `shouldBe` "#/users/0/name"
 
   it "should show references" $ do
-    let point = Pointer (Path [Child "users", Index 0, Child "name"])
+    let point = JSONPointer (Path [Child "users", Index 0, Child "name"])
     let uri = "https://example.com/document.asdf/"
-    show (Reference uri point) `shouldBe` "https://example.com/document.asdf/#/users/0/name"
+    show (JSONReference uri point) `shouldBe` "https://example.com/document.asdf/#/users/0/name"
 
   it "should locate pointer" $ do
     RefTreeFix tree <- getFixture
-    n0 <- runParse $ runAsdfParser tree $ findPointer (pointer "#/users/0/name")
+    n0 <- parseIO $ findPointer (jsonPointer "#/users/0/name") tree
     n0 `shouldBe` "Monty"
 
-    n1 <- runParse $ runAsdfParser tree $ findPointer (pointer "/users/1/name")
+    n1 <- parseIO $ findPointer (jsonPointer "/users/1/name") tree
     n1 `shouldBe` "Harold"
 
-  it "parses InternalRef to CurrentUsername with tree" $ do
-    RefTreeFix (Tree tree) <- getFixture
-    cu <- runParse $ runAsdfParser (Tree tree) $ parseValue @CurrentUsername (InternalRef $ pointer "#/users/2/name")
-    cu `shouldBe` CurrentUsername "Sandra"
 
-  it "parses InternalRef to RefResolved with tree" $ do
-    RefTreeFix (Tree tree) <- getFixture
-    r <- runParse $ runAsdfParser (Tree tree) $ parseValue @RefResolved (Object tree)
-    length r.users `shouldBe` 3
-    r.currentUsername `shouldBe` CurrentUsername "Harold"
+-- I don't think we should automatically resolve any internal references. Assume all references are external
+-- it "parses Internal Ref to CurrentUsername with tree" $ do
+--   RefTreeFix (Tree tree) <- getFixture
+--   cu <- runParse $ runAsdfParser (Tree tree) $ parseValue @CurrentUsername (InternalRef $ pointer "#/users/2/name")
+--   cu `shouldBe` CurrentUsername "Sandra"
+--
+-- it "parses Internal Ref to RefResolved with tree" $ do
+--   RefTreeFix (Tree tree) <- getFixture
+--   r <- runParse $ runAsdfParser (Tree tree) $ parseValue @RefResolved (Object tree)
+--   length r.users `shouldBe` 3
+--   r.currentUsername `shouldBe` CurrentUsername "Harold"
+--
+-- it "should parse internal references from sample file" $ do
+--   inp <- BS.readFile "./samples/reference.asdf"
+--   r <- decodeM @RefResolved inp
+--   length r.users `shouldBe` 3
+--   fmap (.name) r.users `shouldBe` ["Monty", "Harold", "Sandra"]
+--   r.currentUsername `shouldBe` CurrentUsername "Harold"
 
-  it "should parse internal references from sample file" $ do
-    inp <- BS.readFile "./samples/reference.asdf"
-    r <- decodeM @RefResolved inp
-    length r.users `shouldBe` 3
-    fmap (.name) r.users `shouldBe` ["Monty", "Harold", "Sandra"]
-    r.currentUsername `shouldBe` CurrentUsername "Harold"
+-- data RefResolved = RefResolved
+--   { currentUsername :: CurrentUsername
+--   , users :: [RefUser]
+--   }
+--   deriving (Generic, FromAsdf, Show)
+--
+--
+-- data RefUser = RefUser
+--   { name :: Text
+--   }
+--   deriving (Generic, FromAsdf, Show)
 
-
-data RefResolved = RefResolved
-  { currentUsername :: CurrentUsername
-  , users :: [RefUser]
-  }
-  deriving (Generic, FromAsdf, Show)
-
-
-data RefUser = RefUser
-  { name :: Text
-  }
-  deriving (Generic, FromAsdf, Show)
-
-
-newtype CurrentUsername = CurrentUsername Text
-  deriving (Show, Eq)
-instance FromAsdf CurrentUsername where
-  parseValue = \case
-    String s -> pure $ CurrentUsername s
-    -- TODO: this should be automagic
-    InternalRef p -> parsePointer p
-    val -> expected "UsernameRef" val
-instance ToAsdf CurrentUsername where
-  toValue (CurrentUsername _) = InternalRef $ pointer "/users/2/name"
-
+-- newtype CurrentUsername = CurrentUsername Text
+--   deriving (Show, Eq)
+-- instance FromAsdf CurrentUsername where
+--   parseValue = \case
+--     String s -> pure $ CurrentUsername s
+--     -- TODO: this should be automagic
+--     InternalRef p -> parsePointer p
+--     val -> expected "UsernameRef" val
+-- instance ToAsdf CurrentUsername where
+--   toValue (CurrentUsername _) = InternalRef $ pointer "/users/2/name"
 
 dkistSpec :: Spec
 dkistSpec = do
@@ -202,32 +232,24 @@ instance FromAsdf MetaHeaders where
       pure MetaHeaders{naxis, naxis2, bitpix, bunit}
     val -> expected "Columns" val
    where
-    parseColumn :: forall a es. (FromAsdf a, Reader Tree :> es, Parser :> es) => Text -> [Node] -> Eff es a
+    parseColumn :: forall a es. (FromAsdf a, Parser :> es) => Text -> [Node] -> Eff es a
     parseColumn name ns = do
       case find (isColumnName name) ns of
-        Just (Node _ (Object o)) ->
+        Just (Node _ _ (Object o)) ->
           o .: "data"
         _ -> parseFail $ "Column " ++ unpack name ++ " not found"
 
     isColumnName n = \case
-      Node _ (Object o) -> do
-        lookup "name" o == Just (Node mempty (String n))
+      Node _ _ (Object o) -> do
+        lookup "name" o == Just (Node mempty Nothing (String n))
       _ -> False
 
 
-newtype ExampleAsdfFix = ExampleAsdfFix Asdf
-instance Fixture ExampleAsdfFix where
-  fixtureAction = do
-    ExampleFileFix _ f <- getFixture
-    a <- runAsdfM $ fromAsdfFile f.tree f.blocks
-    pure $ noCleanup $ ExampleAsdfFix a
-
-
-newtype ExampleTreeFix = ExampleTreeFix Object
+newtype ExampleTreeFix = ExampleTreeFix Tree
 instance Fixture ExampleTreeFix where
   fixtureAction = do
-    ExampleAsdfFix a <- getFixture
-    let Tree tree = a.tree
+    ExampleFileFix _ f <- getFixture
+    tree <- runAsdfM $ parseAsdfTree f.tree f.blocks
     pure $ noCleanup $ ExampleTreeFix tree
 
 
@@ -236,10 +258,10 @@ instance Fixture RefTreeFix where
   fixtureAction = do
     let user n = toNode $ Object [("name", toNode (String n))]
     let users = toNode $ Array [user "Monty", user "Harold", user "Sandra"]
-    let curr = toNode $ InternalRef $ pointer "#/users/1/name"
+    let curr = toNode $ Reference $ JSONReference mempty (jsonPointer "#/users/1/name")
     let tree = Tree [("users", users), ("currentUsername", toNode curr)]
     pure $ noCleanup $ RefTreeFix tree
 
 
-runParse :: Eff '[Error ParseError, IOE] a -> IO a
-runParse = runEff . runErrorNoCallStackWith @ParseError throwM
+parseIO :: Eff '[Parser, Error ParseError, IOE] a -> IO a
+parseIO p = runEff $ runErrorNoCallStackWith @ParseError throwM $ runParser p

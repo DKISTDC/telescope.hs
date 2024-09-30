@@ -47,11 +47,17 @@ class ToAsdf a where
   schema = mempty
 
 
+  anchor :: Maybe Anchor
+  default anchor :: Maybe Anchor
+  anchor = Nothing
+
+
 -- type Parser a = Eff [Reader Tree, Fail, Reader [PathSegment], Error ParseError] a
 
+-- we don't resolve them like this anymore
 class FromAsdf a where
-  parseValue :: (Parser :> es, Reader Tree :> es) => Value -> Eff es a
-  default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es, Reader Tree :> es) => Value -> Eff es a
+  parseValue :: (Parser :> es) => Value -> Eff es a
+  default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es) => Value -> Eff es a
   parseValue (Object o) = to <$> gParseObject o
   parseValue val = expected "Object" val
 
@@ -132,7 +138,7 @@ instance FromAsdf [Double] where
 
 
 -- | Flexibly parse lists from either Array or NDArray
-parseAnyList :: (FromAsdf a, FromNDArray [a], Parser :> es, Reader Tree :> es) => Value -> Eff es [a]
+parseAnyList :: (FromAsdf a, FromNDArray [a], Parser :> es) => Value -> Eff es [a]
 parseAnyList = \case
   Array ns -> mapM parseNode ns
   NDArray dat -> fromNDArray dat
@@ -187,17 +193,17 @@ instance FromAsdf Value where
 
 
 instance ToAsdf Node where
-  toValue (Node _ val) = val
+  toValue (Node _ _ val) = val
 instance FromAsdf Node where
-  parseValue val = pure $ Node mempty val
+  parseValue val = pure $ Node mempty Nothing val
 
 
-instance ToAsdf Pointer where
-  toValue = InternalRef
-instance FromAsdf Pointer where
+instance ToAsdf Tree where
+  toValue (Tree o) = Object o
+instance FromAsdf Tree where
   parseValue = \case
-    InternalRef p -> pure p
-    val -> expected "Internal Ref" val
+    Object o -> pure $ Tree o
+    val -> expected "Object" val
 
 
 instance ToAsdf NDArrayData where
@@ -226,7 +232,7 @@ instance FromAsdf DataType where
     String "int16" -> pure Int16
     String "int8" -> pure Int8
     String "bool8" -> pure Bool8
-    Array ["ucs4", Node _ (Integer n)] -> pure $ Ucs4 $ fromIntegral n
+    Array ["ucs4", Node _ _ (Integer n)] -> pure $ Ucs4 $ fromIntegral n
     val -> expected "DataType" val
 
 
@@ -262,15 +268,15 @@ instance FromAsdf UTCTime where
 
 -- | Convert to a Node, including the schema tag if specified
 toNode :: forall a. (ToAsdf a) => a -> Node
-toNode a = Node (schema @a) $ toValue a
+toNode a = Node (schema @a) (anchor @a) $ toValue a
 
 
 -- | Parse a node, ignoring the schema tag
-parseNode :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Node -> Eff es a
-parseNode (Node _ v) = parseValue v
+parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a
+parseNode (Node _ _ v) = parseValue v
 
 
-(.:) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es a
+(.:) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es a
 o .: k = do
   case lookup k o of
     Nothing -> parseFail $ "key " ++ show k ++ " not found"
@@ -278,7 +284,7 @@ o .: k = do
       parseAt (Child k) $ parseNode node
 
 
-(.:?) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es (Maybe a)
+(.:?) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es (Maybe a)
 o .:? k = do
   case lookup k o of
     Nothing -> pure Nothing
@@ -287,7 +293,7 @@ o .:? k = do
         parseAt (Child k) $ parseNode a
 
 
-(!) :: (FromAsdf a, Parser :> es, Reader Tree :> es) => [Node] -> Int -> Eff es a
+(!) :: (FromAsdf a, Parser :> es) => [Node] -> Int -> Eff es a
 ns ! n = do
   case ns !? n of
     Nothing -> parseFail $ "Index " ++ show n ++ " not found"
@@ -354,7 +360,7 @@ instance {-# OVERLAPPING #-} (ToAsdf a) => GToNode (K1 R (Maybe a)) where
 
 
 class GParseObject f where
-  gParseObject :: (Parser :> es, Reader Tree :> es) => Object -> Eff es (f p)
+  gParseObject :: (Parser :> es) => Object -> Eff es (f p)
 
 
 instance (GParseObject f) => GParseObject (M1 D c f) where
@@ -379,7 +385,7 @@ instance (GParseKey f, Selector s) => GParseObject (M1 S s f) where
 
 
 class GParseKey f where
-  gParseKey :: (Parser :> es, Reader Tree :> es) => Object -> Key -> Eff es (f p)
+  gParseKey :: (Parser :> es) => Object -> Key -> Eff es (f p)
 
 
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where
@@ -389,6 +395,5 @@ instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R a) where
 instance {-# OVERLAPPABLE #-} (FromAsdf a) => GParseKey (K1 R (Maybe a)) where
   gParseKey o k = K1 <$> o .:? k
 
-
-runAsdfParser :: (Error ParseError :> es) => Tree -> Eff (Parser : Reader Tree : es) a -> Eff es a
-runAsdfParser tree = runReader @Tree tree . runParser
+-- runAsdfParser :: (Error ParseError :> es) => Anchors -> Eff (Parser : Reader Anchors : es) a -> Eff es a
+-- runAsdfParser tree = runReader @Anchors tree . runParser

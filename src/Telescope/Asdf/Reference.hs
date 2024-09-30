@@ -3,27 +3,23 @@ module Telescope.Asdf.Reference where
 import Data.List ((!?))
 import Data.Text (Text)
 import Effectful
-import Effectful.Reader.Dynamic
-import Telescope.Asdf.Class
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Data.Parser
 
 
-parsePointer :: forall a es. (FromAsdf a, Reader Tree :> es, Parser :> es) => Pointer -> Eff es a
-parsePointer point = do
-  Node _ value <- findPointer point
-  parseValue value
+-- resolveInternalPointer :: forall a es. (FromAsdf a, Reader Tree :> es, Parser :> es) => JSONPointer -> Eff es a
+-- resolveInternalPointer point = do
+--   Node _ value <- findPointer point
+--   parseValue value
 
-
-findPointer :: forall es. (Reader Tree :> es, Parser :> es) => Pointer -> Eff es Node
-findPointer (Pointer path) = do
-  Tree tree <- ask
-  parseNext path (Node mempty (Object tree))
+findPointer :: forall es. (Parser :> es) => JSONPointer -> Tree -> Eff es Node
+findPointer (JSONPointer path) (Tree tree) = do
+  parseNext path (Node mempty Nothing (Object tree))
  where
   parseNext :: Path -> Node -> Eff es Node
   parseNext (Path []) node = pure node
-  parseNext (Path (p : ps)) (Node _ val) = do
+  parseNext (Path (p : ps)) (Node _ _ val) = do
     child <- parseSegment p val
     parseNext (Path ps) child
 

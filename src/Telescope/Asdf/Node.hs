@@ -1,6 +1,5 @@
 module Telescope.Asdf.Node where
 
-import Control.Monad (guard)
 import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import Data.String (IsString (..))
@@ -31,13 +30,14 @@ instance IsString SchemaTag where
 
 data Node = Node
   { schema :: SchemaTag
+  , anchor :: Maybe Anchor
   , value :: Value
   }
   deriving (Eq)
 instance Show Node where
-  show (Node st v) = show st ++ show v
+  show (Node st _ v) = show st ++ show v
 instance IsString Node where
-  fromString s = Node mempty $ String $ pack s
+  fromString s = Node mempty Nothing $ String $ pack s
 
 
 -- We can't use Aeson's Value, because it doesn't support tags, binary data, or references
@@ -50,8 +50,8 @@ data Value
     NDArray !NDArrayData
   | Array ![Node]
   | Object !Object
-  | ExternalRef !Reference
-  | InternalRef !Pointer
+  | Reference !JSONReference
+  | Alias !Anchor
   | Null
   deriving (Show, Eq)
 instance IsString Value where
@@ -73,35 +73,34 @@ type Object = [(Key, Node)]
 
 -- | Makes a node from a value
 fromValue :: Value -> Node
-fromValue = Node mempty
+fromValue = Node mempty Nothing
 
 
+-- | Root Object with all anchors resolved
 newtype Tree = Tree Object
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Semigroup, Monoid, Show)
 
 
 -- always $ref: uri#path
-data Reference = Reference
+data JSONReference = JSONReference
   { uri :: Text
-  , pointer :: Pointer
+  , pointer :: JSONPointer
   }
   deriving (Eq)
-instance Show Reference where
+instance Show JSONReference where
   show ref = unpack ref.uri ++ show ref.pointer
 
 
-reference :: Text -> Maybe Reference
-reference t = do
-  [uri, rest] <- pure $ T.split (== '#') t
-  guard (not $ T.null uri)
-  let point = pointer rest
-  pure $ Reference uri point
+jsonReference :: Text -> JSONReference
+jsonReference t =
+  let (uri, rest) = T.breakOn "#" t
+   in JSONReference uri (jsonPointer rest)
 
 
-pointer :: Text -> Pointer
-pointer t =
+jsonPointer :: Text -> JSONPointer
+jsonPointer t =
   let segs = filter (not . T.null) $ T.splitOn "/" $ T.dropWhile (== '#') t
-   in Pointer $ Path (fmap ref segs)
+   in JSONPointer $ Path (fmap ref segs)
  where
   ref :: Text -> Ref
   ref s = fromMaybe (Child s) $ do
@@ -109,10 +108,25 @@ pointer t =
     pure $ Index n
 
 
-newtype Pointer = Pointer Path
+newtype JSONPointer = JSONPointer Path
   deriving (Eq)
-instance Show Pointer where
-  show (Pointer ps) = "#/" ++ show ps
+instance Show JSONPointer where
+  show (JSONPointer ps) = "#/" ++ show ps
+
+
+newtype Anchor = Anchor {anchor :: Text}
+  deriving (Show, Eq)
+  deriving newtype (IsString)
+
+
+newtype Anchors = Anchors [(Anchor, Value)]
+  deriving (Show, Eq)
+  deriving newtype (Monoid, Semigroup)
+
+-- data AsdfDocument = AsdfDocument
+--   { tree :: Tree
+--   , anchors :: Anchors
+--   }
 
 --
 -- pure $ Reference uri _

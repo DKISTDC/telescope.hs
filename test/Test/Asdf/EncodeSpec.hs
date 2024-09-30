@@ -17,7 +17,6 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.Error
 import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
-import Telescope.Asdf.Reference
 import Telescope.Data.Parser (expected)
 import Test.Asdf.ClassSpec (expectObject)
 
@@ -31,37 +30,50 @@ spec = do
   describe "stream" streamSpec
   describe "external verification" externalSpec
   describe "references" referenceSpec
+  describe "anchors" anchorSpec
+
+
+anchorSpec :: Spec
+anchorSpec = withMarkers ["focus"] $ do
+  it "should encode an alias" $ do
+    let alias = Alias $ Anchor "something" :: Value
+    (out, _) <- runAsdfM . encodeNode $ Node mempty Nothing alias
+    out `shouldBe` "*something\n"
+
+  it "should encode an anchor" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "woot") "hello"
+    out `shouldBe` "&woot 'hello'\n"
 
 
 referenceSpec :: Spec
 referenceSpec = do
   it "should encode a pointer" $ do
-    let ref = InternalRef (pointer "#/users/1/name")
-    (out, _) <- runAsdfM . encodeNode $ toNode ref
+    let ref = JSONReference mempty (jsonPointer "#/users/1/name")
+    (out, _) <- runAsdfM . encodeNode $ toNode $ Reference ref
     out `shouldBe` "{$ref: '#/users/1/name'}\n"
 
   it "should encode a reference" $ do
-    let ref = ExternalRef (Reference "https://woot.com/" (pointer "#/users/1/name"))
-    (out, _) <- runAsdfM . encodeNode $ toNode ref
+    let ref = JSONReference "https://woot.com/" (jsonPointer "#/users/1/name")
+    (out, _) <- runAsdfM . encodeNode $ toNode $ Reference ref
     out `shouldBe` "{$ref: 'https://woot.com/#/users/1/name'}\n"
 
   it "should roundtrip reference" $ do
-    let ref = InternalRef (pointer "#/users/1/name")
+    let ref = Reference $ JSONReference mempty (jsonPointer "#/users/1/name")
     let tree = Object [("username", toNode ref)]
     out <- encodeM tree
     obj <- decodeM @Value out >>= expectObject
-    lookup "username" obj `shouldBe` Just (Node mempty ref)
+    lookup "username" obj `shouldBe` Just (Node mempty Nothing ref)
 
-  it "should rountrip and resolve references" $ do
-    let pn = PointyName "pip"
-    toValue pn `shouldBe` InternalRef (pointer "/names/2")
 
-    let pd = PointyData pn ["bob", "pip", "will"]
-    out <- encodeM pd
-    pd2 <- decodeM @PointyData out
-
-    pd2.other `shouldBe` PointyName "will"
-
+-- it "should rountrip and resolve references" $ do
+--   let pn = PointyName "pip"
+--   toValue pn `shouldBe` InternalRef (pointer "/names/2")
+--
+--   let pd = PointyData pn ["bob", "pip", "will"]
+--   out <- encodeM pd
+--   pd2 <- decodeM @PointyData out
+--
+--   pd2.other `shouldBe` PointyName "will"
 
 basicSpec :: Spec
 basicSpec = do
@@ -234,23 +246,22 @@ data SomeData = SomeData
   }
   deriving (Generic, ToAsdf, FromAsdf)
 
-
 -- TEST: round trip file parts
 -- TEST: round trip is the only good way
 
-data PointyData = PointyData
-  { other :: PointyName
-  , names :: [Text]
-  }
-  deriving (Generic, FromAsdf, ToAsdf, Show, Eq)
-
-
-newtype PointyName = PointyName Text
-  deriving (Show, Eq)
-instance ToAsdf PointyName where
-  toValue (PointyName _) = InternalRef (pointer "/names/2")
-instance FromAsdf PointyName where
-  parseValue = \case
-    String s -> pure $ PointyName s
-    InternalRef p -> parsePointer p
-    other -> expected "PointyName Ref" other
+-- data PointyData = PointyData
+--   { other :: PointyName
+--   , names :: [Text]
+--   }
+--   deriving (Generic, FromAsdf, ToAsdf, Show, Eq)
+--
+--
+-- newtype PointyName = PointyName Text
+--   deriving (Show, Eq)
+-- instance ToAsdf PointyName where
+--   toValue (PointyName _) = InternalRef (pointer "/names/2")
+-- instance FromAsdf PointyName where
+--   parseValue = \case
+--     String s -> pure $ PointyName s
+--     InternalRef p -> parsePointer p
+--     other -> expected "PointyName Ref" other

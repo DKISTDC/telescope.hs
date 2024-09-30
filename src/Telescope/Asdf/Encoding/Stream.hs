@@ -5,7 +5,8 @@ import Data.ByteString (ByteString)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.List ((!?))
-import Data.Text (Text, pack, unpack)
+import Data.String (fromString)
+import Data.Text (pack, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
 import Data.Text.Encoding qualified as T
@@ -15,13 +16,13 @@ import Effectful.NonDet
 import Effectful.Reader.Dynamic
 import Effectful.Resource
 import Effectful.State.Static.Local
-import Telescope.Asdf.Class
-import Telescope.Asdf.Core
+import Effectful.Writer.Static.Local
+import Telescope.Asdf.Class hiding (anchor)
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
-import Telescope.Data.Parser (ParseError, runParser, runPureParser)
+import Telescope.Data.Parser (runPureParser)
 import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
@@ -38,8 +39,8 @@ runStreamList con = do
   pure res
 
 
-yieldDocument :: (State [BlockData] :> es, IOE :> es) => ConduitT a Event (Eff es) () -> ConduitT a Event (Eff es) ()
-yieldDocument content = do
+yieldDocumentStream :: (State [BlockData] :> es, IOE :> es) => ConduitT a Event (Eff es) () -> ConduitT a Event (Eff es) ()
+yieldDocumentStream content = do
   yield EventStreamStart
   yield EventDocumentStart
   content
@@ -48,7 +49,7 @@ yieldDocument content = do
 
 
 yieldNode :: forall es a. (IOE :> es, State [BlockData] :> es) => Node -> ConduitT a Event (Eff es) ()
-yieldNode (Node st val) = do
+yieldNode (Node st anc val) = do
   case val of
     Object o -> yieldObject o
     Array a -> yieldArray a
@@ -59,15 +60,23 @@ yieldNode (Node st val) = do
     Bool b -> yieldBool b
     Number n -> yieldNum n
     Null -> yieldScalar "~"
-    InternalRef p -> yieldObject [("$ref", toNode $ String (pack $ show p))]
-    ExternalRef ref -> yieldObject [("$ref", toNode $ String (pack $ show ref))]
+    Reference r -> yieldObject [("$ref", toNode $ String (pack $ show r))]
+    Alias a -> yieldAlias a
  where
+  anchor :: Yaml.Anchor
+  anchor =
+    case anc of
+      Nothing -> Nothing
+      (Just (Anchor a)) -> pure (unpack a)
+
   tag = case st of
     SchemaTag Nothing -> NoTag
     SchemaTag (Just s) -> UriTag (unpack s)
 
-  yieldScalar s = yield $ EventScalar s tag Plain Nothing
-  yieldEmptyString = yield $ EventScalar "" tag SingleQuoted Nothing
+  yieldScalar s = yield $ EventScalar s tag Plain anchor
+  yieldEmptyString = yield $ EventScalar "" tag SingleQuoted anchor
+
+  yieldAlias (Anchor a) = yield $ EventAlias (unpack a)
 
   yieldNum :: (Num n, Show n) => n -> ConduitT a Event (Eff es) ()
   yieldNum n = yieldScalar (T.encodeUtf8 $ pack $ show n)
@@ -78,7 +87,7 @@ yieldNode (Node st val) = do
 
   yieldObject :: [(Key, Node)] -> ConduitT a Event (Eff es) ()
   yieldObject o = do
-    yield $ EventMappingStart tag blockStyle Nothing
+    yield $ EventMappingStart tag blockStyle anchor
     mapM_ yieldMapping o
     yield EventMappingEnd
    where
@@ -88,12 +97,12 @@ yieldNode (Node st val) = do
 
   yieldMapping :: (Key, Node) -> ConduitT a Event (Eff es) ()
   yieldMapping (key, node) = do
-    yield $ EventScalar (T.encodeUtf8 key) NoTag Plain Nothing
+    yield $ EventScalar (T.encodeUtf8 key) NoTag Plain anchor
     yieldNode node
 
   yieldArray :: [Node] -> ConduitT a Event (Eff es) ()
   yieldArray ns = do
-    yield $ EventSequenceStart tag seqStyle Nothing
+    yield $ EventSequenceStart tag seqStyle anchor
     mapM_ yieldNode ns
     yield EventSequenceEnd
    where
@@ -104,7 +113,7 @@ yieldNode (Node st val) = do
   yieldNDArray :: NDArrayData -> ConduitT a Event (Eff es) ()
   yieldNDArray nd = do
     src <- lift $ addBlock nd.bytes
-    yield $ EventMappingStart (UriTag "!core/ndarray-1.0.0") FlowMapping Nothing
+    yield $ EventMappingStart (UriTag "!core/ndarray-1.0.0") FlowMapping anchor
     yieldMapping ("source", toNode src)
     yieldMapping ("datatype", toNode nd.datatype)
     yieldMapping ("shape", toNode nd.shape)
@@ -120,7 +129,7 @@ addBlock bytes = do
 
 
 isComplexNode :: Node -> Bool
-isComplexNode (Node _ val) = isComplex val
+isComplexNode (Node _ _ val) = isComplex val
  where
   isComplex = \case
     Array _ -> True
@@ -129,39 +138,43 @@ isComplexNode (Node _ val) = isComplex val
     _ -> False
 
 
--- Sink Decoding
-
-sinkAsdf :: (Error YamlError :> es, Error ParseError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Asdf
-sinkAsdf = do
-  Tree tree <- sinkTree
-  lift $ runParser $ runReader @Tree (Tree tree) $ parseValue $ Object tree
-
-
-sinkTree :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Tree
+sinkTree :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
 sinkTree = do
   expect EventStreamStart
   expect EventDocumentStart
-  Node _ v <- sinkNode
+  Node _ _ v <- sinkNode
   case v of
-    Object o -> pure $ Tree o
+    Object o -> pure o
     _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
-sinkNode :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
+sinkNode :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
   e <- event
-  case e of
-    EventScalar s t _ _ -> lift $ parseScalar s t
-    EventMappingStart tg _ _ -> do
+  node <- sinkByEvent e
+  lift $ writeAnchor node
+  pure node
+ where
+  sinkByEvent = \case
+    EventScalar s t _ a ->
+      lift $ parseScalar (fromString <$> a) s t
+    EventMappingStart tg _ a -> do
       let stag = parseSchemaTag tg
       maps <- sinkMappings
       val <- lift $ fromMappings stag maps
-      pure $ Node stag val
-    EventSequenceStart tg _ _ -> do
+      pure $ Node stag (fromString <$> a) val
+    EventSequenceStart tg _ a -> do
       ns <- sinkSequence
-      pure $ Node (parseSchemaTag tg) $ Array ns
+      pure $ Node (parseSchemaTag tg) (fromString <$> a) $ Array ns
+    EventAlias a ->
+      pure $ Node mempty Nothing $ Alias (Anchor $ pack a)
     ev -> lift $ throwError $ ExpectedEvent "Not Handled" ev
- where
+
+  writeAnchor n =
+    case n.anchor of
+      Nothing -> pure ()
+      Just a -> tell $ Anchors [(a, n.value)]
+
   fromMappings :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => SchemaTag -> [(Key, Node)] -> Eff es Value
   fromMappings stag maps = do
     res <- runNonDet OnEmptyKeep (tryNDArray stag maps <|> tryReference maps) :: Eff es (Either CallStack Value)
@@ -178,12 +191,8 @@ sinkNode = do
   tryReference maps = do
     case lookup "$ref" maps of
       Nothing -> empty
-      Just (Node _ (String s)) -> pure $ parseReference s
-      Just (Node _ value) -> throwError $ InvalidReference value
-
-  parseReference :: Text -> Value
-  parseReference t =
-    maybe (InternalRef $ pointer t) ExternalRef $ reference t
+      Just (Node _ _ (String s)) -> pure $ Reference $ jsonReference s
+      Just (Node _ _ value) -> throwError $ InvalidReference value
 
 
 ndArrayDataFromMaps :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => [(Key, Node)] -> Eff es NDArrayData
@@ -197,7 +206,7 @@ ndArrayDataFromMaps maps = do
   require key =
     case lookup key maps of
       Nothing -> throwError $ NDArrayMissingKey (unpack key)
-      Just (Node _ val) -> pure val
+      Just (Node _ _ val) -> pure val
 
   parseDatatype = parseLocal "DataType"
   parseByteorder = parseLocal "ByteOrder"
@@ -222,12 +231,12 @@ ndArrayDataFromMaps maps = do
 
   parseLocal :: (FromAsdf a, Error YamlError :> es) => String -> Value -> Eff es a
   parseLocal expected val =
-    case runPureParser . runReader @Tree mempty $ parseValue val of
+    case runPureParser . runReader @Anchors mempty $ parseValue val of
       Left _ -> throwError $ NDArrayExpected expected val
       Right a -> pure a
 
 
-sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) (Key, Node)
+sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es, Writer Anchors :> es) => ConduitT Event o (Eff es) (Key, Node)
 sinkMapping = do
   k <- sinkMapKey
   v <- sinkNode
@@ -240,7 +249,7 @@ sinkMapping = do
 
 
 -- we don't have to parse this into an object...
-sinkMappings :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
+sinkMappings :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
 sinkMappings = do
   sinkWhile (/= EventMappingEnd) sinkMapping
 
@@ -260,23 +269,29 @@ sinkWhile p parse = do
       pure []
 
 
-sinkSequence :: (Error YamlError :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [Node]
+sinkSequence :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [Node]
 sinkSequence = do
   sinkWhile (/= EventSequenceEnd) sinkNode
 
 
-parseScalar :: (Error YamlError :> es) => ByteString -> Yaml.Tag -> Eff es Node
-parseScalar inp tg = byTag tg
+parseScalar :: (Error YamlError :> es) => Maybe Anchor -> ByteString -> Yaml.Tag -> Eff es Node
+parseScalar ma inp tg = byTag tg
  where
   byTag :: (Error YamlError :> es) => Yaml.Tag -> Eff es Node
   byTag = \case
-    StrTag -> fromValue <$> parseStr inp -- always succeeds
-    FloatTag -> throwEmpty "Float" $ fromValue <$> parseFloat inp
-    IntTag -> throwEmpty "Int" $ fromValue <$> parseInt inp
-    NullTag -> pure $ fromValue Null
-    BoolTag -> throwEmpty "Bool" $ fromValue <$> parseBool inp
-    UriTag s -> throwEmpty "Any" $ Node (schemaTag s) <$> parseMulti inp
-    NoTag -> throwEmpty "Any" $ fromValue <$> parseMulti inp
+    UriTag s -> throwEmpty "Any" $ Node (schemaTag s) ma <$> parseMulti inp
+    other -> do
+      val <- nonUriTagValue other
+      pure $ Node mempty ma val
+
+  nonUriTagValue :: (Error YamlError :> es) => Yaml.Tag -> Eff es Value
+  nonUriTagValue = \case
+    StrTag -> parseStr inp -- always succeeds
+    FloatTag -> throwEmpty "Float" $ parseFloat inp
+    IntTag -> throwEmpty "Int" $ parseInt inp
+    NullTag -> pure Null
+    BoolTag -> throwEmpty "Bool" $ parseBool inp
+    NoTag -> throwEmpty "Any" $ parseMulti inp
     _ -> throwError $ InvalidScalarTag tg inp
 
   parseBool "true" = pure $ Bool True

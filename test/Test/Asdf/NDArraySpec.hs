@@ -23,7 +23,7 @@ spec = do
     pure ()
 
   it "should parse NDArrayData" $ do
-    ExampleTreeFix tree <- getFixture
+    ExampleTreeFix (Tree tree) <- getFixture
     nd <- expectNDArray $ lookup "sequence" tree
     nd.byteorder `shouldBe` LittleEndian
     nd.datatype `shouldBe` Int64
@@ -31,7 +31,7 @@ spec = do
     BS.length nd.bytes `shouldBe` (100 * byteSize @Int64)
 
   it "should contain data" $ do
-    ExampleTreeFix tree <- getFixture
+    ExampleTreeFix (Tree tree) <- getFixture
     nd <- expectNDArray $ lookup "sequence" tree
     decodeNums nd.bytes `shouldBe` [0 :: Int64 .. 99]
  where
@@ -41,5 +41,5 @@ spec = do
 
 expectNDArray :: Maybe Node -> IO NDArrayData
 expectNDArray = \case
-  Just (Node _ (NDArray dat)) -> pure dat
+  Just (Node _ _ (NDArray dat)) -> pure dat
   n -> fail $ "Expected NDArray, but got: " ++ show n
