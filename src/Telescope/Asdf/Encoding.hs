@@ -10,7 +10,6 @@ import Effectful.Error.Static
 import Effectful.Reader.Dynamic
 import Effectful.Resource
 import Effectful.State.Static.Local
-import Effectful.Writer.Static.Local
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.Encoding.File
@@ -82,42 +81,15 @@ decodeFromTree (Tree o) = do
 
 parseAsdfTree :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es Tree
 parseAsdfTree etree eblks = do
-  (root, anchors) <- streamAsdfFile etree eblks
-  resolveAnchors anchors root
+  (root, _) <- streamAsdfFile etree eblks
+  pure $ Tree root
 
 
 streamAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es (Object, Anchors)
 streamAsdfFile (Encoded inp) ebks = do
   blocks <- mapM decodeBlock ebks
   runParseError . runYamlError $ do
-    runReader blocks . runWriter . runResource . runConduit $ Yaml.decode inp .| sinkTree
-
-
-resolveAnchors :: (Error AsdfError :> es) => Anchors -> Object -> Eff es Tree
-resolveAnchors (Anchors anchors) root = do
-  ores <- mapM resolveObjectKey root
-  pure $ Tree ores
- where
-  resolveAnchor :: (Error AsdfError :> es) => Anchor -> Eff es Value
-  resolveAnchor anc = do
-    case lookup anc anchors of
-      Nothing -> throwError $ MissingAnchor anc (Anchors anchors)
-      Just v -> pure v
-
-  resolveValue :: (Error AsdfError :> es) => Value -> Eff es Value
-  resolveValue = \case
-    Alias anc -> resolveAnchor anc
-    Array ns -> Array <$> mapM resolveNode ns
-    Object o -> Object <$> mapM resolveObjectKey o
-    val -> pure val
-
-  resolveNode (Node s a v) = do
-    val <- resolveValue v
-    pure $ Node s a val
-
-  resolveObjectKey (k, n) = do
-    nres <- resolveNode n
-    pure (k, nres)
+    runReader blocks . runState @Anchors mempty . runResource . runConduit $ Yaml.decode inp .| sinkTree
 
 
 decodeBlock :: (Error AsdfError :> es) => Encoded Block -> Eff es BlockData

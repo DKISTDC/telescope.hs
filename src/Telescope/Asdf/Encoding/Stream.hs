@@ -16,7 +16,6 @@ import Effectful.NonDet
 import Effectful.Reader.Dynamic
 import Effectful.Resource
 import Effectful.State.Static.Local
-import Effectful.Writer.Static.Local
 import Telescope.Asdf.Class hiding (anchor)
 import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.NDArray (NDArrayData (..))
@@ -138,7 +137,7 @@ isComplexNode (Node _ _ val) = isComplex val
     _ -> False
 
 
-sinkTree :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
+sinkTree :: (Error YamlError :> es, State Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Object
 sinkTree = do
   expect EventStreamStart
   expect EventDocumentStart
@@ -148,11 +147,17 @@ sinkTree = do
     _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
-sinkNode :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
+-- resolveAnchors :: (Error AsdfError :> es) => Anchors -> Object -> Eff es Tree
+-- resolveAnchors (Anchors anchors) root = do
+--   ores <- mapM resolveObjectKey root
+--   pure $ Tree ores
+--  where
+
+sinkNode :: (Error YamlError :> es, State Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
   e <- event
   node <- sinkByEvent e
-  lift $ writeAnchor node
+  lift $ addAnchor node
   pure node
  where
   sinkByEvent = \case
@@ -166,14 +171,15 @@ sinkNode = do
     EventSequenceStart tg _ a -> do
       ns <- sinkSequence
       pure $ Node (parseSchemaTag tg) (fromString <$> a) $ Array ns
-    EventAlias a ->
-      pure $ Node mempty Nothing $ Alias (Anchor $ pack a)
+    EventAlias a -> do
+      val <- lift $ resolveAnchor (Anchor $ pack a)
+      pure $ Node mempty Nothing val
     ev -> lift $ throwError $ ExpectedEvent "Not Handled" ev
 
-  writeAnchor n =
+  addAnchor n =
     case n.anchor of
       Nothing -> pure ()
-      Just a -> tell $ Anchors [(a, n.value)]
+      Just a -> modify (Anchors [(a, n.value)] <>)
 
   fromMappings :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => SchemaTag -> [(Key, Node)] -> Eff es Value
   fromMappings stag maps = do
@@ -193,6 +199,13 @@ sinkNode = do
       Nothing -> empty
       Just (Node _ _ (String s)) -> pure $ Reference $ jsonReference s
       Just (Node _ _ value) -> throwError $ InvalidReference value
+
+  resolveAnchor :: (State Anchors :> es, Error YamlError :> es) => Anchor -> Eff es Value
+  resolveAnchor anc = do
+    Anchors anchors <- get @Anchors
+    case lookup anc anchors of
+      Nothing -> throwError $ AnchorMissing anc (Anchors anchors)
+      Just v -> pure v
 
 
 ndArrayDataFromMaps :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => [(Key, Node)] -> Eff es NDArrayData
@@ -236,7 +249,7 @@ ndArrayDataFromMaps maps = do
       Right a -> pure a
 
 
-sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es, Writer Anchors :> es) => ConduitT Event o (Eff es) (Key, Node)
+sinkMapping :: (Error YamlError :> es, Reader [BlockData] :> es, State Anchors :> es) => ConduitT Event o (Eff es) (Key, Node)
 sinkMapping = do
   k <- sinkMapKey
   v <- sinkNode
@@ -249,7 +262,7 @@ sinkMapping = do
 
 
 -- we don't have to parse this into an object...
-sinkMappings :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
+sinkMappings :: (Error YamlError :> es, State Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [(Key, Node)]
 sinkMappings = do
   sinkWhile (/= EventMappingEnd) sinkMapping
 
@@ -269,7 +282,7 @@ sinkWhile p parse = do
       pure []
 
 
-sinkSequence :: (Error YamlError :> es, Writer Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [Node]
+sinkSequence :: (Error YamlError :> es, State Anchors :> es, Reader [BlockData] :> es) => ConduitT Event o (Eff es) [Node]
 sinkSequence = do
   sinkWhile (/= EventSequenceEnd) sinkNode
 
@@ -364,6 +377,7 @@ data YamlError
   | NDArrayMissingBlock Integer
   | NDArrayExpected String Value
   | InvalidReference Value
+  | AnchorMissing Anchor Anchors
   deriving (Show)
 
 
