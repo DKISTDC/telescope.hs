@@ -27,12 +27,12 @@ import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
 
 
-runStream :: (IOE :> es) => ConduitT () Void (Eff (State [BlockData] : Resource : es)) a -> Eff es (a, [BlockData])
+runStream :: (IOE :> es) => ConduitT () Void (Eff (State Anchors : State [BlockData] : Resource : es)) a -> Eff es (a, [BlockData])
 runStream con = do
-  runResource . runState @[BlockData] [] . runConduit $ con
+  runResource . runState @[BlockData] [] . evalState @Anchors mempty . runConduit $ con
 
 
-runStreamList :: (IOE :> es) => ConduitT () Event (Eff (State [BlockData] : Resource : es)) () -> Eff es [Event]
+runStreamList :: (IOE :> es) => ConduitT () Event (Eff (State Anchors : State [BlockData] : Resource : es)) () -> Eff es [Event]
 runStreamList con = do
   (res, _) <- runStream $ con .| sinkList
   pure res
@@ -47,9 +47,12 @@ yieldDocumentStream content = do
   yield EventStreamEnd
 
 
-yieldNode :: forall es a. (IOE :> es, State [BlockData] :> es) => Node -> ConduitT a Event (Eff es) ()
-yieldNode (Node st anc val) = do
-  case val of
+yieldNode :: forall es a. (IOE :> es, State [BlockData] :> es, State Anchors :> es, Error YamlError :> es) => Node -> ConduitT a Event (Eff es) ()
+yieldNode node@(Node st anc val) = do
+  lift $ addNodeAnchor node
+  yieldValue val
+ where
+  yieldValue = \case
     Object o -> yieldObject o
     Array a -> yieldArray a
     String "" -> yieldEmptyString
@@ -61,7 +64,7 @@ yieldNode (Node st anc val) = do
     Null -> yieldScalar "~"
     Reference r -> yieldObject [("$ref", toNode $ String (pack $ show r))]
     Alias a -> yieldAlias a
- where
+
   anchor :: Yaml.Anchor
   anchor =
     case anc of
@@ -75,7 +78,9 @@ yieldNode (Node st anc val) = do
   yieldScalar s = yield $ EventScalar s tag Plain anchor
   yieldEmptyString = yield $ EventScalar "" tag SingleQuoted anchor
 
-  yieldAlias (Anchor a) = yield $ EventAlias (unpack a)
+  yieldAlias (Anchor a) = do
+    _ <- lift $ resolveAnchor (Anchor a)
+    yield $ EventAlias (unpack a)
 
   yieldNum :: (Num n, Show n) => n -> ConduitT a Event (Eff es) ()
   yieldNum n = yieldScalar (T.encodeUtf8 $ pack $ show n)
@@ -95,9 +100,9 @@ yieldNode (Node st anc val) = do
       | otherwise = FlowMapping
 
   yieldMapping :: (Key, Node) -> ConduitT a Event (Eff es) ()
-  yieldMapping (key, node) = do
+  yieldMapping (key, nd) = do
     yield $ EventScalar (T.encodeUtf8 key) NoTag Plain Nothing
-    yieldNode node
+    yieldNode nd
 
   yieldArray :: [Node] -> ConduitT a Event (Eff es) ()
   yieldArray ns = do
@@ -147,17 +152,11 @@ sinkTree = do
     _ -> lift $ throwError $ InvalidTree "Expected Object" v
 
 
--- resolveAnchors :: (Error AsdfError :> es) => Anchors -> Object -> Eff es Tree
--- resolveAnchors (Anchors anchors) root = do
---   ores <- mapM resolveObjectKey root
---   pure $ Tree ores
---  where
-
 sinkNode :: (Error YamlError :> es, State Anchors :> es, Reader [BlockData] :> es) => ConduitT Yaml.Event o (Eff es) Node
 sinkNode = do
   e <- event
   node <- sinkByEvent e
-  lift $ addAnchor node
+  lift $ addNodeAnchor node
   pure node
  where
   sinkByEvent = \case
@@ -175,11 +174,6 @@ sinkNode = do
       val <- lift $ resolveAnchor (Anchor $ pack a)
       pure $ Node mempty Nothing val
     ev -> lift $ throwError $ ExpectedEvent "Not Handled" ev
-
-  addAnchor n =
-    case n.anchor of
-      Nothing -> pure ()
-      Just a -> modify (Anchors [(a, n.value)] <>)
 
   fromMappings :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => SchemaTag -> [(Key, Node)] -> Eff es Value
   fromMappings stag maps = do
@@ -200,12 +194,13 @@ sinkNode = do
       Just (Node _ _ (String s)) -> pure $ Reference $ jsonReference s
       Just (Node _ _ value) -> throwError $ InvalidReference value
 
-  resolveAnchor :: (State Anchors :> es, Error YamlError :> es) => Anchor -> Eff es Value
-  resolveAnchor anc = do
-    Anchors anchors <- get @Anchors
-    case lookup anc anchors of
-      Nothing -> throwError $ AnchorMissing anc (Anchors anchors)
-      Just v -> pure v
+
+resolveAnchor :: (State Anchors :> es, Error YamlError :> es) => Anchor -> Eff es Value
+resolveAnchor anc = do
+  Anchors anchors <- get @Anchors
+  case lookup anc anchors of
+    Nothing -> throwError $ AnchorUndefined anc (fmap fst anchors)
+    Just v -> pure v
 
 
 ndArrayDataFromMaps :: forall es. (Error YamlError :> es, Reader [BlockData] :> es) => [(Key, Node)] -> Eff es NDArrayData
@@ -377,7 +372,7 @@ data YamlError
   | NDArrayMissingBlock Integer
   | NDArrayExpected String Value
   | InvalidReference Value
-  | AnchorMissing Anchor Anchors
+  | AnchorUndefined Anchor [Anchor]
   deriving (Show)
 
 
@@ -405,3 +400,10 @@ sinkIndex = do
           Just n -> pure n
           Nothing -> lift $ throwError $ InvalidScalar "Int Index Entry" t s
       _ -> lift $ throwError $ ExpectedEvent "Scalar Int" e
+
+
+addNodeAnchor :: (State Anchors :> es) => Node -> Eff es ()
+addNodeAnchor n =
+  case n.anchor of
+    Nothing -> pure ()
+    Just a -> modify (Anchors [(a, n.value)] <>)

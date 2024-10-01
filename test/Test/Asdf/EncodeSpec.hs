@@ -37,14 +37,15 @@ spec = do
 
 anchorSpec :: Spec
 anchorSpec = withMarkers ["focus"] $ do
-  it "should encode an alias" $ do
-    let alias = Alias $ Anchor "something" :: Value
-    (out, _) <- runAsdfM . encodeNode $ Node mempty Nothing alias
-    out `shouldBe` "*something\n"
-
   it "should encode an anchor" $ do
     (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "woot") "hello"
     out `shouldBe` "&woot 'hello'\n"
+
+  it "should encode an alias" $ do
+    let alias = toNode $ Alias $ Anchor "something" :: Node
+    let anc = Node mempty (Just "something") "something"
+    (out, _) <- runAsdfM . encodeNode $ toNode $ Array [anc, alias]
+    out `shouldBe` "[&something 'something', *something]\n"
 
   it "should not encode anchors to mappings" $ do
     (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "thing") (Object [("hello", "world")])
@@ -57,6 +58,10 @@ anchorSpec = withMarkers ["focus"] $ do
     let outt = T.decodeUtf8 out
     length (T.splitOn "&thing" outt) `shouldBe` 2
     out `shouldBe` "&thing [one, two]\n"
+
+  it "should throw if alias before anchor" $ do
+    let vals = [toNode $ Alias "two", Node mempty (Just "two") "two"]
+    runAsdfM (encodeNode $ toNode (Array vals)) `shouldSatisfy` P.throws @AsdfError P.anything
 
 
 referenceSpec :: Spec

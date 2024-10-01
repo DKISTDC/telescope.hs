@@ -115,8 +115,8 @@ instance Show JSONPointer where
 
 
 newtype Anchor = Anchor {anchor :: Text}
-  deriving (Show, Eq)
-  deriving newtype (IsString)
+  deriving (Eq)
+  deriving newtype (IsString, Show)
 
 
 newtype Anchors = Anchors [(Anchor, Value)]

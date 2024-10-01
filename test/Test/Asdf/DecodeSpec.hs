@@ -68,24 +68,27 @@ data Example = Example
 anchorSpec :: Spec
 anchorSpec = withMarkers ["focus"] $ do
   it "should create anchors" $ do
-    let root = [("hello", Node mempty (Just "hello") (String "world"))] :: Object
-    out <- runAsdfM $ encode (Object root)
+    let Encoded out = encodeTree "{hello: &hello world}"
     f <- runAsdfM $ splitAsdfFile out
     (_, ancs) <- runAsdfM $ streamAsdfFile f.tree f.blocks
     ancs `shouldBe` Anchors [("hello", String "world")]
 
   it "should throw missing anchors" $ do
-    let root = [("message", toNode $ Alias "hello")]
-    out <- runAsdfM $ encode (Object root)
-    f <- runAsdfM $ splitAsdfFile out
+    f <- runAsdfM $ do
+      let tree = encodeTree "{message: *somealias}"
+      pure $ AsdfFile tree mempty ""
     runAsdfM (streamAsdfFile f.tree f.blocks) `shouldSatisfy` P.throws @AsdfError P.anything
 
   it "should throw if alias before anchor" $ do
-    let root = [("message", toNode $ Alias "hello"), ("hello", Node mempty (Just "hello") (String "world"))] :: Object
-    out <- runAsdfM $ encode (Object root)
+    let Encoded out = encodeTree "{message: *hello, hello: &hello world}"
     decodeM @Tree out `shouldSatisfy` P.throws @AsdfError P.anything
 
-  it "should decode anchors" $ do
+  it "should succeed if anchor before alias" $ do
+    let Encoded out = encodeTree "{hello: &hello world, message: *hello}"
+    Tree tree <- decodeM @Tree out
+    lookup "message" tree `shouldBe` Just "world"
+
+  it "should decode anchors roundtrip" $ do
     let root = [("hello", Node mempty (Just "hello") (String "world")), ("message", toNode $ Alias "hello")] :: Object
     out <- runAsdfM $ encode (Object root)
     Tree tree <- decodeM @Tree out

@@ -41,7 +41,7 @@ encodeAsdf a = do
   pure $ AsdfFile{tree, blocks, index}
 
 
-encodeStream :: (IOE :> es, Error AsdfError :> es) => ConduitT () Yaml.Event (Eff (State [BlockData] : Resource : es)) () -> Eff es (ByteString, [BlockData])
+encodeStream :: (IOE :> es, Error AsdfError :> es) => ConduitT () Yaml.Event (Eff (State Anchors : State [BlockData] : Resource : es)) () -> Eff es (ByteString, [BlockData])
 encodeStream con = do
   runStream $ con .| Yaml.encodeWith format
  where
@@ -54,7 +54,7 @@ encodeStream con = do
 -- | Low-level encoding of a node to a yaml tree, without required headers, etc. For testing and debugging
 encodeNode :: (IOE :> es, Error AsdfError :> es) => Node -> Eff es (ByteString, [BlockData])
 encodeNode node = do
-  encodeStream (yieldDocumentStream $ yieldNode node)
+  runYamlError $ encodeStream (yieldDocumentStream $ yieldNode node)
 
 
 decodeM :: (FromAsdf a, MonadIO m, MonadThrow m) => ByteString -> m a
