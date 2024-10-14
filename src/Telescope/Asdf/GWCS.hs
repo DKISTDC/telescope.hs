@@ -6,6 +6,8 @@ module Telescope.Asdf.GWCS where
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
+import Data.Massiv.Array (Array, Ix1, Ix2)
+import Data.Massiv.Array qualified as M
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
@@ -123,27 +125,15 @@ instance (ToAxes a) => ToAxes (Scl a) where
 instance (ToAxes a) => ToAxes (Dlt a) where
   toAxes = fmap ("+" <>) (toAxes @a)
 instance (ToAxes a) => ToAxes (Rot a) where
-  toAxes = fmap ("r" <>) (toAxes @a)
+  toAxes = fmap ("rot_" <>) (toAxes @a)
+instance (ToAxes a) => ToAxes (Linear a) where
+  toAxes = fmap ("lin_" <>) (toAxes @a)
 
 
 data Phi deriving (Generic, ToAxes)
 data Theta deriving (Generic, ToAxes)
 data Alpha deriving (Generic, ToAxes)
 data Delta deriving (Generic, ToAxes)
-
-
-shift :: forall a f. (ToAxes (f a)) => Double -> Transform (f a) (Dlt a)
-shift d = transform $ Shift d
-
-
-scale :: forall a f. (ToAxes (f a)) => Double -> Transform (f a) (Scl a)
-scale d = transform $ Scale d
-
-
-linear :: forall a. (ToAxes a) => Shift -> Scale -> Transform (Pix a) (Linear a)
-linear (Shift dlt) (Scale scl) =
-  let t = shift dlt |> scale scl :: Transform (Pix a) (Scl a)
-   in Transform $ Transformation (toAxes @a) (toAxes @(Linear a)) t.transformation.forward
 
 
 newtype Lon = Lon Double
@@ -237,8 +227,8 @@ instance ToAsdf Transformation where
 Transform s <&> Transform t =
   Transform
     $ Transformation
-      (toAxes @(a, cs))
-      (toAxes @(b, ds))
+      (toAxes @(TConcat a cs))
+      (toAxes @(TConcat b ds))
     $ concatTransform t.inputs t.forward
  where
   concatTransform [] _ = Concat $ NE.singleton s
@@ -259,8 +249,7 @@ instance ToAsdf Direction where
 
 data Shift = Shift Double
 data Scale = Scale Double
-data Affine = Affine {matrix :: NDArrayData, translation :: NDArrayData}
-data Skip = Skip
+data Affine = Affine {matrix :: Array M.D Ix2 Double, translation :: (Double, Double)}
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
 
@@ -275,10 +264,6 @@ instance ToAsdf Scale where
   schema _ = "transform/scale-1.2.0"
   toValue (Scale d) =
     Object [("scale", toNode d)]
-
-
-instance ToAsdf Skip where
-  toValue _ = Object []
 
 
 instance ToAsdf Projection where
@@ -298,20 +283,39 @@ instance ToAsdf Rotate3d where
       ]
 
 
+instance ToAsdf Affine where
+  schema _ = "transform/affine-1.3.0"
+  toValue a =
+    Object
+      [ ("matrix", toNode $ toNDArray a.matrix)
+      , ("translation", toNode @[Double] [0, 0])
+      ]
+
+
 newtype CompositeFrame = CompositeFrame (NonEmpty CoordinateFrame)
 
-
--- data ReferenceFrame = ReferenceFrame
---   { observer :: _
---   }
-
--- class ToAxis (a :: Type) where
---   toAxis :: AxisName
 
 class ToAxes (as :: Type) where
   toAxes :: [AxisName]
   default toAxes :: (Generic as, GTypeName (Rep as)) => [AxisName]
   toAxes = [AxisName $ pack $ gtypeName (from (undefined :: as))]
+
+
+instance (ToAxes a, ToAxes b) => ToAxes (a, b) where
+  toAxes = mconcat [toAxes @a, toAxes @b]
+instance (ToAxes a, ToAxes b, ToAxes c) => ToAxes (a, b, c) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c]
+instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
+
+
+-- | Generic NodeName
+class GTypeName f where
+  gtypeName :: f p -> String
+
+
+instance (Datatype d) => GTypeName (D1 d f) where
+  gtypeName = datatypeName
 
 
 type family TConcat a b where
@@ -323,89 +327,67 @@ type family TConcat a b where
   TConcat a b = (a, b)
 
 
-instance (ToAxes a, ToAxes b) => ToAxes (a, b) where
-  toAxes = mconcat [toAxes @a, toAxes @b]
-instance (ToAxes a, ToAxes b, ToAxes c) => ToAxes (a, b, c) where
-  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c]
-instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
-  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
-
-
--- if I have a type (a), we want to convert the axes to [a]
--- what if we collapse them?
--- instance (ToAxis a) => ToAxes a where
---   toAxes = [toAxis @a]
-
--- instance (ToAxes '[a], ToAxes '[b]) => ToAxes [a, b] where
---   toAxes = toAxes @'[a] <> toAxes @'[b]
--- instance (ToAxes '[a], ToAxes '[b], ToAxes '[c]) => ToAxes [a, b, c] where
---   toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c]]
--- instance (ToAxes '[a], ToAxes '[b], ToAxes '[c], ToAxes '[d]) => ToAxes [a, b, c, d] where
---   toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c], toAxes @'[d]]
-
--- | Generic NodeName
-class GTypeName f where
-  gtypeName :: f p -> String
-
-
-instance (Datatype d) => GTypeName (D1 d f) where
-  gtypeName = datatypeName
-
-
-data OpticalDepth deriving (Generic, ToAxes)
-
-
-transformSpatial :: Transform (Pix X, Pix Y) (Alpha, Delta)
-transformSpatial = linearXY |> rotate |> project |> celestial
-
-
---  where
---   -- TODO: is this correct? I'm confused about the angles, etc
---   rotate :: Transform [Scl X, Scl Y] [Rot X, Rot Y]
---   rotate = toTransform Skip <:> toTransform Skip <:> empty
-
-project :: Transform (Rot X, Rot Y) (Phi, Theta)
-project =
-  transform $ Projection Pix2Sky
-
-
-rotate :: Transform (Linear X, Linear Y) (Rot X, Rot Y)
-rotate = _
-
-
-celestial :: Transform (Phi, Theta) (Alpha, Delta)
-celestial =
-  transform $ Rotate3d{direction = Native2Celestial, theta = Lat (-0.1130558888888889), phi = Lon (-0.1333360111111111), psi = LonPole 180.0}
-
-
--- shiftXY :: Transform [Pix X, Pix Y] [Dlt X, Dlt Y]
--- shiftXY = shift 6 <:> shift 8 <:> empty
+-- data OpticalDepth deriving (Generic, ToAxes)
 --
+--
+-- transformSpatial :: Transform (Pix X, Pix Y) (Alpha, Delta)
+-- transformSpatial = linearXY |> rotate pcMatrix |> project Pix2Sky |> celestial (Lat 1) (Lon 2) (LonPole 180)
+--  where
+--   pcMatrix :: Array M.D Ix2 Double
+--   pcMatrix = M.delay $ M.fromLists' @M.P M.Seq [[0, 1], [2, 3]]
+
+shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Double -> Transform (f a) (Dlt a)
+shift d = transform $ Shift d
+
+
+scale :: forall a f. (ToAxes (f a), ToAxes (Scl a)) => Double -> Transform (f a) (Scl a)
+scale d = transform $ Scale d
+
+
+linear :: forall a. (ToAxes a) => Shift -> Scale -> Transform (Pix a) (Linear a)
+linear (Shift dlt) (Scale scl) =
+  let t = shift dlt |> scale scl :: Transform (Pix a) (Scl a)
+   in Transform $ Transformation (toAxes @a) (toAxes @(Linear a)) t.transformation.forward
+
+
+rotate :: Array M.D Ix2 Double -> Transform (Linear X, Linear Y) (Rot (X, Y))
+rotate arr =
+  transform $ Affine arr (0, 0)
+
+
+project :: Direction -> Transform (Rot (X, Y)) (Phi, Theta)
+project dir =
+  transform $ Projection dir
+
+
+celestial :: Lat -> Lon -> LonPole -> Transform (Phi, Theta) (Alpha, Delta)
+celestial lat lon pole =
+  transform $ Rotate3d{direction = Native2Celestial, theta = lat, phi = lon, psi = pole}
 
 -- you can define them inline, but it's gross
-linearX :: Transform (Pix X) (Linear X)
-linearX = linear (Shift 10) (Scale 8)
-
-
-linearY :: Transform (Pix Y) (Linear Y)
-linearY = linear (Shift 9) (Scale 7)
-
-
-linearXY :: Transform (Pix X, Pix Y) (Linear X, Linear Y)
-linearXY = linearX <&> linearY
-
-
--- transformOpticalDepth :: Transform [Pix OpticalDepth] [Scl OpticalDepth]
--- transformOpticalDepth = (shift 8 <:> empty) |> (scale 10 <:> empty)
+-- linearX :: Transform (Pix X) (Linear X)
+-- linearX = linear (Shift 10) (Scale 8)
 --
 --
--- transformComposite :: Transform [Pix OpticalDepth, Pix X, Pix Y] [Scl OpticalDepth, Alpha, Delta]
--- transformComposite = transformOpticalDepth <:> transformSpatial
+-- linearY :: Transform (Pix Y) (Linear Y)
+-- linearY = linear (Shift 9) (Scale 7)
+--
+--
+-- linearXY :: Transform (Pix X, Pix Y) (Linear X, Linear Y)
+-- linearXY = linearX <&> linearY
+--
+--
+-- transformOpticalDepth :: Transform (Pix OpticalDepth) (Linear OpticalDepth)
+-- transformOpticalDepth = linear (Shift 8) (Scale 10)
+--
+--
+-- transformComposite :: Transform (Pix OpticalDepth, Pix X, Pix Y) (Linear OpticalDepth, Alpha, Delta)
+-- transformComposite = transformOpticalDepth <&> transformSpatial
 
-test :: IO ()
-test = do
-  out <- Encoding.encodeM $ Object [("transform", toNode shiftXY)]
-  BS.writeFile "/Users/seanhess/Downloads/test.asdf" out
+-- test :: IO ()
+-- test = do
+--   out <- Encoding.encodeM $ Object [("transform", toNode transformComposite)]
+--   BS.writeFile "/Users/seanhess/Downloads/test.asdf" out
 
 {-
 
