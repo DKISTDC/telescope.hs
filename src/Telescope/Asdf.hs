@@ -15,7 +15,6 @@ module Telescope.Asdf
   , Key
   , Object
   , fromValue
-  , toNode
   , NDArrayData (..)
   , jsonPointer
   , jsonReference

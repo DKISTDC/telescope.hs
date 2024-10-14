@@ -59,8 +59,9 @@ fromAsdfSpec = do
 toAsdfSpec :: Spec
 toAsdfSpec = do
   it "should serialize Example" $ do
-    let Node s anc val = toNode $ Example{foo = 40, name = "Marty", sequence = [], powers = Nothing, random = M.empty}
-    s `shouldBe` schema @Example
+    let ex = Example{foo = 40, name = "Marty", sequence = [], powers = Nothing, random = M.empty}
+    let Node s anc val = toNode ex
+    s `shouldBe` schema ex
     anc `shouldBe` Just "example"
     o <- expectObject val
     lookup "foo" o `shouldBe` Just (Node mempty Nothing (Integer 40))
@@ -141,8 +142,8 @@ data Example = Example
   }
   deriving (Generic, Show)
 instance ToAsdf Example where
-  schema = "example/woot-1.0"
-  anchor = Just "example"
+  schema _ = "example/woot-1.0"
+  anchor _ = Just "example"
 instance FromAsdf Example where
   parseValue = \case
     Object o -> do

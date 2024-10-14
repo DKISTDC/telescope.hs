@@ -25,7 +25,7 @@ data Unit
 
 
 instance ToAsdf Unit where
-  schema = "!unit/unit-1.0.0"
+  schema _ = "!unit/unit-1.0.0"
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"
@@ -46,7 +46,7 @@ data Quantity = Quantity
   }
   deriving (Generic)
 instance ToAsdf Quantity where
-  schema = "!unit/quantity-1.1.0"
+  schema _ = "!unit/quantity-1.1.0"
 instance FromAsdf Quantity
 
 
@@ -123,7 +123,7 @@ data Software = Software
   }
   deriving (Show, Eq, Generic, FromAsdf)
 instance ToAsdf Software where
-  schema = "!core/software-1.0.0"
+  schema _ = "!core/software-1.0.0"
 
 
 -- allows "additional properties"...
@@ -133,7 +133,7 @@ data Asdf = Asdf
   , tree :: Tree
   }
 instance ToAsdf Asdf where
-  schema = "!core/asdf-1.1.0"
+  schema _ = "!core/asdf-1.1.0"
   toValue a =
     let Tree tree = a.tree
      in -- these two required fields are first, then merge keys from the tree
@@ -188,4 +188,4 @@ data ExtensionMetadata = ExtensionMetadata
   }
   deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
-  schema = "!core/extension_metadata-1.0.0"
+  schema _ = "!core/extension_metadata-1.0.0"

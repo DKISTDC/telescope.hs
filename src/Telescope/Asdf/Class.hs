@@ -3,6 +3,8 @@
 module Telescope.Asdf.Class where
 
 import Data.List ((!?))
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array (Array, Prim)
 import Data.Massiv.Array qualified as M
 import Data.Scientific (fromFloatDigits, toRealFloat)
@@ -40,14 +42,19 @@ class ToAsdf a where
   toValue a = Object $ gToObject (from a)
 
 
-  schema :: SchemaTag
-  default schema :: SchemaTag
-  schema = mempty
+  schema :: a -> SchemaTag
+  default schema :: a -> SchemaTag
+  schema _ = mempty
 
 
-  anchor :: Maybe Anchor
-  default anchor :: Maybe Anchor
-  anchor = Nothing
+  anchor :: a -> Maybe Anchor
+  default anchor :: a -> Maybe Anchor
+  anchor _ = Nothing
+
+
+  toNode :: a -> Node
+  default toNode :: a -> Node
+  toNode a = Node (schema a) (anchor a) $ toValue a
 
 
 -- type Parser a = Eff [Reader Tree, Fail, Reader [PathSegment], Error ParseError] a
@@ -116,6 +123,14 @@ instance {-# OVERLAPPABLE #-} (FromAsdf a) => FromAsdf [a] where
     node -> expected "Array" node
 instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf [a] where
   toValue as = Array $ fmap toNode as
+instance {-# OVERLAPPABLE #-} (FromAsdf a) => FromAsdf (NonEmpty a) where
+  parseValue val = do
+    as <- parseValue @[a] val
+    case as of
+      [] -> expected "NonEmpty List" val
+      (a : rest) -> pure (a :| rest)
+instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf (NonEmpty a) where
+  toValue as = toValue $ NE.toList as
 
 
 -- they will always serialize to Array
@@ -264,10 +279,10 @@ instance FromAsdf UTCTime where
       Right a -> pure a
 
 
--- | Convert to a Node, including the schema tag if specified
+{- | Convert to a Node, including the schema tag if specified
 toNode :: forall a. (ToAsdf a) => a -> Node
 toNode a = Node (schema @a) (anchor @a) $ toValue a
-
+-}
 
 -- | Parse a node, ignoring the schema tag
 parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a

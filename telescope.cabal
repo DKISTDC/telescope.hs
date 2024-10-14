@@ -30,6 +30,7 @@ library
         Telescope.Asdf.Encoding.File
         Telescope.Asdf.Encoding.Stream
         Telescope.Asdf.Error
+        Telescope.Asdf.GWCS
         Telescope.Asdf.NDArray
         Telescope.Asdf.NDArray.Types
         Telescope.Asdf.Node
