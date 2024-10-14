@@ -104,8 +104,9 @@ data FrameAxis = FrameAxis
   }
 
 
-data X deriving (Generic, ToAxis)
-data Y deriving (Generic, ToAxis)
+data X deriving (Generic, ToAxes)
+data Y deriving (Generic, ToAxes)
+data Z deriving (Generic, ToAxes)
 
 
 data Pix a
@@ -114,33 +115,32 @@ data Dlt a
 data Rot a
 
 
-instance (ToAxis a) => ToAxis (Pix a) where
-  toAxis = "pix " <> toAxis @a
-instance (ToAxis a) => ToAxis (Scl a) where
-  toAxis = "scl " <> toAxis @a
-instance (ToAxis a) => ToAxis (Dlt a) where
-  toAxis = "dlt " <> toAxis @a
-instance (ToAxis a) => ToAxis (Rot a) where
-  toAxis = "rot " <> toAxis @a
+instance (ToAxes a) => ToAxes (Pix a) where
+  toAxes = fmap ("pix " <>) (toAxes @a)
+instance (ToAxes a) => ToAxes (Scl a) where
+  toAxes = fmap ("scl " <>) (toAxes @a)
+instance (ToAxes a) => ToAxes (Dlt a) where
+  toAxes = fmap ("dlt " <>) (toAxes @a)
+instance (ToAxes a) => ToAxes (Rot a) where
+  toAxes = fmap ("rot " <>) (toAxes @a)
 
 
-data Phi deriving (Generic, ToAxis)
-data Theta deriving (Generic, ToAxis)
-data Alpha deriving (Generic, ToAxis)
-data Delta deriving (Generic, ToAxis)
+data Phi deriving (Generic, ToAxes)
+data Theta deriving (Generic, ToAxes)
+data Alpha deriving (Generic, ToAxes)
+data Delta deriving (Generic, ToAxes)
 
 
 empty :: Transform '[] '[]
 empty = Transform $ Transformation [] [] (Direct mempty mempty)
 
 
--- you can't shift anything. It has to NOT be a
-shift :: (ToAxes '[f a], ToAxes '[Dlt a]) => Double -> Transform (f a) (Dlt a)
-shift d = toTransform $ Shift d
+shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Double -> Transform (f a) (Dlt a)
+shift d = toTransforms $ Shift d
 
 
-scale :: (ToAxes '[f a], ToAxes '[Scl a]) => Double -> Transform (f a) (Scl a)
-scale d = toTransform $ Scale d
+scale :: forall a f. (ToAxes (f a), ToAxes (Scl a)) => Double -> Transform (f a) (Scl a)
+scale d = toTransforms $ Scale d
 
 
 newtype Lon = Lon Double
@@ -173,14 +173,13 @@ data Transform b c = Transform
 
 
 -- this only works for singles
-toTransform :: forall a b c. (ToAsdf a, ToAxes '[b], ToAxes '[c]) => a -> Transform b c
-toTransform a =
-  Transform
-    $ Transformation
-      (toAxes @'[b])
-      (toAxes @'[c])
-    $ Direct (schema a) (toValue a)
-
+-- toTransform :: forall a b c. (ToAsdf a, ToAxis b, ToAxis c) => a -> Transform b c
+-- toTransform a =
+--   Transform
+--     $ Transformation
+--       [toAxis @b]
+--       [toAxis @c]
+--     $ Direct (schema a) (toValue a)
 
 toTransforms :: forall a bs cs. (ToAsdf a, ToAxes bs, ToAxes cs) => a -> Transform bs cs
 toTransforms a =
@@ -227,23 +226,41 @@ instance ToAsdf Transformation where
     _ -> Compose $ s :| [t]
 
 
-(<:>)
-  :: forall (a :: Type) (b :: Type) (cs :: [Type]) (ds :: [Type])
-   . (ToAxes (a : cs), ToAxes (b : ds))
+-- (<:>)
+--   :: forall (a :: Type) (b :: Type) (cs :: [Type]) (ds :: [Type])
+--    . (ToAxes (a : cs), ToAxes (b : ds))
+--   => Transform a b
+--   -> Transform cs ds
+--   -> Transform (a : cs) (b : ds)
+-- Transform s <:> Transform t =
+--   Transform
+--     $ Transformation
+--       (toAxes @(a : cs))
+--       (toAxes @(b : ds))
+--     $ concatTransform t.inputs t.forward
+--  where
+--   concatTransform [] _ = Concat $ NE.singleton s
+--   concatTransform _ (Concat ts) = Concat $ s :| NE.toList ts
+--   concatTransform _ _ = Concat $ s :| [t]
+-- infixr 8 <:>
+
+(<&>)
+  :: forall (a :: Type) (b :: Type) (cs :: Type) (ds :: Type)
+   . (ToAxes (a, cs), ToAxes (b, ds))
   => Transform a b
   -> Transform cs ds
-  -> Transform (a : cs) (b : ds)
-Transform s <:> Transform t =
+  -> Transform (TConcat a cs) (TConcat b ds)
+Transform s <&> Transform t =
   Transform
     $ Transformation
-      (toAxes @(a : cs))
-      (toAxes @(b : ds))
+      (toAxes @(a, cs))
+      (toAxes @(b, ds))
     $ concatTransform t.inputs t.forward
  where
   concatTransform [] _ = Concat $ NE.singleton s
   concatTransform _ (Concat ts) = Concat $ s :| NE.toList ts
   concatTransform _ _ = Concat $ s :| [t]
-infixr 8 <:>
+infixr 8 <&>
 
 
 data Direction
@@ -304,25 +321,40 @@ newtype CompositeFrame = CompositeFrame (NonEmpty CoordinateFrame)
 --   { observer :: _
 --   }
 
-class ToAxis (a :: Type) where
-  toAxis :: AxisName
-  default toAxis :: (Generic a, GTypeName (Rep a)) => AxisName
-  toAxis = AxisName $ pack $ gtypeName (from (undefined :: a))
+-- class ToAxis (a :: Type) where
+--   toAxis :: AxisName
 
-
-class ToAxes (as :: [Type]) where
+class ToAxes (as :: Type) where
   toAxes :: [AxisName]
+  default toAxes :: (Generic as, GTypeName (Rep as)) => [AxisName]
+  toAxes = [AxisName $ pack $ gtypeName (from (undefined :: as))]
 
 
-instance (ToAxis a) => ToAxes '[a] where
-  toAxes = [toAxis @a]
-instance (ToAxes '[a], ToAxes '[b]) => ToAxes [a, b] where
-  toAxes = toAxes @'[a] <> toAxes @'[b]
-instance (ToAxes '[a], ToAxes '[b], ToAxes '[c]) => ToAxes [a, b, c] where
-  toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c]]
-instance (ToAxes '[a], ToAxes '[b], ToAxes '[c], ToAxes '[d]) => ToAxes [a, b, c, d] where
-  toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c], toAxes @'[d]]
+type family TConcat a b where
+  TConcat (a, b) c = (a, b, c)
+  TConcat a (b, c) = (a, b, c)
+  TConcat a b = (a, b)
 
+
+instance (ToAxes a, ToAxes b) => ToAxes (a, b) where
+  toAxes = mconcat [toAxes @a, toAxes @b]
+instance (ToAxes a, ToAxes b, ToAxes c) => ToAxes (a, b, c) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c]
+instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
+
+
+-- if I have a type (a), we want to convert the axes to [a]
+-- what if we collapse them?
+-- instance (ToAxis a) => ToAxes a where
+--   toAxes = [toAxis @a]
+
+-- instance (ToAxes '[a], ToAxes '[b]) => ToAxes [a, b] where
+--   toAxes = toAxes @'[a] <> toAxes @'[b]
+-- instance (ToAxes '[a], ToAxes '[b], ToAxes '[c]) => ToAxes [a, b, c] where
+--   toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c]]
+-- instance (ToAxes '[a], ToAxes '[b], ToAxes '[c], ToAxes '[d]) => ToAxes [a, b, c, d] where
+--   toAxes = mconcat [toAxes @'[a], toAxes @'[b], toAxes @'[c], toAxes @'[d]]
 
 -- | Generic NodeName
 class GTypeName f where
@@ -333,40 +365,70 @@ instance (Datatype d) => GTypeName (D1 d f) where
   gtypeName = datatypeName
 
 
-data OpticalDepth deriving (Generic, ToAxis)
+data OpticalDepth deriving (Generic, ToAxes)
 
 
-transformSpatial :: Transform [Pix X, Pix Y] [Alpha, Delta]
-transformSpatial = shiftXY |> scaleXY |> rotate |> projection |> celestial
+-- transformSpatial :: Transform [Pix X, Pix Y] [Alpha, Delta]
+-- transformSpatial = shiftXY |> scaleXY |> rotate |> projection |> celestial
+--  where
+--   -- TODO: is this correct? I'm confused about the angles, etc
+--   rotate :: Transform [Scl X, Scl Y] [Rot X, Rot Y]
+--   rotate = toTransform Skip <:> toTransform Skip <:> empty
+--
+--   projection :: (ToAxis (f X), ToAxis (f Y)) => Transform '[f X, f Y] [Phi, Theta]
+--   projection =
+--     toTransforms $ Projection Pix2Sky
+--
+--   celestial :: Transform [Phi, Theta] [Alpha, Delta]
+--   celestial =
+--     toTransforms $ Rotate3d{direction = Native2Celestial, theta = Lat (-0.1130558888888889), phi = Lon (-0.1333360111111111), psi = LonPole 180.0}
+
+-- shiftXY :: Transform [Pix X, Pix Y] [Dlt X, Dlt Y]
+-- shiftXY = shift 6 <:> shift 8 <:> empty
+--
+
+-- you can define them inline, but it's gross
+scaleXY :: Transform (Dlt X, Dlt Y) (Scl X, Scl Y)
+scaleXY = scaleX <&> scale @Y @Dlt 9
+
+
+scaleX :: Transform (Dlt X) (Scl X)
+scaleX = scale 4
+
+
+shiftX :: Transform (Pix X) (Dlt X)
+shiftX = shift 6
+
+
+shiftY :: Transform (Pix Y) (Dlt Y)
+shiftY = shift 6
+
+
+shiftXY :: Transform (Pix X, Pix Y) (Dlt X, Dlt Y)
+shiftXY = shiftX <&> shiftY
+
+
+shiftXYZ :: Transform (Pix X, Pix Y, Pix Z) (Dlt X, Dlt Y, Dlt Z)
+shiftXYZ = shiftXY <&> shiftZ
  where
-  -- TODO: is this correct? I'm confused about the angles, etc
-  rotate :: Transform [Scl X, Scl Y] [Rot X, Rot Y]
-  rotate = toTransform Skip <:> toTransform Skip <:> empty
-
-  projection :: (ToAxis (f X), ToAxis (f Y)) => Transform '[f X, f Y] [Phi, Theta]
-  projection =
-    toTransforms $ Projection Pix2Sky
-
-  celestial :: Transform [Phi, Theta] [Alpha, Delta]
-  celestial =
-    toTransforms $ Rotate3d{direction = Native2Celestial, theta = Lat (-0.1130558888888889), phi = Lon (-0.1333360111111111), psi = LonPole 180.0}
+  shiftZ :: Transform (Pix Z) (Dlt Z)
+  shiftZ = shift 8
 
 
-shiftXY :: Transform [Pix X, Pix Y] [Dlt X, Dlt Y]
-shiftXY = shift 6 <:> shift 8 <:> empty
+shiftScaleX :: Transform (Pix X) (Scl X)
+shiftScaleX = shiftX |> scaleX
 
 
-scaleXY :: Transform [Dlt X, Dlt Y] [Scl X, Scl Y]
-scaleXY = scale 7 <:> scale 8 <:> empty
+shiftScaleXY :: Transform (Pix X, Pix Y) (Scl X, Scl Y)
+shiftScaleXY = shiftXY |> scaleXY
 
 
-transformOpticalDepth :: Transform [Pix OpticalDepth] [Scl OpticalDepth]
-transformOpticalDepth = (shift 8 <:> empty) |> (scale 10 <:> empty)
-
-
-transformComposite :: Transform [Pix OpticalDepth, Pix X, Pix Y] [Scl OpticalDepth, Alpha, Delta]
-transformComposite = transformOpticalDepth <:> transformSpatial
-
+-- transformOpticalDepth :: Transform [Pix OpticalDepth] [Scl OpticalDepth]
+-- transformOpticalDepth = (shift 8 <:> empty) |> (scale 10 <:> empty)
+--
+--
+-- transformComposite :: Transform [Pix OpticalDepth, Pix X, Pix Y] [Scl OpticalDepth, Alpha, Delta]
+-- transformComposite = transformOpticalDepth <:> transformSpatial
 
 test :: IO ()
 test = do
