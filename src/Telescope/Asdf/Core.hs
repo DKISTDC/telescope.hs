@@ -20,6 +20,7 @@ import Telescope.Data.Parser (expected)
 data Unit
   = Count
   | Pixel
+  | Degrees
   | Unit Text
   deriving (Eq)
 
@@ -29,10 +30,12 @@ instance ToAsdf Unit where
   toValue = \case
     Count -> "count"
     Pixel -> "pixel"
+    Degrees -> "deg"
     (Unit t) -> String t
 instance FromAsdf Unit where
   parseValue = \case
     String "count" -> pure Count
+    String "deg" -> pure Degrees
     String "pixel" -> pure Pixel
     String "pix" -> pure Pixel
     String t -> pure $ Unit t

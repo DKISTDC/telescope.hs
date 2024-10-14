@@ -24,17 +24,16 @@ import Telescope.Asdf.Encoding as Encoding
 --
 
 data GWCSStep frame inp out = GWCSStep
-  { name :: Text
-  , frame :: frame
-  , transform :: Transform inp out
+  { frame :: frame
+  , transform :: Maybe (Transform inp out)
   }
 
 
 instance (ToAsdf frame, ToAsdf (Transform inp out)) => ToAsdf (GWCSStep frame inp out) where
+  schema _ = "tag:stsci.edu:gwcs/step-1.1.0"
   toValue step =
     Object
-      [ ("name", toNode step.name)
-      , ("frame", toNode step.frame)
+      [ ("frame", toNode step.frame)
       , ("transform", toNode step.transform)
       ]
 
@@ -43,9 +42,9 @@ newtype AxisName = AxisName Text
   deriving newtype (IsString, ToAsdf, Show, Semigroup)
 
 
-data AxisType = AxisPixel
+newtype AxisType = AxisType Text
 instance ToAsdf AxisType where
-  toValue AxisPixel = String "PIXEL"
+  toValue (AxisType t) = String t
 
 
 data CoordinateFrame = CoordinateFrame
@@ -292,7 +291,14 @@ instance ToAsdf Affine where
       ]
 
 
-newtype CompositeFrame = CompositeFrame (NonEmpty CoordinateFrame)
+data CompositeFrame a b = CompositeFrame a b
+
+
+instance (ToAsdf a, ToAsdf b) => ToAsdf (CompositeFrame a b) where
+  schema _ = "tag:stsci.edu:gwcs/composite_frame-1.0.0"
+  toValue (CompositeFrame a b) =
+    Object
+      [("frames", toNode $ Array [toNode a, toNode b])]
 
 
 class ToAxes (as :: Type) where
@@ -301,6 +307,8 @@ class ToAxes (as :: Type) where
   toAxes = [AxisName $ pack $ gtypeName (from (undefined :: as))]
 
 
+instance ToAxes () where
+  toAxes = []
 instance (ToAxes a, ToAxes b) => ToAxes (a, b) where
   toAxes = mconcat [toAxes @a, toAxes @b]
 instance (ToAxes a, ToAxes b, ToAxes c) => ToAxes (a, b, c) where
