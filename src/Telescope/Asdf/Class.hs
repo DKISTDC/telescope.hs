@@ -163,6 +163,8 @@ instance (FromAsdf a) => FromAsdf (Maybe a) where
     Null -> pure Nothing
     val -> Just <$> parseValue @a val
 instance (ToAsdf a) => ToAsdf (Maybe a) where
+  schema = maybe mempty schema
+  anchor = maybe Nothing anchor
   toValue Nothing = Null
   toValue (Just a) = toValue a
 

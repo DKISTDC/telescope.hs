@@ -36,7 +36,7 @@ spec = do
 
 
 anchorSpec :: Spec
-anchorSpec = withMarkers ["focus"] $ do
+anchorSpec = do
   it "should encode an anchor" $ do
     (out, _) <- runAsdfM . encodeNode $ Node mempty (Just "woot") "hello"
     out `shouldBe` "&woot 'hello'\n"

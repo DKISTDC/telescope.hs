@@ -77,6 +77,11 @@ toAsdfSpec = do
     let nums = [0 .. 99] :: [Int]
     toValue nums `shouldBe` Array (fmap (Node mempty Nothing . Integer) [0 .. 99])
 
+  it "should forward schema to maybes" $ do
+    schema @(Maybe Example) Nothing `shouldBe` mempty
+    schema @(Maybe Example) (Just undefined) `shouldBe` schema @Example undefined
+
+
 
 -- it "should produce similar example.asdf" $ do
 --   ExampleFileFix inp _ <- getFixture

@@ -8,6 +8,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array (Array, Ix1, Ix2)
 import Data.Massiv.Array qualified as M
+import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
@@ -23,19 +24,13 @@ import Telescope.Asdf.Encoding as Encoding
 -- WARNING: Where does rsun come from in reference frame? Is it possible to do this without duplicating sunpy?
 --
 
-data GWCSStep frame inp out = GWCSStep
+data GWCSStep frame = GWCSStep
   { frame :: frame
-  , transform :: Maybe (Transform inp out)
+  , transform :: Maybe Transformation
   }
-
-
-instance (ToAsdf frame, ToAsdf (Transform inp out)) => ToAsdf (GWCSStep frame inp out) where
+  deriving (Generic)
+instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where
   schema _ = "tag:stsci.edu:gwcs/step-1.1.0"
-  toValue step =
-    Object
-      [ ("frame", toNode step.frame)
-      , ("transform", toNode step.transform)
-      ]
 
 
 newtype AxisName = AxisName Text
@@ -43,66 +38,9 @@ newtype AxisName = AxisName Text
 
 
 newtype AxisType = AxisType Text
+  deriving newtype (IsString)
 instance ToAsdf AxisType where
   toValue (AxisType t) = String t
-
-
-data CoordinateFrame = CoordinateFrame
-  { name :: Text
-  , axes :: NonEmpty FrameAxis
-  }
-
-
-instance ToAsdf CoordinateFrame where
-  schema _ = "tag:stsci.edu:gwcs/frame-1.0.0"
-  toValue f =
-    Object $ [("name", toNode f.name)] <> frameAxesObject f.axes
-
-
-frameAxesObject :: NonEmpty FrameAxis -> Object
-frameAxesObject as =
-  [ ("naxes", toNode $ NE.length as)
-  , ("axes_names", toNode axesNames)
-  , ("axes_order", toNode axesOrders)
-  , ("axes_type", toNode axesTypes)
-  , ("axes_physical_types", toNode axesPhysicalTypes)
-  , ("unit", toNode units)
-  ]
- where
-  axesNames = fmap (.axisName) as
-  axesOrders = [0 .. (numAxes - 1)]
-  axesTypes = fmap (.axisType) as
-  axesPhysicalTypes = fmap (physicalType . (.axisType)) as
-  units = fmap (.axisName) as
-  physicalType t = String "custom:" <> toValue t
-  numAxes = NE.length as
-
-
-data CelestialFrame = CelestialFrame
-  { name :: Text
-  , axes :: NonEmpty FrameAxis
-  , referenceFrame :: ICRSFrame
-  }
-
-
-instance ToAsdf CelestialFrame where
-  schema _ = "tag:stsci.edu:gwcs/celestial_frame-1.0.0"
-  toValue f =
-    Object $ [("name", toNode f.name), ("reference_frame", toNode f.referenceFrame)] <> frameAxesObject f.axes
-
-
-data ICRSFrame = ICRSFrame
-instance ToAsdf ICRSFrame where
-  schema _ = "tag:astropy.org:astropy/coordinates/frames/icrs-1.1.0"
-  toValue _ = Object [("frame_attributes", toNode $ Object mempty)]
-
-
-data FrameAxis = FrameAxis
-  { axisName :: AxisName
-  , axisOrder :: Int
-  , axisType :: AxisType
-  , unit :: Unit
-  }
 
 
 data X deriving (Generic, ToAxes)
@@ -151,46 +89,11 @@ data Transformation = Transformation
   deriving (Show)
 
 
-data Forward
-  = Compose (NonEmpty Transformation)
-  | Concat (NonEmpty Transformation)
-  | Direct {schemaTag :: SchemaTag, fields :: Value}
-  deriving (Show)
-
-
-data Transform b c = Transform
-  { transformation :: Transformation
-  }
-  deriving (Show)
-
-
--- toTransform :: forall a b c. (ToAsdf a, ToAxis b, ToAxis c) => a -> Transform b c
--- toTransform a =
---   Transform
---     $ Transformation
---       [toAxis @b]
---       [toAxis @c]
---     $ Direct (schema a) (toValue a)
-
-transform :: forall a bs cs. (ToAsdf a, ToAxes bs, ToAxes cs) => a -> Transform bs cs
-transform a =
-  Transform
-    $ Transformation
-      (toAxes @bs)
-      (toAxes @cs)
-    $ Direct (schema a) (toValue a)
-
-
-instance (ToAxes b, ToAxes c) => ToAsdf (Transform b c) where
-  schema (Transform t) = schema t
-  toValue (Transform t) = toValue t
-
-
 instance ToAsdf Transformation where
   schema t =
     case t.forward of
-      Compose _ -> "transform/compose-1.2.0"
-      Concat _ -> "transform/concatenate-1.2.0"
+      Compose _ -> "!transform/compose-1.2.0"
+      Concat _ -> "!transform/concatenate-1.2.0"
       Direct{schemaTag} -> schemaTag
 
 
@@ -205,6 +108,28 @@ instance ToAsdf Transformation where
         [ ("inputs", toNode t.inputs)
         , ("outputs", toNode t.outputs)
         ]
+
+
+data Forward
+  = Compose (NonEmpty Transformation)
+  | Concat (NonEmpty Transformation)
+  | Direct {schemaTag :: SchemaTag, fields :: Value}
+  deriving (Show)
+
+
+data Transform b c = Transform
+  { transformation :: Transformation
+  }
+  deriving (Show)
+
+
+transform :: forall a bs cs. (ToAsdf a, ToAxes bs, ToAxes cs) => a -> Transform bs cs
+transform a =
+  Transform
+    $ Transformation
+      (toAxes @bs)
+      (toAxes @cs)
+    $ Direct (schema a) (toValue a)
 
 
 (|>) :: forall b c d. (ToAxes b, ToAxes d) => Transform b c -> Transform c d -> Transform b d
@@ -254,25 +179,25 @@ data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi 
 
 
 instance ToAsdf Shift where
-  schema _ = "transform/shift-1.2.0"
+  schema _ = "!transform/shift-1.2.0"
   toValue (Shift d) =
-    Object [("shift", toNode d)]
+    Object [("offset", toNode d)]
 
 
 instance ToAsdf Scale where
-  schema _ = "transform/scale-1.2.0"
+  schema _ = "!transform/scale-1.2.0"
   toValue (Scale d) =
-    Object [("scale", toNode d)]
+    Object [("factor", toNode d)]
 
 
 instance ToAsdf Projection where
-  schema _ = "transform/gnomonic-1.2.0"
+  schema _ = "!transform/gnomonic-1.2.0"
   toValue (Projection d) =
     Object [("direction", toNode d)]
 
 
 instance ToAsdf Rotate3d where
-  schema _ = "transform/rotate3d-1.3.0"
+  schema _ = "!transform/rotate3d-1.3.0"
   toValue r =
     Object
       [ ("direction", toNode r.direction)
@@ -283,7 +208,7 @@ instance ToAsdf Rotate3d where
 
 
 instance ToAsdf Affine where
-  schema _ = "transform/affine-1.3.0"
+  schema _ = "!transform/affine-1.3.0"
   toValue a =
     Object
       [ ("matrix", toNode $ toNDArray a.matrix)
@@ -291,15 +216,81 @@ instance ToAsdf Affine where
       ]
 
 
+-- Frames -----------------------------------------------
+
+data CoordinateFrame = CoordinateFrame
+  { name :: Text
+  , axes :: NonEmpty FrameAxis
+  }
+instance ToAsdf CoordinateFrame where
+  schema _ = "tag:stsci.edu:gwcs/frame-1.0.0"
+  toValue f =
+    Object $
+      [ ("name", toNode f.name)
+      , ("axes_type", toNode $ fmap (.axisType) f.axes)
+      ]
+        <> frameAxesObject f.axes
+
+
+data CelestialFrame = CelestialFrame
+  { name :: Text
+  , axes :: NonEmpty FrameAxis
+  , referenceFrame :: ICRSFrame
+  }
+instance ToAsdf CelestialFrame where
+  schema _ = "tag:stsci.edu:gwcs/celestial_frame-1.0.0"
+  toValue f =
+    Object $
+      [ ("name", toNode f.name)
+      , ("reference_frame", toNode f.referenceFrame)
+      ]
+        <> frameAxesObject f.axes
+
+
+frameAxesObject :: NonEmpty FrameAxis -> Object
+frameAxesObject as =
+  -- doesn't include axes_type, only on CoorindateFrame
+  [ ("naxes", toNode $ NE.length as)
+  , ("axes_names", toNode axesNames)
+  , ("axes_order", toNode axesOrders)
+  , ("axes_physical_types", toNode axesPhysicalTypes)
+  , ("unit", toNode units)
+  ]
+ where
+  axesNames = fmap (.axisName) as
+  axesOrders = fmap (.axisOrder) as
+  axesPhysicalTypes = fmap (physicalType . (.axisType)) as
+  units = fmap (.unit) as
+  physicalType t = String "custom:" <> toValue t
+
+
+-- numAxes = NE.length as
+
+data ICRSFrame = ICRSFrame
+instance ToAsdf ICRSFrame where
+  schema _ = "tag:astropy.org:astropy/coordinates/frames/icrs-1.1.0"
+  toValue _ = Object [("frame_attributes", toNode $ Object mempty)]
+
+
+data FrameAxis = FrameAxis
+  { axisOrder :: Int
+  , axisName :: AxisName
+  , axisType :: AxisType
+  , unit :: Unit
+  }
+
+
 data CompositeFrame a b = CompositeFrame a b
-
-
 instance (ToAsdf a, ToAsdf b) => ToAsdf (CompositeFrame a b) where
   schema _ = "tag:stsci.edu:gwcs/composite_frame-1.0.0"
   toValue (CompositeFrame a b) =
     Object
-      [("frames", toNode $ Array [toNode a, toNode b])]
+      [ ("name", toNode $ String "CompositeFrame")
+      , ("frames", toNode $ Array [toNode a, toNode b])
+      ]
 
+
+-- ToAxes -----------------------------------------------
 
 class ToAxes (as :: Type) where
   toAxes :: [AxisName]
@@ -317,32 +308,7 @@ instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
   toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
 
 
--- | Generic NodeName
-class GTypeName f where
-  gtypeName :: f p -> String
-
-
-instance (Datatype d) => GTypeName (D1 d f) where
-  gtypeName = datatypeName
-
-
-type family TConcat a b where
-  TConcat (a, b, c) d = (a, b, c, d)
-  TConcat a (b, c, d) = (a, b, c, d)
-  TConcat (a, b) (c, d) = (a, b, c, d)
-  TConcat (a, b) c = (a, b, c)
-  TConcat a (b, c) = (a, b, c)
-  TConcat a b = (a, b)
-
-
--- data OpticalDepth deriving (Generic, ToAxes)
---
---
--- transformSpatial :: Transform (Pix X, Pix Y) (Alpha, Delta)
--- transformSpatial = linearXY |> rotate pcMatrix |> project Pix2Sky |> celestial (Lat 1) (Lon 2) (LonPole 180)
---  where
---   pcMatrix :: Array M.D Ix2 Double
---   pcMatrix = M.delay $ M.fromLists' @M.P M.Seq [[0, 1], [2, 3]]
+-- Transforms -----------------------------------------------
 
 shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Double -> Transform (f a) (Dlt a)
 shift d = transform $ Shift d
@@ -372,6 +338,24 @@ celestial :: Lat -> Lon -> LonPole -> Transform (Phi, Theta) (Alpha, Delta)
 celestial lat lon pole =
   transform $ Rotate3d{direction = Native2Celestial, theta = lat, phi = lon, psi = pole}
 
+
+-- | Generic NodeName
+class GTypeName f where
+  gtypeName :: f p -> String
+
+
+instance (Datatype d) => GTypeName (D1 d f) where
+  gtypeName = datatypeName
+
+
+type family TConcat a b where
+  TConcat (a, b, c) d = (a, b, c, d)
+  TConcat a (b, c, d) = (a, b, c, d)
+  TConcat (a, b) (c, d) = (a, b, c, d)
+  TConcat (a, b) c = (a, b, c)
+  TConcat a (b, c) = (a, b, c)
+  TConcat a b = (a, b)
+
 -- you can define them inline, but it's gross
 -- linearX :: Transform (Pix X) (Linear X)
 -- linearX = linear (Shift 10) (Scale 8)
@@ -391,145 +375,32 @@ celestial lat lon pole =
 --
 -- transformComposite :: Transform (Pix OpticalDepth, Pix X, Pix Y) (Linear OpticalDepth, Alpha, Delta)
 -- transformComposite = transformOpticalDepth <&> transformSpatial
+--
 
 -- test :: IO ()
 -- test = do
---   out <- Encoding.encodeM $ Object [("transform", toNode transformComposite)]
+--   out <- Encoding.encodeM $ Just linearXY.transformation --  Object [("transformation", toNode linearXY.transformation)]
 --   BS.writeFile "/Users/seanhess/Downloads/test.asdf" out
-
-{-
-
-Created in python:
- -
-wcs: !<tag:stsci.edu:gwcs/wcs-1.2.0>
-  name: ''
-  pixel_shape: null
-  steps:
-  - !<tag:stsci.edu:gwcs/step-1.1.0>
-    frame: !<tag:stsci.edu:gwcs/frame-1.0.0>
-      axes_names: [optical_depth, spatial along slit, raster scan step number]
-      axes_order: [0, 1, 2]
-      axes_type: [PIXEL, PIXEL, PIXEL]
-      axis_physical_types: ['custom:PIXEL', 'custom:PIXEL', 'custom:PIXEL']
-      name: pixel
-      naxes: 3
-      unit: [!unit/unit-1.0.0 pixel, !unit/unit-1.0.0 pixel, !unit/unit-1.0.0 pixel]
-    transform: !transform/concatenate-1.2.0
-      forward:
-      - !transform/compose-1.2.0
-        forward:
-        - !transform/shift-1.2.0
-          inputs: [x]
-          offset: -11.0
-          outputs: [y]
-        - !transform/scale-1.2.0
-          factor: 0.1
-          inputs: [x]
-          outputs: [y]
-        inputs: [x]
-        outputs: [y]
-      - !transform/compose-1.2.0
-        forward:
-        - !transform/compose-1.2.0
-          forward:
-          - !transform/compose-1.2.0
-            forward:
-            - !transform/compose-1.2.0
-              forward:
-              - !transform/concatenate-1.2.0
-                forward:
-                - !transform/shift-1.2.0
-                  inputs: [x]
-                  offset: -27.571428
-                  outputs: [y]
-                - !transform/shift-1.2.0
-                  inputs: [x]
-                  offset: -13.520178
-                  outputs: [y]
-                inputs: [x0, x1]
-                outputs: [y0, y1]
-              - !transform/concatenate-1.2.0
-                forward:
-                - !transform/scale-1.2.0
-                  factor: 0.000415055
-                  inputs: [x]
-                  outputs: [y]
-                - !transform/shift-1.2.0
-                  inputs: [x]
-                  offset: 5.929356944444445e-05
-                  outputs: [y]
-                inputs: [x0, x1]
-                outputs: [y0, y1]
-              inputs: [x0, x1]
-              outputs: [y0, y1]
-            - !transform/affine-1.3.0
-              inputs: [x, y]
-              matrix: !core/ndarray-1.0.0
-                source: 0
-                datatype: float64
-                byteorder: little
-                shape: [2, 2]
-              outputs: [x, y]
-              translation: !core/ndarray-1.0.0
-                source: 1
-                datatype: float64
-                byteorder: little
-                shape: [2]
-            inputs: [x0, x1]
-            outputs: [x, y]
-          - !transform/gnomonic-1.2.0
-            direction: pix2sky
-            inputs: [x, y]
-            outputs: [phi, theta]
-          inputs: [x0, x1]
-          outputs: [phi, theta]
-        - !transform/rotate3d-1.3.0
-          direction: native2celestial
-          inputs: [phi_N, theta_N]
-          outputs: [alpha_C, delta_C]
-          phi: -0.1333360111111111
-          psi: 180.0
-          theta: -0.1130558888888889
-        inputs: [x0, x1]
-        outputs: [alpha_C, delta_C]
-      inputs: [x, x0, x1]
-      outputs: [y, alpha_C, delta_C]
-  - !<tag:stsci.edu:gwcs/step-1.1.0>
-    frame: !<tag:stsci.edu:gwcs/composite_frame-1.0.0>
-      frames:
-      - !<tag:stsci.edu:gwcs/frame-1.0.0>
-        axes_names: [optical_depth]
-        axes_order: [0]
-        axes_type: [optical_depth]
-        axis_physical_types: ['custom:optical_depth']
-        name: optical_depth_out
-        naxes: 1
-        unit: [!unit/unit-1.0.0 pixel]
-      - !<tag:stsci.edu:gwcs/celestial_frame-1.0.0>
-        axes_names: [helioprojective longitude, helioprojective latitude]
-        axes_order: [1, 2]
-        axis_physical_types: ['custom:pos.helioprojective.lon', 'custom:pos.helioprojective.lat']
-        name: helioprojective
-        reference_frame: !<tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0>
-          frame_attributes:
-            observer: !<tag:sunpy.org:sunpy/coordinates/frames/heliographic_stonyhurst-1.1.0>
-              data: !<tag:astropy.org:astropy/coordinates/representation-1.1.0>
-                components:
-                  x: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
-                    value: 151718470759.01736}
-                  y: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
-                    value: 936374.8961084613}
-                  z: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
-                    value: -1238552794.1080718}
-                type: CartesianRepresentation
-              frame_attributes:
-                obstime: !time/time-1.1.0 2022-06-02T21:47:26.641
-                rsun: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 km,
-                  value: 695700.0}
-            obstime: !time/time-1.1.0 2022-06-02T21:47:26.641
-            rsun: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 km,
-              value: 695700.0}
-        unit: [!unit/unit-1.0.0 deg, !unit/unit-1.0.0 deg]
-      name: CompositeFrame
-    transform: null
--}
+--  where
+--   inputStep = GWCSStep pixelFrame (Just linearXY.transformation)
+--
+--   pixelFrame :: CoordinateFrame
+--   pixelFrame =
+--     CoordinateFrame
+--       { name = "pixel"
+--       , axes =
+--           NE.fromList
+--             [ FrameAxis "optical_depth" 0 (AxisType "PIXEL") Pixel
+--             , FrameAxis "spatial along slit" 1 (AxisType "PIXEL") Pixel
+--             , FrameAxis "raster scan step number" 2 (AxisType "PIXEL") Pixel
+--             ]
+--       }
+--
+--   linearX :: Transform (Pix X) (Linear X)
+--   linearX = linear (Shift 10) (Scale 8)
+--
+--   linearXY :: Transform (Pix X, Pix Y) (Linear X, Linear Y)
+--   linearXY = linearX <&> linearY
+--
+--   linearY :: Transform (Pix Y) (Linear Y)
+--   linearY = linear (Shift 9) (Scale 7)

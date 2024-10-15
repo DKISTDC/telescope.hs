@@ -66,7 +66,7 @@ data Example = Example
 
 
 anchorSpec :: Spec
-anchorSpec = withMarkers ["focus"] $ do
+anchorSpec = do
   it "should create anchors" $ do
     let Encoded out = encodeTree "{hello: &hello world}"
     f <- runAsdfM $ splitAsdfFile out

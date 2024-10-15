@@ -257,7 +257,7 @@ testRoundTrip = do
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.axes `shouldBe` fs.primaryHDU.dataArray.axes
 
-  describe "image fits" $ withMarkers ["focus"] $ do
+  describe "image fits" $ do
     it "should roundtrip image extensions" $ do
       let prim = PrimaryHDU mempty emptyDataArray
       let img = Image $ ImageHDU mempty emptyDataArray
