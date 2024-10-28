@@ -122,7 +122,6 @@ streamSpec = do
     let unit = fromValue $ String ""
     let obj = Object [("unit", unit)]
     (out, _) <- runAsdfM . encodeNode $ toNode obj
-    print out
     out `shouldBe` "{unit: ''}\n"
 
 

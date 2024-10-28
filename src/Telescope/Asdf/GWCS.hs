@@ -6,23 +6,29 @@ module Telescope.Asdf.GWCS where
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
-import Data.Massiv.Array (Array, Ix1, Ix2)
+import Data.Massiv.Array (Array, Ix2)
 import Data.Massiv.Array qualified as M
-import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
 import GHC.Generics
 import Telescope.Asdf
 import Telescope.Asdf.Core
-
-import Data.ByteString qualified as BS
-import Telescope.Asdf.Encoding as Encoding
+import Telescope.Data.WCS (WCSAxis (..))
 
 
 -- TODO: Affine: Rotation. Matrix, Translation. What is this doing?
 -- WARNING: Where does rsun come from in reference frame? Is it possible to do this without duplicating sunpy?
---
+
+data GWCS inp out = GWCS (GWCSStep inp) (GWCSStep out)
+instance (ToAsdf inp, ToAsdf out) => ToAsdf (GWCS inp out) where
+  schema _ = "tag:stsci.edu:gwcs/wcs-1.2.0"
+  toValue (GWCS inp out) =
+    Object
+      [ ("name", toNode $ String "")
+      , ("steps", toNode $ Array [toNode inp, toNode out])
+      ]
+
 
 data GWCSStep frame = GWCSStep
   { frame :: frame
@@ -41,11 +47,6 @@ newtype AxisType = AxisType Text
   deriving newtype (IsString)
 instance ToAsdf AxisType where
   toValue (AxisType t) = String t
-
-
-data X deriving (Generic, ToAxes)
-data Y deriving (Generic, ToAxes)
-data Z deriving (Generic, ToAxes)
 
 
 data Pix a
@@ -73,11 +74,11 @@ data Alpha deriving (Generic, ToAxes)
 data Delta deriving (Generic, ToAxes)
 
 
-newtype Lon = Lon Double
+newtype Lon = Lon Float
   deriving newtype (ToAsdf)
-newtype Lat = Lat Double
+newtype Lat = Lat Float
   deriving newtype (ToAsdf)
-newtype LonPole = LonPole Double
+newtype LonPole = LonPole Float
   deriving newtype (ToAsdf)
 
 
@@ -171,11 +172,19 @@ instance ToAsdf Direction where
   toValue = String . T.toLower . pack . show
 
 
-data Shift = Shift Double
-data Scale = Scale Double
-data Affine = Affine {matrix :: Array M.D Ix2 Double, translation :: (Double, Double)}
+data Shift = Shift Float deriving (Show, Eq)
+data Scale = Scale Float deriving (Show, Eq)
+data Intercept = Intercept Float deriving (Show, Eq)
+data Affine = Affine {matrix :: Array M.D Ix2 Float, translation :: (Float, Float)}
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
+  deriving (Generic)
+data Linear1d = Linear1d {intercept :: Float, slope :: Float}
+  deriving (Generic)
+
+
+instance ToAsdf Linear1d where
+  schema _ = "!transform/linear1d-1.0.0"
 
 
 instance ToAsdf Shift where
@@ -198,22 +207,16 @@ instance ToAsdf Projection where
 
 instance ToAsdf Rotate3d where
   schema _ = "!transform/rotate3d-1.3.0"
-  toValue r =
-    Object
-      [ ("direction", toNode r.direction)
-      , ("phi", toNode r.phi)
-      , ("psi", toNode r.psi)
-      , ("theta", toNode r.theta)
-      ]
 
 
 instance ToAsdf Affine where
   schema _ = "!transform/affine-1.3.0"
   toValue a =
-    Object
-      [ ("matrix", toNode $ toNDArray a.matrix)
-      , ("translation", toNode @[Double] [0, 0])
-      ]
+    let (tx, ty) = a.translation
+     in Object
+          [ ("matrix", toNode $ M.toLists a.matrix)
+          , ("translation", toNode [tx, ty])
+          ]
 
 
 -- Frames -----------------------------------------------
@@ -310,26 +313,24 @@ instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
 
 -- Transforms -----------------------------------------------
 
-shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Double -> Transform (f a) (Dlt a)
+shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Float -> Transform (f a) (Dlt a)
 shift d = transform $ Shift d
 
 
-scale :: forall a f. (ToAxes (f a), ToAxes (Scl a)) => Double -> Transform (f a) (Scl a)
+scale :: forall a f. (ToAxes (f a), ToAxes (Scl a)) => Float -> Transform (f a) (Scl a)
 scale d = transform $ Scale d
 
 
-linear :: forall a. (ToAxes a) => Shift -> Scale -> Transform (Pix a) (Linear a)
-linear (Shift dlt) (Scale scl) =
-  let t = shift dlt |> scale scl :: Transform (Pix a) (Scl a)
-   in Transform $ Transformation (toAxes @a) (toAxes @(Linear a)) t.transformation.forward
+linear :: forall a. (ToAxes a) => Intercept -> Scale -> Transform (Pix a) (Linear a)
+linear (Intercept dlt) (Scale scl) = transform $ Linear1d{intercept = dlt, slope = scl}
 
 
-rotate :: Array M.D Ix2 Double -> Transform (Linear X, Linear Y) (Rot (X, Y))
+rotate :: (ToAxes x, ToAxes y) => Array M.D Ix2 Float -> Transform (Linear x, Linear y) (Rot (x, y))
 rotate arr =
   transform $ Affine arr (0, 0)
 
 
-project :: Direction -> Transform (Rot (X, Y)) (Phi, Theta)
+project :: (ToAxes x, ToAxes y) => Direction -> Transform (Rot (x, y)) (Phi, Theta)
 project dir =
   transform $ Projection dir
 
@@ -337,6 +338,19 @@ project dir =
 celestial :: Lat -> Lon -> LonPole -> Transform (Phi, Theta) (Alpha, Delta)
 celestial lat lon pole =
   transform $ Rotate3d{direction = Native2Celestial, theta = lat, phi = lon, psi = pole}
+
+
+-- WCS Transforms ---------------------------------------------------------
+
+wcsLinear :: (ToAxes axis) => WCSAxis alt axis -> Transform (Pix axis) (Linear axis)
+wcsLinear wcs = linear (wcsIntercept wcs) (Scale wcs.cdelt)
+
+
+-- the Y intercept
+wcsIntercept :: WCSAxis alt axis -> Intercept
+wcsIntercept w =
+  -- crpix is 1-indexed, need to switch to zero
+  Intercept $ w.crval - w.cdelt * (w.crpix - 1)
 
 
 -- | Generic NodeName

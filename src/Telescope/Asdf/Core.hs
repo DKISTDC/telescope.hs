@@ -21,6 +21,7 @@ data Unit
   = Count
   | Pixel
   | Degrees
+  | Nanometers
   | Unit Text
   deriving (Eq)
 
@@ -31,6 +32,7 @@ instance ToAsdf Unit where
     Count -> "count"
     Pixel -> "pixel"
     Degrees -> "deg"
+    Nanometers -> "nm"
     (Unit t) -> String t
 instance FromAsdf Unit where
   parseValue = \case
@@ -38,6 +40,7 @@ instance FromAsdf Unit where
     String "deg" -> pure Degrees
     String "pixel" -> pure Pixel
     String "pix" -> pure Pixel
+    String "nm" -> pure Nanometers
     String t -> pure $ Unit t
     val -> expected "String" val
 

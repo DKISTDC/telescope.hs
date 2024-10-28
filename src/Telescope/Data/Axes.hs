@@ -1,6 +1,8 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Telescope.Data.Axes where
 
 import GHC.IsList (IsList (..))
+import GHC.TypeLits
 
 
 type Axis = Int
@@ -34,3 +36,7 @@ instance IsList (Axes Row) where
   type Item (Axes Row) = Axis
   fromList = Axes
   toList (Axes ax) = ax
+
+
+class AxisOrder ax where
+  axisN :: Natural

@@ -111,6 +111,14 @@ instance FromAsdf Double where
     node -> expected "Double" node
 
 
+instance ToAsdf Float where
+  toValue n = Number $ fromFloatDigits n
+instance FromAsdf Float where
+  parseValue = \case
+    Number n -> pure $ toRealFloat n
+    node -> expected "Float" node
+
+
 parseInteger :: (Integral a, Parser :> es) => Value -> Eff es a
 parseInteger = \case
   Integer n -> pure $ fromIntegral n

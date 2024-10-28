@@ -1,11 +1,23 @@
 module Test.Fits.ClassSpec where
 
+import Control.Monad.Catch (throwM)
+import Data.Fits as Fits hiding (isKeyword)
 import Data.Text (Text)
+import Effectful
+import Effectful.Error.Static
 import GHC.Generics
 import Skeletest
 import Skeletest.Predicate qualified as P
+import Telescope.Data.Axes
 import Telescope.Data.Parser
+import Telescope.Data.WCS
 import Telescope.Fits.Header
+
+
+spec :: Spec
+spec = do
+  describe "class" classSpec
+  describe "wcs" wcsSpec
 
 
 newtype Activity = Activity Text
@@ -32,8 +44,8 @@ data Parent = Parent
   deriving (Generic, ToHeader)
 
 
-spec :: Spec
-spec = do
+classSpec :: Spec
+classSpec = do
   describe "To/From KeywordValue" $ do
     it "should toKeywordValue" $ do
       toKeywordValue (23 :: Int) `shouldBe` Integer 23
@@ -70,3 +82,37 @@ spec = do
       let et = runPureParser $ parseHeader h
       et `shouldSatisfy` P.right (P.con Test{age = P.eq 40})
       et `shouldSatisfy` P.right (P.con Test{firstName = P.eq "Alice"})
+
+
+data X
+instance AxisOrder X where
+  axisN = 1
+
+
+data Y
+instance AxisOrder Y where
+  axisN = 2
+
+
+wcsSpec :: Spec
+wcsSpec = do
+  describe "axis To/From Header" $ withMarkers ["focus"] $ do
+    it "should incorporate axis order into keywords" $ do
+      let hx = toHeader wcsX
+      Fits.lookup "CRPIX1" hx `shouldBe` Just (Float 1.0)
+
+    it "should incorporate wcsalt into keywords" $ do
+      let h = toHeader wcsAY
+      Fits.lookup "CRVAL2A" h `shouldBe` Just (Float 5.0)
+
+    it "should roundtrip" $ do
+      let h = toHeader wcsAY
+      wcs2 <- parseIO $ parseHeader h
+      wcs2 `shouldBe` wcsAY
+ where
+  wcsX = WCSAxis (CType "X") (CUnit "M") 1 2 3 :: WCSAxis 'WCSMain X
+  wcsAY = WCSAxis (CType "Y") (CUnit "M") 4 5 6 :: WCSAxis 'A Y
+
+
+parseIO :: Eff '[Parser, Error ParseError, IOE] a -> IO a
+parseIO p = runEff $ runErrorNoCallStackWith @ParseError throwM $ runParser p

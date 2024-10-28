@@ -6,7 +6,10 @@ import Data.Text (Text, pack)
 import Data.Text qualified as T
 import Effectful
 import GHC.Generics
+import Telescope.Data.Axes (AxisOrder (..))
+import Telescope.Data.KnownText
 import Telescope.Data.Parser
+import Telescope.Data.WCS (CType (..), CUnit (..), WCSAxis (..), toWCSAxisKey)
 import Text.Casing (fromHumps, toSnake)
 
 
@@ -54,6 +57,22 @@ instance FromKeyword Bool where
     v -> expected "Logic" v
 
 
+instance ToKeyword CUnit where
+  toKeywordValue (CUnit t) = toKeywordValue t
+instance FromKeyword CUnit where
+  parseKeywordValue = \case
+    String t -> pure $ CUnit t
+    v -> expected "CUnit" v
+
+
+instance ToKeyword CType where
+  toKeywordValue (CType t) = toKeywordValue t
+instance FromKeyword CType where
+  parseKeywordValue = \case
+    String t -> pure $ CType t
+    v -> expected "CType" v
+
+
 class FromKeyword a where
   parseKeywordValue :: (Parser :> es) => Value -> Eff es a
 
@@ -73,10 +92,41 @@ instance (ToHeader a) => ToHeader [a] where
   toHeader = mconcat . fmap toHeader
 
 
+instance (AxisOrder ax, KnownText alt) => ToHeader (WCSAxis alt ax) where
+  toHeader axis =
+    mconcat
+      [ axisKey "ctype" axis.ctype
+      , axisKey "cunit" axis.cunit
+      , axisKey "crpix" axis.crpix
+      , axisKey "crval" axis.crval
+      , axisKey "cdelt" axis.cdelt
+      ]
+   where
+    axisKey :: (ToKeyword a) => String -> a -> Header
+    axisKey s a =
+      Header [Keyword $ toKeywordRecord (keyword s) a]
+
+    keyword s = toWCSAxisKey @alt @ax $ cleanKeyword s
+
+
 class FromHeader a where
   parseHeader :: (Parser :> es) => Header -> Eff es a
   default parseHeader :: (Generic a, GFromHeader (Rep a), Parser :> es) => Header -> Eff es a
   parseHeader h = to <$> gParseHeader h
+
+
+instance (AxisOrder ax, KnownText alt) => FromHeader (WCSAxis alt ax) where
+  parseHeader h = do
+    ctype <- parseAxisKey "ctype" h
+    cunit <- parseAxisKey "cunit" h
+    crpix <- parseAxisKey "crpix" h
+    crval <- parseAxisKey "crval" h
+    cdelt <- parseAxisKey "cdelt" h
+    pure $ WCSAxis{ctype, cunit, crpix, crval, cdelt}
+   where
+    parseAxisKey :: (FromKeyword a, Parser :> es) => String -> Header -> Eff es a
+    parseAxisKey k = do
+      parseKeyword (toWCSAxisKey @alt @ax $ cleanKeyword k)
 
 
 parseKeyword :: (FromKeyword a, Parser :> es) => Text -> Header -> Eff es a
