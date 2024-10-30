@@ -141,6 +141,42 @@ instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf (NonEmpty a) where
   toValue as = toValue $ NE.toList as
 
 
+instance (ToAsdf a, ToAsdf b) => ToAsdf (a, b) where
+  toValue (a, b) = Array [toNode a, toNode b]
+instance (FromAsdf a, FromAsdf b) => FromAsdf (a, b) where
+  parseValue = \case
+    Array [n1, n2] -> do
+      a <- parseValue n1.value
+      b <- parseValue n2.value
+      pure (a, b)
+    node -> expected "[a, b]" node
+
+
+instance (ToAsdf a, ToAsdf b, ToAsdf c) => ToAsdf (a, b, c) where
+  toValue (a, b, c) = Array [toNode a, toNode b, toNode c]
+instance (FromAsdf a, FromAsdf b, FromAsdf c) => FromAsdf (a, b, c) where
+  parseValue = \case
+    Array [na, nb, nc] -> do
+      a <- parseValue na.value
+      b <- parseValue nb.value
+      c <- parseValue nc.value
+      pure (a, b, c)
+    node -> expected "[a, b, c]" node
+
+
+instance (ToAsdf a, ToAsdf b, ToAsdf c, ToAsdf d) => ToAsdf (a, b, c, d) where
+  toValue (a, b, c, d) = Array [toNode a, toNode b, toNode c, toNode d]
+instance (FromAsdf a, FromAsdf b, FromAsdf c, FromAsdf d) => FromAsdf (a, b, c, d) where
+  parseValue = \case
+    Array [na, nb, nc, nd] -> do
+      a <- parseValue na.value
+      b <- parseValue nb.value
+      c <- parseValue nc.value
+      d <- parseValue nd.value
+      pure (a, b, c, d)
+    node -> expected "[a, b, c, d]" node
+
+
 -- they will always serialize to Array
 instance FromAsdf [Text] where
   parseValue = parseAnyList

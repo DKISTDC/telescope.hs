@@ -40,7 +40,7 @@ instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where
 
 
 newtype AxisName = AxisName Text
-  deriving newtype (IsString, ToAsdf, Show, Semigroup)
+  deriving newtype (IsString, ToAsdf, Show, Semigroup, Eq)
 
 
 newtype AxisType = AxisType Text
@@ -87,21 +87,21 @@ data Transformation = Transformation
   , outputs :: [AxisName]
   , forward :: Forward
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 
 instance ToAsdf Transformation where
   schema t =
     case t.forward of
-      Compose _ -> "!transform/compose-1.2.0"
-      Concat _ -> "!transform/concatenate-1.2.0"
+      Compose _ _ -> "!transform/compose-1.2.0"
+      Concat _ _ -> "!transform/concatenate-1.2.0"
       Direct{schemaTag} -> schemaTag
 
 
   toValue t =
     inputFields <> case t.forward of
-      Compose ts -> Object [("forward", toNode ts)]
-      Concat ts -> Object [("forward", toNode ts)]
+      Compose t u -> Object [("forward", toNode [t, u])]
+      Concat t u -> Object [("forward", toNode [t, u])]
       Direct{fields} -> fields
    where
     inputFields =
@@ -112,10 +112,10 @@ instance ToAsdf Transformation where
 
 
 data Forward
-  = Compose (NonEmpty Transformation)
-  | Concat (NonEmpty Transformation)
+  = Compose Transformation Transformation
+  | Concat Transformation Transformation
   | Direct {schemaTag :: SchemaTag, fields :: Value}
-  deriving (Show)
+  deriving (Show, Eq)
 
 
 data Transform b c = Transform
@@ -134,13 +134,12 @@ transform a =
 
 
 (|>) :: forall b c d. (ToAxes b, ToAxes d) => Transform b c -> Transform c d -> Transform b d
-(Transform s) |> (Transform t) = Transform
-  $ Transformation
-    (toAxes @b)
-    (toAxes @d)
-  $ case t.forward of
-    Compose ts -> Compose $ s :| NE.toList ts
-    _ -> Compose $ s :| [t]
+(Transform s) |> (Transform t) =
+  Transform
+    $ Transformation
+      (toAxes @b)
+      (toAxes @d)
+    $ Compose s t
 
 
 (<&>)
@@ -154,11 +153,7 @@ Transform s <&> Transform t =
     $ Transformation
       (toAxes @(TConcat a cs))
       (toAxes @(TConcat b ds))
-    $ concatTransform t.inputs t.forward
- where
-  concatTransform [] _ = Concat $ NE.singleton s
-  concatTransform _ (Concat ts) = Concat $ s :| NE.toList ts
-  concatTransform _ _ = Concat $ s :| [t]
+    $ Concat s t
 infixr 8 <&>
 
 
@@ -174,6 +169,7 @@ instance ToAsdf Direction where
 
 data Shift = Shift Float deriving (Show, Eq)
 data Scale = Scale Float deriving (Show, Eq)
+data Identity = Identity deriving (Show, Eq)
 data Intercept = Intercept Float deriving (Show, Eq)
 data Affine = Affine {matrix :: Array M.D Ix2 Float, translation :: (Float, Float)}
 data Projection = Projection Direction
@@ -181,6 +177,11 @@ data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi 
   deriving (Generic)
 data Linear1d = Linear1d {intercept :: Float, slope :: Float}
   deriving (Generic)
+
+
+instance ToAsdf Identity where
+  schema _ = "!transform/identity-1.2.0"
+  toValue _ = Object []
 
 
 instance ToAsdf Linear1d where
@@ -235,6 +236,35 @@ instance ToAsdf CoordinateFrame where
         <> frameAxesObject f.axes
 
 
+data StokesFrame = StokesFrame
+  { name :: Text
+  , axisOrder :: Int
+  }
+instance ToAsdf StokesFrame where
+  schema _ = "tag:stsci.edu:gwcs/stokes_frame-1.0.0"
+  toValue f =
+    Object
+      [ ("name", toNode f.name)
+      , ("axes_order", toNode [f.axisOrder])
+      ]
+
+
+data SpectralFrame = SpectralFrame
+  { name :: Text
+  , axisOrder :: Int
+  }
+instance ToAsdf SpectralFrame where
+  schema _ = "tag:stsci.edu:gwcs/spectral_frame-1.0.0"
+  toValue f =
+    Object
+      [ ("name", toNode f.name)
+      , ("axes_names", toNode [String "wavelength"])
+      , ("axes_order", toNode [f.axisOrder])
+      , ("axis_physical_types", toNode [String "em.wl"])
+      , ("unit", toNode [Nanometers])
+      ]
+
+
 data CelestialFrame = CelestialFrame
   { name :: Text
   , axes :: NonEmpty FrameAxis
@@ -283,13 +313,13 @@ data FrameAxis = FrameAxis
   }
 
 
-data CompositeFrame a b = CompositeFrame a b
-instance (ToAsdf a, ToAsdf b) => ToAsdf (CompositeFrame a b) where
+data CompositeFrame as = CompositeFrame as
+instance (ToAsdf as) => ToAsdf (CompositeFrame as) where
   schema _ = "tag:stsci.edu:gwcs/composite_frame-1.0.0"
-  toValue (CompositeFrame a b) =
+  toValue (CompositeFrame as) =
     Object
       [ ("name", toNode $ String "CompositeFrame")
-      , ("frames", toNode $ Array [toNode a, toNode b])
+      , ("frames", toNode as)
       ]
 
 
@@ -338,6 +368,10 @@ project dir =
 celestial :: Lat -> Lon -> LonPole -> Transform (Phi, Theta) (Alpha, Delta)
 celestial lat lon pole =
   transform $ Rotate3d{direction = Native2Celestial, theta = lat, phi = lon, psi = pole}
+
+
+identity :: (ToAxes bs, ToAxes cs) => Transform bs cs
+identity = transform Identity
 
 
 -- WCS Transforms ---------------------------------------------------------
