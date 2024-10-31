@@ -17,10 +17,10 @@ import Telescope.Asdf.Core
 import Telescope.Data.WCS (WCSAxis (..))
 
 
--- TODO: Affine: Rotation. Matrix, Translation. What is this doing?
--- WARNING: Where does rsun come from in reference frame? Is it possible to do this without duplicating sunpy?
-
+-- | GWCS pipelines consist of an input and output 'GWCSStep'
 data GWCS inp out = GWCS (GWCSStep inp) (GWCSStep out)
+
+
 instance (ToAsdf inp, ToAsdf out) => ToAsdf (GWCS inp out) where
   schema _ = "tag:stsci.edu:gwcs/wcs-1.2.0"
   toValue (GWCS inp out) =
@@ -30,11 +30,14 @@ instance (ToAsdf inp, ToAsdf out) => ToAsdf (GWCS inp out) where
       ]
 
 
+-- | A step contains a frame (like 'CelestialFrame') and a 'Transform a b'
 data GWCSStep frame = GWCSStep
   { frame :: frame
   , transform :: Maybe Transformation
   }
   deriving (Generic)
+
+
 instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where
   schema _ = "tag:stsci.edu:gwcs/step-1.1.0"
 
@@ -50,28 +53,19 @@ instance ToAsdf AxisType where
 
 
 data Pix a
-data Scl a
-data Dlt a
 data Rot a
-data Linear a
 
 
 instance (ToAxes a) => ToAxes (Pix a) where
   toAxes = toAxes @a
-instance (ToAxes a) => ToAxes (Scl a) where
+instance (ToAxes a) => ToAxes (Scale a) where
   toAxes = fmap ("*" <>) (toAxes @a)
-instance (ToAxes a) => ToAxes (Dlt a) where
+instance (ToAxes a) => ToAxes (Shift a) where
   toAxes = fmap ("+" <>) (toAxes @a)
 instance (ToAxes a) => ToAxes (Rot a) where
   toAxes = fmap ("rot_" <>) (toAxes @a)
 instance (ToAxes a) => ToAxes (Linear a) where
   toAxes = fmap ("lin_" <>) (toAxes @a)
-
-
-data Phi deriving (Generic, ToAxes)
-data Theta deriving (Generic, ToAxes)
-data Alpha deriving (Generic, ToAxes)
-data Delta deriving (Generic, ToAxes)
 
 
 newtype Lon = Lon Float
@@ -82,6 +76,7 @@ newtype LonPole = LonPole Float
   deriving newtype (ToAsdf)
 
 
+-- | A 'Tranform' with the types stripped, and the axes recorded
 data Transformation = Transformation
   { inputs :: [AxisName]
   , outputs :: [AxisName]
@@ -100,8 +95,8 @@ instance ToAsdf Transformation where
 
   toValue t =
     inputFields <> case t.forward of
-      Compose t u -> Object [("forward", toNode [t, u])]
-      Concat t u -> Object [("forward", toNode [t, u])]
+      Compose a b -> Object [("forward", toNode [a, b])]
+      Concat a b -> Object [("forward", toNode [a, b])]
       Direct{fields} -> fields
    where
     inputFields =
@@ -118,12 +113,23 @@ data Forward
   deriving (Show, Eq)
 
 
+{- | A Transform specifies how we manipulate a type in a pipeline
+
+> spatialTransform :: WCSAxis s X -> WCSAxis s Y -> Transform (Pix X, PixY) (Scale X, Scale Y)
+> spatialTransform wcsx wcsy =
+>   let dx = shift wcsx.crpix :: Transform (Pix X) (Shift X)
+>       dy = shift wcsy.crpix :: Transform (Pix Y) (Shift Y)
+>       xx = scale wcsx.cdelt :: Transform (Shift X) (Scale X)
+>       xy = scale wcsy.cdelt :: Transform (Shift Y) (Scale Y)
+>   in dx |> xx <&> dy |> xy
+-}
 data Transform b c = Transform
   { transformation :: Transformation
   }
   deriving (Show)
 
 
+-- | Convert a type into a 'Transform' via 'ToAsdf' and 'ToAxes'
 transform :: forall a bs cs. (ToAsdf a, ToAxes bs, ToAxes cs) => a -> Transform bs cs
 transform a =
   Transform
@@ -133,6 +139,7 @@ transform a =
     $ Direct (schema a) (toValue a)
 
 
+-- | Compose two transforms
 (|>) :: forall b c d. (ToAxes b, ToAxes d) => Transform b c -> Transform c d -> Transform b d
 (Transform s) |> (Transform t) =
   Transform
@@ -142,6 +149,10 @@ transform a =
     $ Compose s t
 
 
+infixr 5 |>
+
+
+-- | Concatent two transforms
 (<&>)
   :: forall (a :: Type) (b :: Type) (cs :: Type) (ds :: Type)
    . (ToAxes (TConcat a cs), ToAxes (TConcat b ds))
@@ -154,7 +165,9 @@ Transform s <&> Transform t =
       (toAxes @(TConcat a cs))
       (toAxes @(TConcat b ds))
     $ Concat s t
-infixr 8 <&>
+
+
+infixr 4 <&>
 
 
 data Direction
@@ -167,15 +180,15 @@ instance ToAsdf Direction where
   toValue = String . T.toLower . pack . show
 
 
-data Shift = Shift Float deriving (Show, Eq)
-data Scale = Scale Float deriving (Show, Eq)
+data Shift a = Shift Float deriving (Show, Eq)
+data Scale a = Scale Float deriving (Show, Eq)
 data Identity = Identity deriving (Show, Eq)
 data Intercept = Intercept Float deriving (Show, Eq)
 data Affine = Affine {matrix :: Array M.D Ix2 Float, translation :: (Float, Float)}
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
   deriving (Generic)
-data Linear1d = Linear1d {intercept :: Float, slope :: Float}
+data Linear a = Linear1d {intercept :: Float, slope :: Float}
   deriving (Generic)
 
 
@@ -184,17 +197,17 @@ instance ToAsdf Identity where
   toValue _ = Object []
 
 
-instance ToAsdf Linear1d where
+instance ToAsdf (Linear a) where
   schema _ = "!transform/linear1d-1.0.0"
 
 
-instance ToAsdf Shift where
+instance ToAsdf (Shift a) where
   schema _ = "!transform/shift-1.2.0"
   toValue (Shift d) =
     Object [("offset", toNode d)]
 
 
-instance ToAsdf Scale where
+instance ToAsdf (Scale a) where
   schema _ = "!transform/scale-1.2.0"
   toValue (Scale d) =
     Object [("factor", toNode d)]
@@ -325,6 +338,13 @@ instance (ToAsdf as) => ToAsdf (CompositeFrame as) where
 
 -- ToAxes -----------------------------------------------
 
+{- | Convert a type to named axes
+
+> data X deriving (Generic, ToAxes)
+> data Y
+> instance ToAxes Y where
+>   toAxes = ["y"]
+-}
 class ToAxes (as :: Type) where
   toAxes :: [AxisName]
   default toAxes :: (Generic as, GTypeName (Rep as)) => [AxisName]
@@ -343,15 +363,15 @@ instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
 
 -- Transforms -----------------------------------------------
 
-shift :: forall a f. (ToAxes (f a), ToAxes (Dlt a)) => Float -> Transform (f a) (Dlt a)
+shift :: forall a f. (ToAxes (f a), ToAxes (Shift a)) => Float -> Transform (f a) (Shift a)
 shift d = transform $ Shift d
 
 
-scale :: forall a f. (ToAxes (f a), ToAxes (Scl a)) => Float -> Transform (f a) (Scl a)
+scale :: forall a f. (ToAxes (f a), ToAxes (Scale a)) => Float -> Transform (f a) (Scale a)
 scale d = transform $ Scale d
 
 
-linear :: forall a. (ToAxes a) => Intercept -> Scale -> Transform (Pix a) (Linear a)
+linear :: forall a. (ToAxes a) => Intercept -> Scale a -> Transform (Pix a) (Linear a)
 linear (Intercept dlt) (Scale scl) = transform $ Linear1d{intercept = dlt, slope = scl}
 
 
@@ -368,6 +388,12 @@ project dir =
 celestial :: Lat -> Lon -> LonPole -> Transform (Phi, Theta) (Alpha, Delta)
 celestial lat lon pole =
   transform $ Rotate3d{direction = Native2Celestial, theta = lat, phi = lon, psi = pole}
+
+
+data Phi deriving (Generic, ToAxes)
+data Theta deriving (Generic, ToAxes)
+data Alpha deriving (Generic, ToAxes)
+data Delta deriving (Generic, ToAxes)
 
 
 identity :: (ToAxes bs, ToAxes cs) => Transform bs cs
@@ -403,52 +429,3 @@ type family TConcat a b where
   TConcat (a, b) c = (a, b, c)
   TConcat a (b, c) = (a, b, c)
   TConcat a b = (a, b)
-
--- you can define them inline, but it's gross
--- linearX :: Transform (Pix X) (Linear X)
--- linearX = linear (Shift 10) (Scale 8)
---
---
--- linearY :: Transform (Pix Y) (Linear Y)
--- linearY = linear (Shift 9) (Scale 7)
---
---
--- linearXY :: Transform (Pix X, Pix Y) (Linear X, Linear Y)
--- linearXY = linearX <&> linearY
---
---
--- transformOpticalDepth :: Transform (Pix OpticalDepth) (Linear OpticalDepth)
--- transformOpticalDepth = linear (Shift 8) (Scale 10)
---
---
--- transformComposite :: Transform (Pix OpticalDepth, Pix X, Pix Y) (Linear OpticalDepth, Alpha, Delta)
--- transformComposite = transformOpticalDepth <&> transformSpatial
---
-
--- test :: IO ()
--- test = do
---   out <- Encoding.encodeM $ Just linearXY.transformation --  Object [("transformation", toNode linearXY.transformation)]
---   BS.writeFile "/Users/seanhess/Downloads/test.asdf" out
---  where
---   inputStep = GWCSStep pixelFrame (Just linearXY.transformation)
---
---   pixelFrame :: CoordinateFrame
---   pixelFrame =
---     CoordinateFrame
---       { name = "pixel"
---       , axes =
---           NE.fromList
---             [ FrameAxis "optical_depth" 0 (AxisType "PIXEL") Pixel
---             , FrameAxis "spatial along slit" 1 (AxisType "PIXEL") Pixel
---             , FrameAxis "raster scan step number" 2 (AxisType "PIXEL") Pixel
---             ]
---       }
---
---   linearX :: Transform (Pix X) (Linear X)
---   linearX = linear (Shift 10) (Scale 8)
---
---   linearXY :: Transform (Pix X, Pix Y) (Linear X, Linear Y)
---   linearXY = linearX <&> linearY
---
---   linearY :: Transform (Pix Y) (Linear Y)
---   linearY = linear (Shift 9) (Scale 7)

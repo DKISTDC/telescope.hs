@@ -20,6 +20,7 @@ import Telescope.Asdf.Error
 import Telescope.Asdf.Node (Tree)
 
 
+-- | Split an encoded 'ByteString' into a 'Tree', '[Encoded Block]' and 'Encoded Index'
 splitAsdfFile :: (Error AsdfError :> es) => ByteString -> Eff es AsdfFile
 splitAsdfFile dat = do
   res <- runFail $ evalState dat parseAsdfFile
@@ -28,6 +29,7 @@ splitAsdfFile dat = do
     Right a -> pure a
 
 
+-- | Lightweight first-pass parsing using 'State ByteString' instead of Parsec or similar
 parseAsdfFile :: (State ByteString :> es, Fail :> es) => Eff es AsdfFile
 parseAsdfFile = do
   -- if it's empty, then give an error
@@ -134,6 +136,11 @@ encodeBlocks :: [BlockData] -> [Encoded Block]
 encodeBlocks = fmap encodeBlock
 
 
+encodeBlock :: BlockData -> Encoded Block
+encodeBlock b =
+  Encoded $ BL.toStrict $ runPut $ putBlock b
+
+
 encodeIndex :: BlockIndex -> Encoded Index
 encodeIndex (BlockIndex ns) =
   Encoded $ BS.intercalate "\n" $ ["#ASDF BLOCK INDEX", "%YAML 1.1", "---"] <> fmap indexEntry ns <> ["..."]
@@ -145,6 +152,7 @@ data Index
 data Block
 
 
+-- | values that have been encoded to the file format: padding, etc
 newtype Encoded a = Encoded {bytes :: ByteString}
   deriving (Show, Eq)
   deriving newtype (IsString)
@@ -163,7 +171,6 @@ instance Show BlockData where
   show (BlockData bs) = "BlockData " <> show (BS.length bs)
 
 
--- what's the best way to represent a fixed-length ascii string
 data BlockHeader = BlockHeader
   { headerSize :: Word16
   , flags :: Word32
@@ -281,11 +288,6 @@ putBlockHeader h = do
     pure $ fromIntegral $ BL.length bs
 
 
-encodeBlock :: BlockData -> Encoded Block
-encodeBlock b =
-  Encoded $ BL.toStrict $ runPut $ putBlock b
-
-
 blockIndex :: Encoded Tree -> [Encoded Block] -> BlockIndex
 blockIndex (Encoded bytes) ebs =
   let ns = scanl go (BS.length bytes) ebs
@@ -331,7 +333,7 @@ blockIndexHeader :: ByteString
 blockIndexHeader = "#ASDF BLOCK INDEX"
 
 
--- TEST: make sure this doesn't consume any input
+-- | Verify that the magic token is next without consuming any input
 checkMagicToken :: Get Bool
 checkMagicToken = do
   emp <- isEmpty
@@ -342,7 +344,7 @@ checkMagicToken = do
       pure $ either (const False) (const True) eb
 
 
--- consumes input
+-- | consume the magic token if available
 getMagicToken :: Get (Either ByteString ())
 getMagicToken = do
   -- this still fails if it is empty

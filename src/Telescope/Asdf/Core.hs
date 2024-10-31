@@ -15,8 +15,10 @@ import Telescope.Asdf.Node
 import Telescope.Data.Parser (expected)
 
 
--- VOUnit https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
--- >> Unrecognised units should be accepted by parsers, as long as they are parsed giving preference to the syntaxes and prefixes described here.
+{- | VOUnit: https://www.ivoa.net/documents/VOUnits/20231215/REC-VOUnits-1.1.html
+ -
+Unrecognised units should be accepted by parsers, as long as they are parsed giving preference to the syntaxes and prefixes described here.
+-}
 data Unit
   = Count
   | Pixel
@@ -45,82 +47,39 @@ instance FromAsdf Unit where
     val -> expected "String" val
 
 
--- it seems silly to parse into these. this is dynamic typing!
+-- | Tag a value with a 'Unit'
 data Quantity = Quantity
   { unit :: Unit
   , value :: Value
   }
   deriving (Generic)
+
+
 instance ToAsdf Quantity where
   schema _ = "!unit/quantity-1.1.0"
 instance FromAsdf Quantity
 
 
--- newtype Points = Points [[Double]]
+--
+-- -- TEST: this is probably index dependent
+-- data BoundingBox = BoundingBox Double Double
 --
 --
--- instance ToAsdf Points where
---   schema = "unit/quantity-1.1.0"
---   toValue (Points ds) = do
---     toValue $ Quantity Pixel (NDArray $ toNDArray ds)
+-- instance ToAsdf BoundingBox where
+--   toValue (BoundingBox a b) =
+--     Array
+--       [ toNode $ Quantity Pixel (toValue a)
+--       , toNode $ Quantity Pixel (toValue b)
+--       ]
 --
 --
--- instance FromAsdf Points where
---   parseValue v = do
---     q <- parseValue v :: Parser Quantity
---     ps <- parseNDArray q.value
---     pure $ Points ps
---
---
--- newtype Points' = Points' (Array D Ix1 Double)
---
---
--- instance ToAsdf Points' where
---   schema = "unit/quantity-1.1.0"
---   toValue (Points' ds) = do
---     toValue $ Quantity Pixel (NDArray $ toNDArray ds)
---
---
--- instance FromAsdf Points' where
---   parseValue v = do
---     q <- parseValue v :: Parser Quantity
---     ps <- parseNDArray q.value
---     pure $ Points' ps
+-- instance FromAsdf BoundingBox where
+--   parseValue = \case
+--     Array [n1, n2] -> do
+--       BoundingBox <$> parseNode n1 <*> parseNode n2
+--     node -> expected "BoundingBox" node
 
--- instance ToAsdf Points where
---   schema = "unit/quantity-1.1.0"
---   toValue (Points ds) = _
-
--- we could have embedded data as a class?
--- we are really just specifying how type x
-
---  points:
--- - !unit/quantity-1.1.0
---   unit: !unit/unit-1.0.0 pixel
---   value: !core/ndarray-1.0.0
---     source: 260
---     datatype: float64
---     byteorder: little
-
--- TEST: this is probably index dependent
-data BoundingBox = BoundingBox Double Double
-
-
-instance ToAsdf BoundingBox where
-  toValue (BoundingBox a b) =
-    Array
-      [ toNode $ Quantity Pixel (toValue a)
-      , toNode $ Quantity Pixel (toValue b)
-      ]
-
-
-instance FromAsdf BoundingBox where
-  parseValue = \case
-    Array [n1, n2] -> do
-      BoundingBox <$> parseNode n1 <*> parseNode n2
-    node -> expected "BoundingBox" node
-
-
+-- | Required Software node at the top-level
 data Software = Software
   { author :: Maybe Text
   , homepage :: Maybe Text
@@ -128,16 +87,20 @@ data Software = Software
   , version :: Text
   }
   deriving (Show, Eq, Generic, FromAsdf)
+
+
 instance ToAsdf Software where
   schema _ = "!core/software-1.0.0"
 
 
--- allows "additional properties"...
+-- | Root ASDF node
 data Asdf = Asdf
   { history :: History
   , library :: Software
   , tree :: Tree
   }
+
+
 instance ToAsdf Asdf where
   schema _ = "!core/asdf-1.1.0"
   toValue a =

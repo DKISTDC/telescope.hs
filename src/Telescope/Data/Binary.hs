@@ -11,6 +11,7 @@ import GHC.Int
 import System.ByteOrder (ByteOrder (..))
 
 
+-- | Primitive types that can be serialized as Big or Little Endian
 class BinaryValue a where
   byteSize :: Int
   put :: ByteOrder -> a -> Put

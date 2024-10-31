@@ -17,7 +17,6 @@ data Parser :: Effect where
 type instance DispatchOf Parser = 'Dynamic
 
 
--- do each of them provide their own?
 runParser
   :: (Error ParseError :> es)
   => Eff (Parser : es) a
@@ -45,6 +44,17 @@ instance Show ParseError where
     "at " ++ show path ++ "\n ! " ++ s
 
 
+-- | Tracks the location of the parser in the document for error messages
+newtype Path = Path [Ref]
+  deriving (Eq)
+  deriving newtype (Semigroup, Monoid)
+
+
+instance Show Path where
+  show (Path ps) =
+    intercalate "/" (fmap show ps)
+
+
 data Ref
   = Child Text
   | Index Int
@@ -56,14 +66,13 @@ instance Show Ref where
   show (Index n) = show n
 
 
-newtype Path = Path [Ref]
-  deriving (Eq)
-  deriving newtype (Semigroup, Monoid)
-instance Show Path where
-  show (Path ps) =
-    intercalate "/" (fmap show ps)
+{- | Easy error message when we expect a particular type:
 
-
+> instance FromKeyword Int where
+>   parseKeywordValue = \case
+>     Integer n -> pure n
+>     v -> expected "Integer" v
+-}
 expected :: (Show value, Parser :> es) => String -> value -> Eff es a
 expected ex n =
   parseFail $ "Expected " ++ ex ++ ", but got: " ++ show n
@@ -73,6 +82,7 @@ parseFail :: (Parser :> es) => String -> Eff es a
 parseFail e = send $ ParseFail e
 
 
+-- | Add a child to the parsing 'Path'
 parseAt :: (Parser :> es) => Ref -> Eff es a -> Eff es a
 parseAt p parse = do
   send $ PathAdd p parse

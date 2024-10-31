@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Telescope.Data.Axes where
 
 import GHC.IsList (IsList (..))
@@ -6,10 +7,13 @@ import GHC.TypeLits
 
 
 type Axis = Int
-newtype Axes a = Axes {axes :: [Axis]}
+
+
+newtype Axes (a :: Major) = Axes {axes :: [Axis]}
   deriving (Show, Eq)
-data Row
-data Column
+
+
+data Major = Row | Column
 
 
 axesRowMajor :: [Axis] -> Axes Row
@@ -38,5 +42,15 @@ instance IsList (Axes Row) where
   toList (Axes ax) = ax
 
 
+{- | Specify which numbered axis a type represents
+
+> data X
+> instance AxisOrder X where
+>   axisN = 1
+>
+> data Y
+> instance AxisOrder Y where
+>   axisN = 2
+-}
 class AxisOrder ax where
   axisN :: Natural

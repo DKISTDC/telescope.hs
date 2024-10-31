@@ -40,12 +40,16 @@ import Telescope.Data.Parser
 
 -- import Telescope.Asdf.Node
 
--- https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/ndarray-1.1.0.html
-
+{- | Convert an 'NDArrayData' into a type
+https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/ndarray-1.1.0.html
+-}
 class FromNDArray a where
   fromNDArray :: (Parser :> es) => NDArrayData -> Eff es a
 
 
+{- | Convert a type to an 'NDArrayData'
+https://asdf-standard.readthedocs.io/en/latest/generated/stsci.edu/asdf/core/ndarray-1.1.0.html
+-}
 class ToNDArray a where
   toNDArray :: a -> NDArrayData
 

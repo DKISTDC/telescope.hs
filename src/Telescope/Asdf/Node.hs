@@ -28,19 +28,22 @@ instance IsString SchemaTag where
   fromString s = SchemaTag (Just $ pack s)
 
 
+-- | A Node is a 'Value' with an optional 'SchemaTag' and 'Anchor'
 data Node = Node
   { schema :: SchemaTag
   , anchor :: Maybe Anchor
   , value :: Value
   }
   deriving (Eq)
+
+
 instance Show Node where
   show (Node st _ v) = show st ++ show v
 instance IsString Node where
   fromString s = Node mempty Nothing $ String $ pack s
 
 
--- We can't use Aeson's Value, because it doesn't support tags, binary data, or references
+-- | All allowed node values. We can't use Aeson's Value, because it doesn't support tags, binary data, or references
 data Value
   = Bool !Bool
   | Number !Scientific
@@ -54,6 +57,8 @@ data Value
   | Alias !Anchor
   | Null
   deriving (Show, Eq)
+
+
 instance IsString Value where
   fromString = String . pack
 instance Semigroup Value where
@@ -122,24 +127,3 @@ newtype Anchor = Anchor {anchor :: Text}
 newtype Anchors = Anchors [(Anchor, Value)]
   deriving (Show, Eq)
   deriving newtype (Monoid, Semigroup)
-
--- data AsdfDocument = AsdfDocument
---   { tree :: Tree
---   , anchors :: Anchors
---   }
-
---
--- pure $ Reference uri _
-
--- schemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => SchemaTag
--- schemaTag = SchemaTag $ pack $ symbolVal @(Tag a) Proxy
-
--- matchSchemaTag :: forall a. (Schema a, KnownSymbol (Tag a)) => Maybe SchemaTag -> Parser ()
--- matchSchemaTag Nothing =
---   fail $ "Missing Schema Tag. Expected " <> show (schemaTag @a)
--- matchSchemaTag (Just s) = do
---   let sexp = schemaTag @a
---   unless (s == sexp) $ do
---     fail $ "Mismatched Schema Tag." ++ expected (show sexp) s
-
--- NDArray -------------------------------------------

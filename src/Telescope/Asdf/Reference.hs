@@ -13,6 +13,7 @@ import Telescope.Data.Parser
 --   Node _ value <- findPointer point
 --   parseValue value
 
+-- | Parse a 'JSONPointer' from a 'Tree'
 findPointer :: forall es. (Parser :> es) => JSONPointer -> Tree -> Eff es Node
 findPointer (JSONPointer path) (Tree tree) = do
   parseNext path (Node mempty Nothing (Object tree))
@@ -43,9 +44,3 @@ findPointer (JSONPointer path) (Tree tree) = do
 
   missingPointer :: (Show ex, Show at) => ex -> at -> Eff es Node
   missingPointer expect at = parseFail $ "Could not locate pointer: " ++ show path ++ ". Expected " ++ show expect ++ " at " ++ show at
-
--- fetchExternal :: Reference -> Eff es Asdf
--- fetchExternal = _
-
--- resolveReference :: (Error ParseError :> es) => Reference -> Eff es Asdf
--- resolveReference = _

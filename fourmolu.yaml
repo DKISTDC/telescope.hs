@@ -41,7 +41,7 @@ newlines-between-decls: 2
 # unicode: never
 #
 # # Give the programmer more choice on where to insert blank lines
-# respectful: true
+respectful: true
 #
 # # Fixity information for operators
 # fixities: []

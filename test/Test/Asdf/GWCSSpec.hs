@@ -62,18 +62,16 @@ transformSpec = do
 
   describe "(<&>) concatenate" $ withMarkers ["focus"] $ do
     it "should combine two inputs" $ do
-      let tx = shift 10 :: Transform (Pix X) (Dlt X)
-      let ty = shift 20 :: Transform (Pix Y) (Dlt Y)
-      let total = tx <&> ty :: Transform (Pix X, Pix Y) (Dlt X, Dlt Y)
+      let tx = shift 10 :: Transform (Pix X) (Shift X)
+      let ty = shift 20 :: Transform (Pix Y) (Shift Y)
+      let total = tx <&> ty :: Transform (Pix X, Pix Y) (Shift X, Shift Y)
       total.transformation.forward `shouldSatisfy` P.con (Concat P.anything P.anything)
 
-    it "should combine three inputs" $ do
-      let tx = shift 10 :: Transform (Pix X) (Dlt X)
-      let ty = shift 20 :: Transform (Pix Y) (Dlt Y)
-      let tz = shift 20 :: Transform (Pix Z) (Dlt Z)
-      let tz2 = scale 30 :: Transform (Dlt Z) (Scl Z)
-      let total = tx <&> ty <&> tz |> tz2 :: Transform (Pix X, Pix Y, Pix Z) (Dlt X, Dlt Y, Scl Z)
-
+    it "should nest three inputs" $ do
+      let tx = shift 10 :: Transform (Pix X) (Shift X)
+      let ty = shift 20 :: Transform (Pix Y) (Shift Y)
+      let tz = shift 20 :: Transform (Pix Z) (Shift Z)
+      let total = tx <&> ty <&> tz :: Transform (Pix X, Pix Y, Pix Z) (Shift X, Shift Y, Shift Z)
       total.transformation.forward `shouldSatisfy` P.con (Concat P.anything P.anything)
       Concat txt tnext <- pure total.transformation.forward
       txt `shouldBe` tx.transformation
@@ -81,8 +79,25 @@ transformSpec = do
       tnext.forward `shouldSatisfy` P.con (Concat P.anything P.anything)
       Concat tyt tzt <- pure tnext.forward
       tyt `shouldBe` ty.transformation
+      tzt `shouldBe` tz.transformation
 
-      tzt.forward `shouldSatisfy` P.con (Compose P.anything P.anything)
-      Compose tz1t tz2t <- pure tzt.forward
-      tz1t `shouldBe` tz.transformation
-      tz2t `shouldBe` tz2.transformation
+  describe "concat and compose" $ withMarkers ["focus"] $ do
+    it "should compose with higher priority first" $ do
+      let tx = shift 10 :: Transform (Pix X) (Shift X)
+      let tx2 = scale 10 :: Transform (Shift X) (Scale X)
+      let ty = shift 20 :: Transform (Pix Y) (Shift Y)
+      let ty2 = scale 10 :: Transform (Shift Y) (Scale Y)
+      let total = tx |> tx2 <&> ty |> ty2 :: Transform (Pix X, Pix Y) (Scale X, Scale Y)
+
+      total.transformation.forward `shouldSatisfy` P.con (Concat P.anything P.anything)
+      Concat txt tyt <- pure total.transformation.forward
+
+      txt.forward `shouldSatisfy` P.con (Compose P.anything P.anything)
+      Compose txt1 txt2 <- pure txt.forward
+      txt1 `shouldBe` tx.transformation
+      txt2 `shouldBe` tx2.transformation
+
+      tyt.forward `shouldSatisfy` P.con (Compose P.anything P.anything)
+      Compose tyt1 tyt2 <- pure tyt.forward
+      tyt1 `shouldBe` ty.transformation
+      tyt2 `shouldBe` ty2.transformation

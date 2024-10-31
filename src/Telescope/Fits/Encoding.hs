@@ -190,13 +190,6 @@ nextParser src parse = do
     (_, Left err) -> throwError $ FormatError $ ParseError err
 
 
--- nextParserThrow :: (State ByteString :> es) => String -> Fits.Parser a -> Eff es a
--- nextParserThrow src parse = do
---   res <- runErrorNoCallStack @HDUError (nextParser src parse)
---   case res of
---     Right a -> pure a
---     Left e -> throwM e
-
 data HDUError
   = InvalidExtension String
   | MissingPrimary

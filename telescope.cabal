@@ -48,6 +48,7 @@ library
         Telescope.Fits.Encoding.Render
         Telescope.Fits.Header
         Telescope.Fits.Header.Class
+        Telescope.Fits.Header.Keyword
         Telescope.Fits.Types
     other-modules:
         Paths_telescope

@@ -13,7 +13,7 @@ import Telescope.Data.Axes
 import Telescope.Data.Binary
 
 
-{- | Decode binary data into an Array of arbitrary dimensions 'ix' by specifying the 'Axes' 'Row'
+{- | Decode Big Endian encoded binary data into an Array of arbitrary dimensions 'ix' by specifying the 'Axes' 'Row'
 
 >>> decodeArray @Ix2 @Float [3, 2] input
 Array P Seq (Sz (2 :. 3))
@@ -42,7 +42,7 @@ encodeArray
 encodeArray = BL.toStrict . runPut . putArray BigEndian
 
 
-{- | Decode binary data into an Array of arbitrary dimensions 'ix' by specifying the 'Axes' 'Row' and the byte order
+{- | Decode binary data into an Array of arbitrary dimensions 'ix' by specifying the 'Axes' 'Row' and the 'ByteOrder'
 
 >>> decodeArrayOrder @Ix2 @Float BigEndian [3, 2] input
 Array P Seq (Sz (2 :. 3))
@@ -61,7 +61,7 @@ decodeArrayOrder bo as inp = do
   fromVector as $ decodeVector @a Par bo inp
 
 
--- | Decode binary data into as a 1d Vector ~ (Array r Ix1 a)
+-- | Decode binary data into as a 1d Array
 decodeVector
   :: forall a
    . (BinaryValue a)
@@ -98,10 +98,6 @@ decodeVector c bo inp =
       Right (_, _, a) -> a
 
 
--- if I used my own parser type, I could use MonadThrow!
--- and we could run in it just fine
--- could the parser requier MonadUnfli
-
 -- | Resize a Vector into an Array
 fromVector
   :: forall ix a m
@@ -124,6 +120,7 @@ data ArrayError
   deriving (Show, Exception)
 
 
+-- | Convert between an 'Index' and 'Axes' 'Row'
 class (Index ix) => AxesIndex ix where
   axesIndex :: (MonadThrow m) => Axes Row -> m ix
   indexAxes :: ix -> Axes Row
@@ -158,6 +155,27 @@ instance AxesIndex Ix5 where
   indexAxes = indexAxesN
 
 
+-- | Encode an 'Array' of dimensions up to 'Ix5'
+class PutArray ix where
+  putArray
+    :: (BinaryValue a, Source r a, Stream r Ix1 a, Prim a)
+    => ByteOrder
+    -> Array r ix a
+    -> Put
+
+
+instance PutArray Ix1 where
+  putArray bo = M.sfoldl (\b a -> b <> put bo a) mempty
+instance PutArray Ix2 where
+  putArray = M.foldOuterSlice . putArray
+instance PutArray Ix3 where
+  putArray = M.foldOuterSlice . putArray
+instance PutArray Ix4 where
+  putArray = M.foldOuterSlice . putArray
+instance PutArray Ix5 where
+  putArray = M.foldOuterSlice . putArray
+
+
 axesIndexN :: (AxesIndex (Lower (IxN n))) => (MonadThrow m) => Axes Row -> m (IxN n)
 axesIndexN (Axes (a : as)) = do
   ixl <- axesIndex (Axes as)
@@ -171,29 +189,6 @@ indexAxesN (d :> ix) =
    in Axes $ d : ax
 
 
-class PutArray ix where
-  putArray
-    :: (BinaryValue a, Source r a, Stream r Ix1 a, Prim a)
-    => ByteOrder
-    -> Array r ix a
-    -> Put
-
-
-instance PutArray Ix1 where
-  putArray bo = M.sfoldl (\b a -> b <> put bo a) mempty
-
-
-instance PutArray Ix2 where
-  putArray = M.foldOuterSlice . putArray
-
-
-instance PutArray Ix3 where
-  putArray = M.foldOuterSlice . putArray
-
-
-instance PutArray Ix4 where
-  putArray = M.foldOuterSlice . putArray
-
-
-instance PutArray Ix5 where
-  putArray = M.foldOuterSlice . putArray
+-- | Get the Axes for a given array size
+sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
+sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix

@@ -9,8 +9,7 @@ module Telescope.Fits.Types
   , Extension (..)
   , Axis
   , Axes (..)
-  , Row
-  , Column
+  , Major (..)
   , BitPix (..)
   , bitPixBits
   , Header (..)
@@ -32,7 +31,6 @@ import GHC.Int
 import Telescope.Data.Axes
 
 
--- we know the first one is an image
 data PrimaryHDU = PrimaryHDU
   { header :: Header
   , dataArray :: DataArray
@@ -65,6 +63,7 @@ instance Show BinTableHDU where
   show p = showHDU "BinTableHDU" p.header p.dataArray
 
 
+-- | Raw HDU Data. See 'Telescope.Fits.DataArray'
 data DataArray = DataArray
   { bitpix :: BitPix
   , axes :: Axes Column
@@ -129,10 +128,6 @@ instance Show Fits where
       <> "\n"
       <> L.intercalate "\n" (fmap show f.extensions)
 
-
---   L.intercalate
---   "\n"
--- \$ fmap show extensions
 
 data BitPix
   = BPInt8

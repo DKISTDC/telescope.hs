@@ -1,7 +1,6 @@
 module Telescope.Fits.Header.Class where
 
 import Data.Fits as Fits hiding (isKeyword)
-import Data.List qualified as L
 import Data.Text (Text, pack)
 import Data.Text qualified as T
 import Effectful
@@ -10,6 +9,7 @@ import Telescope.Data.Axes (AxisOrder (..))
 import Telescope.Data.KnownText
 import Telescope.Data.Parser
 import Telescope.Data.WCS (CType (..), CUnit (..), WCSAxis (..), toWCSAxisKey)
+import Telescope.Fits.Header.Keyword (lookupKeyword)
 import Text.Casing (fromHumps, toSnake)
 
 
@@ -203,20 +203,6 @@ instance {-# OVERLAPS #-} (FromKeyword a, Selector s) => GFromHeader (M1 S s (K1
 
 cleanKeyword :: String -> Text
 cleanKeyword = T.toUpper . pack . toSnake . fromHumps
-
-
-lookupKeyword :: Text -> Header -> Maybe Value
-lookupKeyword k = findKeyword (isKeyword k)
-
-
-findKeyword :: (KeywordRecord -> Bool) -> Header -> Maybe Value
-findKeyword p h = do
-  kr <- L.find p (getKeywords h)
-  pure kr._value
-
-
-isKeyword :: Text -> KeywordRecord -> Bool
-isKeyword k (KeywordRecord k2 _ _) = T.toLower k == T.toLower k2
 
 
 newtype HeaderFor a = HeaderFor a

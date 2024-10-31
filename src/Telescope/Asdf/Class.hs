@@ -24,7 +24,57 @@ import Telescope.Data.Binary
 import Telescope.Data.Parser
 
 
-{- | Convert types to and from an Asdf 'Values'. The generic instance will decode an object
+{- | Convert a type to an Asdf 'Value' or 'Node'. The generic instance will encode to an 'Object' with field names matching record selectors
+
+> data Example = Example
+>   { name :: Text
+>   , age :: Int
+>   , tags :: [Text]
+>   }
+>   deriving (Generic, ToAsdf)
+>
+> instance ToAsdf Example where
+>   schema _ = "tag:example.org/schemas/example-1.0.0"
+-}
+class ToAsdf a where
+  -- | Specify how an object encodes to a 'Value'
+  --
+  -- > instance User ToAsdf where
+  -- >   toValue user =
+  -- >     Object
+  -- >       [ ("name", toNode user.name)
+  -- >       , ("age", toNode user.age)
+  -- >       ]
+  toValue :: a -> Value
+  default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
+  toValue a = Object $ gToObject (from a)
+
+
+  -- | Specify the schema for a type
+  --
+  -- > instance ToAsdf Unit where
+  -- >   schema _ = "!unit/unit-1.0.0"
+  schema :: a -> SchemaTag
+  default schema :: a -> SchemaTag
+  schema _ = mempty
+
+
+  -- | Specify that this node be saved as an anchor
+  --
+  -- > instance ToAsdf Config where
+  -- >   anchor _ = Just "globalConfig"
+  anchor :: a -> Maybe Anchor
+  default anchor :: a -> Maybe Anchor
+  anchor _ = Nothing
+
+
+  -- | Manually control all aspects of how this is converted to a 'Node'
+  toNode :: a -> Node
+  default toNode :: a -> Node
+  toNode a = Node (schema a) (anchor a) $ toValue a
+
+
+{- | Parse an Asdf 'Value' or 'Node' into a type. The generic instance will decode an 'Object' with field names matching record selectors
 
 > data Example = Example
 >   { name :: Text
@@ -32,35 +82,14 @@ import Telescope.Data.Parser
 >   , tags :: [Text]
 >   }
 >   deriving (Generic, FromAsdf)
->
-> instance ToAsdf Example where
->   schema = "tag:example.org/schemas/example-1.0.0"
 -}
-class ToAsdf a where
-  toValue :: a -> Value
-  default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
-  toValue a = Object $ gToObject (from a)
-
-
-  schema :: a -> SchemaTag
-  default schema :: a -> SchemaTag
-  schema _ = mempty
-
-
-  anchor :: a -> Maybe Anchor
-  default anchor :: a -> Maybe Anchor
-  anchor _ = Nothing
-
-
-  toNode :: a -> Node
-  default toNode :: a -> Node
-  toNode a = Node (schema a) (anchor a) $ toValue a
-
-
--- type Parser a = Eff [Reader Tree, Fail, Reader [PathSegment], Error ParseError] a
-
--- we don't resolve them like this anymore
 class FromAsdf a where
+  -- | Specify how a type is parsed from a 'Value'
+  --
+  -- > instance FromAsdf Integer where
+  -- >   parseValue = \case
+  -- >     Integer n -> pure $ fromIntegral n
+  -- >     node -> expected "Integer" node
   parseValue :: (Parser :> es) => Value -> Eff es a
   default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es) => Value -> Eff es a
   parseValue (Object o) = to <$> gParseObject o
@@ -325,16 +354,20 @@ instance FromAsdf UTCTime where
       Right a -> pure a
 
 
-{- | Convert to a Node, including the schema tag if specified
-toNode :: forall a. (ToAsdf a) => a -> Node
-toNode a = Node (schema @a) (anchor @a) $ toValue a
--}
-
 -- | Parse a node, ignoring the schema tag
 parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a
 parseNode (Node _ _ v) = parseValue v
 
 
+{- | Parse a key from an 'Object'
+
+> instance FromAsdf User where
+>   parseValue = \case
+>     Object o -> do
+>       name <- o .: "name"
+>       age <- o .: "age"
+>       pure $ User{name, age}
+-}
 (.:) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es a
 o .: k = do
   case lookup k o of
@@ -343,6 +376,7 @@ o .: k = do
       parseAt (Child k) $ parseNode node
 
 
+-- | Parse an optional key from an 'Object'
 (.:?) :: (FromAsdf a, Parser :> es) => Object -> Key -> Eff es (Maybe a)
 o .:? k = do
   case lookup k o of
@@ -352,6 +386,16 @@ o .:? k = do
         parseAt (Child k) $ parseNode a
 
 
+{- | Parse a child at the given array index
+ -
+> instance FromAsdf Friends where
+>   parseValue = \case
+>     Array ns -> do
+>       best <- ns ! 0
+>       second <- ns ! 1
+>       other <- mapM parseNode ns
+>       pure $ Friends{best, second, other}
+-}
 (!) :: (FromAsdf a, Parser :> es) => [Node] -> Int -> Eff es a
 ns ! n = do
   case ns !? n of
@@ -360,30 +404,7 @@ ns ! n = do
       parseAt (Index n) $ parseNode node
 
 
--- data Scalar
---   = SInt8
---   | SInt16
---   | SInt32
---   | SInt64
---   | SUInt8
---   | SUInt16
---   | SUInt32
---   | SUInt64
---   | SFloat16
---   | SFloat32
---   | SFloat64
---   | SComplex64
---   | SComplex128
---   | SBool8
---   | SAscii Length
---   | SUCS4 Length
-
--- type Length = Int
---
---
--- data DataType
---   = Scalar Scalar
-
+-- | Generically serialize records to an 'Object'
 class GToObject f where
   gToObject :: f p -> Object
 
@@ -406,6 +427,7 @@ instance (GToNode f, Selector s) => GToObject (M1 S s f) where
      in [(pack s, gToNode f)]
 
 
+-- | Generically serialize record values to a 'Node'
 class GToNode f where
   gToNode :: f p -> Node
 
@@ -418,6 +440,7 @@ instance {-# OVERLAPPING #-} (ToAsdf a) => GToNode (K1 R (Maybe a)) where
   gToNode (K1 a) = toNode a
 
 
+-- | Generically parse 'Object's into records
 class GParseObject f where
   gParseObject :: (Parser :> es) => Object -> Eff es (f p)
 
@@ -443,6 +466,7 @@ instance (GParseKey f, Selector s) => GParseObject (M1 S s f) where
     M1 <$> gParseKey o k
 
 
+-- | Generically parse a key from an 'Object' into a record value
 class GParseKey f where
   gParseKey :: (Parser :> es) => Object -> Key -> Eff es (f p)
 

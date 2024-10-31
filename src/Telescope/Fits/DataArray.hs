@@ -3,7 +3,6 @@ module Telescope.Fits.DataArray
   , dataArray
   , decodeDataArray
   , encodeDataArray
-  , sizeAxes
   )
 where
 
@@ -29,7 +28,7 @@ import Telescope.Fits.Types
 -- >  arr <- decodeImage @Ix2 $ hdu.dataArray
 -- >  pure $ arr !> 1 ! 2
 
-{- | Decode a 'DataArray' of arbitrary dimensions 'ix' and type 'a'. Inspect the DataArray's (.bitpix) and (.axes) if these are unknown.
+{- | Decode a 'DataArray' of arbitrary dimensions 'ix' and type 'a'. Consider inspecting the DataArray's (.bitpix) and (.axes) if these are unknown.
 
 >>> decodeDataArray @Ix2 @Float hdu.dataArray
 Array D Seq (Sz (2 :. 3))
@@ -63,10 +62,6 @@ encodeDataArray arr =
       bitpix = bitPix @a
       rawData = encodeArray arr -- O(n)
    in DataArray{bitpix, axes, rawData}
-
-
-sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
-sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
 
 
 -- | Create a DataArray from raw Fits info
