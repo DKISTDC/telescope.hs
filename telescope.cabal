@@ -55,20 +55,20 @@ library
     build-depends:
         base >=4.7 && <5,
         binary >=0.8.9 && <0.9,
-        byte-order,
+        byte-order >=0.1.3 && <0.2,
         bytestring >=0.11 && <0.13,
-        casing,
-        conduit,
+        casing >=0.1.4 && <0.2,
+        conduit ==1.3.*,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
         fits-parse >=0.4.2 && <0.5,
-        libyaml,
+        libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
-        resourcet-effectful,
-        scientific,
+        resourcet-effectful >=1.0.1 && <1.1,
+        scientific ==0.3.*,
         text >=2.0 && <3,
-        time
+        time >=1.12 && <2
     hs-source-dirs:
         src
     default-extensions:
@@ -128,21 +128,21 @@ test-suite spec
     build-depends:
         base >=4.7 && <5,
         binary,
-        byte-order,
+        byte-order >=0.1.3 && <0.2,
         bytestring >=0.11 && <0.13,
-        casing,
-        conduit,
+        casing >=0.1.4 && <0.2,
+        conduit ==1.3.*,
         containers,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
         fits-parse >=0.4.2 && <0.5,
-        libyaml,
+        libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
-        resourcet-effectful,
-        scientific,
+        resourcet-effectful >=1.0.1 && <1.1,
+        scientific ==0.3.*,
         skeletest,
         telescope,
         text >=2.0 && <3,
-        time
+        time >=1.12 && <2
     default-language: GHC2021
