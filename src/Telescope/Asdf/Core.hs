@@ -24,6 +24,9 @@ data Unit
   | Pixel
   | Degrees
   | Nanometers
+  | Meters
+  | Kilometers
+  | Arcseconds
   | Unit Text
   deriving (Eq)
 
@@ -35,6 +38,9 @@ instance ToAsdf Unit where
     Pixel -> "pixel"
     Degrees -> "deg"
     Nanometers -> "nm"
+    Kilometers -> "km"
+    Arcseconds -> "arcsec"
+    Meters -> "m"
     (Unit t) -> String t
 instance FromAsdf Unit where
   parseValue = \case
@@ -43,6 +49,9 @@ instance FromAsdf Unit where
     String "pixel" -> pure Pixel
     String "pix" -> pure Pixel
     String "nm" -> pure Nanometers
+    String "km" -> pure Kilometers
+    String "m" -> pure Meters
+    String "arcsec" -> pure Arcseconds
     String t -> pure $ Unit t
     val -> expected "String" val
 

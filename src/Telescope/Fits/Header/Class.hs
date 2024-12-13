@@ -1,8 +1,10 @@
 module Telescope.Fits.Header.Class where
 
 import Data.Fits as Fits hiding (isKeyword)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Data.Text qualified as T
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
 import Effectful
 import GHC.Generics
 import Telescope.Data.Axes (AxisOrder (..))
@@ -55,6 +57,17 @@ instance FromKeyword Bool where
   parseKeywordValue = \case
     Logic c -> pure $ c == T
     v -> expected "Logic" v
+
+
+instance ToKeyword UTCTime where
+  toKeywordValue utc = String $ pack $ iso8601Show utc
+instance FromKeyword UTCTime where
+  parseKeywordValue = \case
+    String t -> do
+      case iso8601ParseM $ unpack t of
+        Nothing -> expected "UTCTime" t
+        Just utc -> pure utc
+    v -> expected "UTCTime" v
 
 
 instance ToKeyword CUnit where

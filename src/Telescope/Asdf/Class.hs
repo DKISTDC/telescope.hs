@@ -344,6 +344,7 @@ instance ToAsdf BlockSource where
 
 
 instance ToAsdf UTCTime where
+  schema _ = "!time/time-1.1.0"
   toValue t = String $ pack $ iso8601Show t
 instance FromAsdf UTCTime where
   parseValue v = do

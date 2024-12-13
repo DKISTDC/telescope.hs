@@ -25,7 +25,7 @@ spec = do
 
 toAsdfSpec :: Spec
 toAsdfSpec = do
-  describe "Coorindate Frames" $ do
+  describe "Coordinate Frames" $ do
     it "should auto number axes order" $ do
       o <- expectObject $ toValue frame
       lookup "axes_order" o `shouldBe` Just (toNode @[Int] [0, 1])

@@ -1,0 +1,19 @@
+helio_reference_frame: !<tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0>
+  frame_attributes:
+    observer: !<tag:sunpy.org:sunpy/coordinates/frames/heliographic_stonyhurst-1.1.0>
+      data: !<tag:astropy.org:astropy/coordinates/representation-1.1.0>
+        components:
+          x: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
+            value: 151718470759.01736}
+          y: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
+            value: 936374.8961084613}
+          z: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 m,
+            value: -1238552794.1080718}
+        type: CartesianRepresentation
+      frame_attributes:
+        obstime: !time/time-1.1.0 2022-06-02T21:47:26.641
+        rsun: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 km,
+          value: 695700.0}
+    obstime: !time/time-1.1.0 2022-06-02T21:47:26.641
+    rsun: !unit/quantity-1.1.0 {datatype: float64, unit: !unit/unit-1.0.0 km,
+      value: 695700.0}

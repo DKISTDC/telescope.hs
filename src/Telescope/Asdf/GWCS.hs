@@ -11,6 +11,7 @@ import Data.Massiv.Array qualified as M
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
+import Data.Time.Clock (UTCTime)
 import GHC.Generics
 import Telescope.Asdf
 import Telescope.Asdf.Core
@@ -278,12 +279,12 @@ instance ToAsdf SpectralFrame where
       ]
 
 
-data CelestialFrame = CelestialFrame
+data CelestialFrame ref = CelestialFrame
   { name :: Text
   , axes :: NonEmpty FrameAxis
-  , referenceFrame :: ICRSFrame
+  , referenceFrame :: ref
   }
-instance ToAsdf CelestialFrame where
+instance (ToAsdf ref) => ToAsdf (CelestialFrame ref) where
   schema _ = "tag:stsci.edu:gwcs/celestial_frame-1.0.0"
   toValue f =
     Object $
@@ -316,6 +317,89 @@ data ICRSFrame = ICRSFrame
 instance ToAsdf ICRSFrame where
   schema _ = "tag:astropy.org:astropy/coordinates/frames/icrs-1.1.0"
   toValue _ = Object [("frame_attributes", toNode $ Object mempty)]
+
+
+data HelioprojectiveFrame = HelioprojectiveFrame
+  { coordinates :: Cartesian3D
+  , obstime :: UTCTime
+  , rsun :: Quantity
+  }
+instance ToAsdf HelioprojectiveFrame where
+  schema _ = "tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0"
+  toValue frame =
+    Object
+      [("frame_attributes", fromValue attributes)]
+   where
+    observer = HelioObserver (CartesianRepresentation frame.coordinates) observation
+    observation = HelioObservation frame.obstime frame.rsun
+    attributes =
+      Object [("observer", toNode observer)] <> toValue observation
+
+
+-- reference_frame: !<tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0>
+--   frame_attributes:
+--     observer: !<tag:sunpy.org:sunpy/coordinates/frames/heliographic_stonyhurst-1.1.0>
+--       data: !<tag:astropy.org:astropy/coordinates/representation-1.0.0>
+--         components:
+--           x: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 151741639088.53842}
+--           y: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 5050819.209579468}
+--           z: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: -968701275.8656464}
+--         type: CartesianRepresentation
+--       frame_attributes:
+--         obstime: !time/time-1.1.0 2022-06-03T17:52:20.031
+--         rsun: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 km, value: 695700.0}
+--     obstime: !time/time-1.1.0 2022-06-03T17:52:20.031
+--     rsun: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 km, value: 695700.0}
+
+data HelioObserver = HelioObserver
+  { coordinates :: CartesianRepresentation Cartesian3D
+  , observation :: HelioObservation
+  }
+instance ToAsdf HelioObserver where
+  --     observer: !<tag:sunpy.org:sunpy/coordinates/frames/heliographic_stonyhurst-1.1.0>
+  --       data: !<tag:astropy.org:astropy/coordinates/representation-1.0.0>
+  --         components:
+  --           x: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 151741639088.53842}
+  --           y: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 5050819.209579468}
+  --           z: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: -968701275.8656464}
+  --         type: CartesianRepresentation
+  --       frame_attributes:
+  --         obstime: !time/time-1.1.0 2022-06-03T17:52:20.031
+  --         rsun: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 km, value: 695700.0}
+  schema _ = "tag:sunpy.org:sunpy/coordinates/frames/heliographic_stonyhurst-1.1.0"
+  toValue obs =
+    Object
+      [ ("data", toNode obs.coordinates)
+      , ("frame_attributes", toNode obs.observation)
+      ]
+
+
+data HelioObservation = HelioObservation
+  { obstime :: UTCTime
+  , rsun :: Quantity
+  }
+  deriving (Generic, ToAsdf)
+
+
+data Cartesian3D = Cartesian3D
+  { x :: Quantity
+  , y :: Quantity
+  , z :: Quantity
+  }
+  deriving (Generic, ToAsdf)
+
+
+data CartesianRepresentation dims = CartesianRepresentation dims
+instance (ToAsdf dims) => ToAsdf (CartesianRepresentation dims) where
+  -- data: !<tag:astropy.org:astropy/coordinates/representation-1.0.0>
+  --   components:
+  --     x: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 151741639088.53842}
+  --     y: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: 5050819.209579468}
+  --     z: !unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 m, value: -968701275.8656464}
+  --   type: CartesianRepresentation
+  schema _ = "tag:astropy.org:astropy/coordinates/representation-1.0.0"
+  toValue (CartesianRepresentation dims) =
+    Object [("components", toNode dims), ("type", "CartesianRepresentation")]
 
 
 data FrameAxis = FrameAxis
