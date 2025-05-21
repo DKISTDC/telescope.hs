@@ -2,7 +2,7 @@
 
 module Telescope.Data.WCS where
 
-import Data.Text
+import Data.Text (Text, pack)
 import GHC.Generics (Generic)
 import Telescope.Data.Axes (AxisOrder (..))
 import Telescope.Data.KnownText

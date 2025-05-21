@@ -60,7 +60,6 @@ module Telescope.Fits
 
     -- * Generate
   , addComment
-  , keyword
   , dataArray
   , emptyDataArray
 
@@ -85,6 +84,6 @@ import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), 
 import Telescope.Data.Parser (Parser)
 import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
-import Telescope.Fits.Header (FromHeader (..), FromKeyword (..), ToHeader (..), ToKeyword (..), addComment, keyword, lookupKeyword)
+import Telescope.Fits.Header (FromHeader (..), FromKeyword (..), ToHeader (..), ToKeyword (..), addComment, lookupKeyword)
 import Telescope.Fits.Types
 

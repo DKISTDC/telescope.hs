@@ -35,10 +35,10 @@ instance FromKeyword Int where
 
 
 instance ToKeyword Float where
-  toKeywordValue = Float
+  toKeywordValue = Float . realToFrac
 instance FromKeyword Float where
   parseKeywordValue = \case
-    Float n -> pure n
+    Float n -> pure $ realToFrac n
     v -> expected "Float" v
 
 

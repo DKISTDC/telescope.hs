@@ -91,11 +91,11 @@ renderOtherKeywords :: Header -> BuilderBlock
 renderOtherKeywords (Header ks) =
   mconcat $ map toLine $ filter (not . isSystemKeyword) ks
  where
-  toLine (Keyword kr) = renderKeywordLine kr._keyword kr._value kr._comment
+  toLine (Keyword kr) = renderKeywordLine kr.keyword kr.value kr.comment
   toLine (Comment c) = pad 80 $ string $ "COMMENT " <> unpack c
   toLine BlankLine = pad 80 ""
   isSystemKeyword (Keyword kr) =
-    let k = kr._keyword
+    let k = kr.keyword
      in k == "BITPIX"
           || k == "EXTEND"
           || k == "DATASUM"

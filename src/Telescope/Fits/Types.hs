@@ -13,7 +13,7 @@ module Telescope.Fits.Types
   , BitPix (..)
   , bitPixBits
   , Header (..)
-  , getKeywords
+  , keywords
   , HeaderRecord (..)
   , KeywordRecord (..)
   , Value (..)
@@ -25,7 +25,7 @@ module Telescope.Fits.Types
 
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), getKeywords, hduBlockSize)
+import Data.Fits (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), hduBlockSize, keywords)
 import Data.List qualified as L
 import GHC.Int
 import Telescope.Data.Axes
@@ -94,7 +94,7 @@ showHDU name h d =
 
 showHeader :: Header -> String
 showHeader h =
-  "  Header: " <> show (length $ getKeywords h)
+  "  Header: " <> show (length $ keywords h)
 
 
 emptyDataArray :: DataArray

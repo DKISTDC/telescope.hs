@@ -35,11 +35,10 @@ default-extensions:
   - TypeFamilies
 
 dependencies:
-  - base >=4.19 && <5
+  - base >=4.18 && <5
   - binary >= 0.8.9 && <0.9
   - bytestring >= 0.11 && <0.13
   - exceptions >= 0.10 && <0.11
-  - fits-parse >= 0.4.2 && < 0.5
   - massiv >= 1.0 && < 1.1
   - megaparsec >= 9.6 && <9.7
   - text >= 2.0 && <3

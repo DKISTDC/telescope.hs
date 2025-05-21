@@ -21,7 +21,7 @@ module Telescope.Fits.Header
 
     -- * Re-exports
   , LogicalConstant (..)
-  , getKeywords
+  , keywords
   , HeaderRecord (..)
   , KeywordRecord (..)
   ) where
@@ -40,4 +40,4 @@ keyword k v mc = Keyword $ KeywordRecord k v mc
 
 -- | Set the comment of a KeywordRecrod
 addComment :: Text -> KeywordRecord -> KeywordRecord
-addComment c kr = kr{_comment = Just c}
+addComment c kr = kr{comment = Just c}

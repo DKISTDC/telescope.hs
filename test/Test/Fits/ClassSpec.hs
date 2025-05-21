@@ -60,8 +60,8 @@ classSpec = do
   describe "ToHeader" $ do
     it "should uppercase and snake keywords" $ do
       let h = toHeader (Test 40 "Alice")
-      length h._records `shouldBe` 2
-      [Keyword (KeywordRecord k1 _ _), Keyword (KeywordRecord k2 _ _)] <- pure h._records
+      length h.records `shouldBe` 2
+      [Keyword (KeywordRecord k1 _ _), Keyword (KeywordRecord k2 _ _)] <- pure h.records
       k1 `shouldBe` "AGE"
       k2 `shouldBe` "FIRST_NAME"
 
@@ -74,7 +74,7 @@ classSpec = do
     let h = toHeader $ Parent (HeaderFor $ Test 40 "Alice") (HeaderFor $ Woot 123.456)
     lookupKeyword "age" h `shouldBe` Just (Integer 40)
     lookupKeyword "first_name" h `shouldBe` Just (String "Alice")
-    lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.eq 123.456)))
+    lookupKeyword "woot" h `shouldSatisfy` P.just (P.con (Float (P.approx P.tol 123.456)))
 
   describe "FromHeader" $ do
     it "should convert datatype" $ do

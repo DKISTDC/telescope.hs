@@ -23,6 +23,9 @@ extra-source-files:
 
 library
     exposed-modules:
+        Data.Fits
+        Data.Fits.MegaParser
+        Data.Fits.Read
         Telescope.Asdf
         Telescope.Asdf.Class
         Telescope.Asdf.Core
@@ -53,7 +56,7 @@ library
     other-modules:
         Paths_telescope
     build-depends:
-        base >=4.19 && <5,
+        base >=4.18 && <5,
         binary >=0.8.9 && <0.9,
         byte-order >=0.1.3 && <0.2,
         bytestring >=0.11 && <0.13,
@@ -61,7 +64,6 @@ library
         conduit ==1.3.*,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
-        fits-parse >=0.4.2 && <0.5,
         libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
         megaparsec ==9.6.*,
@@ -105,6 +107,7 @@ test-suite spec
         Test.Fits.ChecksumSpec
         Test.Fits.ClassSpec
         Test.Fits.EncodingSpec
+        Test.Fits.MegaParserSpec
         Paths_telescope
     hs-source-dirs:
         test/
@@ -126,7 +129,7 @@ test-suite spec
     build-tool-depends:
         skeletest:skeletest-preprocessor
     build-depends:
-        base >=4.19 && <5,
+        base >=4.18 && <5,
         binary,
         byte-order >=0.1.3 && <0.2,
         bytestring >=0.11 && <0.13,
@@ -135,7 +138,6 @@ test-suite spec
         containers,
         effectful >=2.3 && <3,
         exceptions ==0.10.*,
-        fits-parse >=0.4.2 && <0.5,
         libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
         megaparsec ==9.6.*,

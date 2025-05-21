@@ -10,7 +10,6 @@ import Skeletest
 import System.ByteOrder
 import Telescope.Data.Array
 import Telescope.Data.Axes
-import Telescope.Fits.DataArray
 
 
 spec :: Spec

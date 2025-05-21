@@ -2,7 +2,6 @@
 
 module Telescope.Asdf.Class where
 
-import Data.List ((!?))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array (Array, Prim)
@@ -399,10 +398,9 @@ o .:? k = do
 -}
 (!) :: (FromAsdf a, Parser :> es) => [Node] -> Int -> Eff es a
 ns ! n = do
-  case ns !? n of
-    Nothing -> parseFail $ "Index " ++ show n ++ " not found"
-    Just node ->
-      parseAt (Index n) $ parseNode node
+  if n >= length ns
+    then parseFail $ "Index " ++ show n ++ " not found"
+    else parseAt (Index n) $ parseNode $ ns !! n
 
 
 -- | Generically serialize records to an 'Object'

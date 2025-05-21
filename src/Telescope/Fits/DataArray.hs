@@ -68,8 +68,8 @@ encodeDataArray arr =
 dataArray :: Fits.Dimensions -> ByteString -> DataArray
 dataArray dim dat =
   DataArray
-    { bitpix = bitpix dim._bitpix
-    , axes = axes dim._axes
+    { bitpix = bitpix dim.bitpix
+    , axes = axes dim.axes
     , rawData = dat
     }
  where

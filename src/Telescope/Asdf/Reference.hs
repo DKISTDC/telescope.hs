@@ -1,6 +1,5 @@
 module Telescope.Asdf.Reference where
 
-import Data.List ((!?))
 import Data.Text (Text)
 import Effectful
 import Telescope.Asdf.NDArray
@@ -37,10 +36,10 @@ findPointer (JSONPointer path) (Tree tree) = do
       Just c -> pure c
 
   parseIndex :: Int -> [Node] -> Eff es Node
-  parseIndex n a =
-    case a !? n of
-      Nothing -> missingPointer (Index n) a
-      Just c -> pure c
+  parseIndex n nodes =
+    if n >= length nodes
+      then missingPointer (Index n) nodes
+      else pure $ nodes !! n
 
   missingPointer :: (Show ex, Show at) => ex -> at -> Eff es Node
   missingPointer expect at = parseFail $ "Could not locate pointer: " ++ show path ++ ". Expected " ++ show expect ++ " at " ++ show at

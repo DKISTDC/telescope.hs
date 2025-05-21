@@ -4,7 +4,6 @@ import Conduit
 import Data.ByteString (ByteString)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
-import Data.List ((!?))
 import Data.String (fromString)
 import Data.Text (pack, unpack)
 import Data.Text qualified as T
@@ -232,9 +231,11 @@ ndArrayDataFromMaps maps = do
     case val of
       Integer s -> do
         blocks <- ask
-        case blocks !? fromIntegral s of
-          Nothing -> throwError $ NDArrayMissingBlock s
-          Just (BlockData b) -> pure b
+        if fromIntegral s >= length blocks
+          then throwError $ NDArrayMissingBlock s
+          else do
+            let BlockData b = blocks !! fromIntegral s
+            pure b
       _ -> throwError $ NDArrayExpected "Source" val
 
   parseLocal :: (FromAsdf a, Error YamlError :> es) => String -> Value -> Eff es a

@@ -245,12 +245,12 @@ testRoundTrip = do
           h2 = f2.primaryHDU.header
       lookupKeyword "NAXIS" h2 `shouldBe` Just (Integer 2)
 
-      let ks = getKeywords hs :: [KeywordRecord]
-          k2 = getKeywords h2 :: [KeywordRecord]
+      let ks = keywords hs :: [KeywordRecord]
+          k2 = keywords h2 :: [KeywordRecord]
 
       length (filter (matchKeyword "BITPIX") k2) `shouldBe` length (filter (matchKeyword "BITPIX") ks)
 
-      length h2._records `shouldBe` length hs._records
+      length h2.records `shouldBe` length hs.records
 
     it "should keep naxes order preserved" $ do
       Simple2x3Fix fs <- getFixture

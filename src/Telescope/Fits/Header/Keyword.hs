@@ -13,8 +13,8 @@ lookupKeyword k = findKeyword (isKeyword k)
 
 findKeyword :: (KeywordRecord -> Bool) -> Header -> Maybe Value
 findKeyword p h = do
-  kr <- L.find p (getKeywords h)
-  pure kr._value
+  kr <- L.find p (keywords h)
+  pure kr.value
 
 
 isKeyword :: Text -> KeywordRecord -> Bool
