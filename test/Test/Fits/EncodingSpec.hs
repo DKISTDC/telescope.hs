@@ -2,7 +2,6 @@
 
 module Test.Fits.EncodingSpec where
 
-import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as BL
@@ -14,7 +13,7 @@ import Telescope.Data.Axes
 import Telescope.Fits
 import Telescope.Fits.BitPix (bitPixBytes)
 import Telescope.Fits.DataArray (Dimensions (..))
-import Telescope.Fits.Encoding (mainData, parseThrow, runMega, runParseBytes)
+import Telescope.Fits.Encoding (fitsParseThrow, mainData, runMega)
 import Telescope.Fits.Encoding qualified as Enc
 import Telescope.Fits.Encoding.MegaHeader qualified as MH
 import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
@@ -41,7 +40,7 @@ testDecodeFits = do
   describe "simple2x3.fits" $ do
     it "should parse primary" $ do
       Simple2x3Raw bs <- getFixture
-      dm <- either throwM pure $ runParseBytes bs $ runMega "Primary Header" MH.parsePrimaryKeywords
+      dm <- flip fitsParseThrow bs $ runMega "Primary Header" MH.parsePrimaryKeywords
       dm.axes `shouldBe` Axes [3, 2]
 
     it "should load metadata" $ do
@@ -290,12 +289,12 @@ dataArraySpec :: Spec
 dataArraySpec = describe "data array" $ do
   it "should parse fake data" $ do
     let fakeData = "1234" -- Related to NAXIS!
-    d <- parseThrow (mainData (Dimensions BPInt8 (Axes [1, 4]))) fakeData
+    d <- fitsParseThrow (mainData (Dimensions BPInt8 (Axes [1, 4]))) fakeData
     d.rawData `shouldBe` fakeData
 
   it "should grab correct data array" $ do
     let fakeData = "1234" -- Related to NAXIS!
-    h <- parseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> "       " <> fakeData
+    h <- fitsParseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> "       " <> fakeData
     h.dataArray.rawData `shouldBe` fakeData
 
 
@@ -303,12 +302,12 @@ fullHDUs :: Spec
 fullHDUs = describe "Full HDUs" $ do
   it "should include required headers in the keywords" $ do
     let fakeData = "1234" -- Related to NAXIS!
-    h <- parseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
+    h <- fitsParseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
     length (keywords h.header) `shouldBe` 6
     lookupKeyword "NAXIS" h.header `shouldBe` Just (Integer 2)
 
   it "should parse full extension" $ do
-    bt <- parseThrow Enc.binTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
+    bt <- fitsParseThrow Enc.binTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
     bt.pCount `shouldBe` 0
     bt.heap `shouldBe` ""
 
@@ -318,7 +317,7 @@ simple2x3 = do
   describe "simple2x3.fits" $ do
     it "should parse primary" $ do
       Simple2x3Raw bs <- getFixture
-      p <- parseThrow Enc.primary bs
+      p <- fitsParseThrow Enc.primary bs
       p.dataArray.axes `shouldBe` Axes [3, 2]
 
 
@@ -327,12 +326,12 @@ sampleNSO = do
   describe "NSO Sample FITS Parse" $ do
     it "should parse primary HDU" $ do
       DKISTFitsRaw bs <- getFixture
-      p <- parseThrow Enc.primary bs
+      p <- fitsParseThrow Enc.primary bs
       BS.length p.dataArray.rawData `shouldBe` 0
 
     it "should parse BINTABLE" $ do
       DKISTFitsRaw bs <- getFixture
-      (bt :: BinTableHDU, rest) <- flip parseThrow bs $ do
+      (bt :: BinTableHDU, rest) <- flip fitsParseThrow bs $ do
         bt <- Enc.primary >> Enc.binTable
         rest <- get @BS.ByteString
         pure (bt, rest)

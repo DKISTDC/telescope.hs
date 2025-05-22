@@ -1,7 +1,5 @@
 module Telescope.Fits.Encoding where
 
-import Control.Applicative ((<|>))
-import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
@@ -9,12 +7,10 @@ import Data.Text (Text)
 import Data.Text.Encoding qualified as TE
 import Effectful
 import Effectful.Dispatch.Dynamic
-import Effectful.Error.Static
 import Effectful.State.Static.Local
 import Telescope.Data.Parser
 import Telescope.Fits.Checksum
 import Telescope.Fits.DataArray (DataArray (..), Dimensions (..), dataArray, dataSizeBytes)
-import Telescope.Fits.Encoding.MegaHeader (ParseErr)
 import Telescope.Fits.Encoding.MegaHeader qualified as MH
 import Telescope.Fits.Encoding.Render
 import Telescope.Fits.HDU
@@ -28,7 +24,7 @@ import Text.Megaparsec qualified as MP
 >  decode =<< BS.readFile "samples/simple2x3.fits"
 -}
 decode :: forall m. (MonadThrow m) => ByteString -> m Fits
-decode = parseThrow parseFits
+decode = fitsParseThrow parseFits
 
 
 {- | Encode a FITS file to a strict 'ByteString'
@@ -42,16 +38,15 @@ encode f =
    in mconcat $ prim : exts
 
 
-parseThrow :: (MonadThrow m) => Eff '[State ByteString, Parser] a -> ByteString -> m a
-parseThrow parse inp =
-  case runParseBytes inp parse of
+fitsParseThrow :: (MonadThrow m) => Eff '[State ByteString, Parser] a -> ByteString -> m a
+fitsParseThrow parse inp =
+  case runFitsParse parse inp of
     Left e -> throwM e
     Right a -> pure a
 
 
--- | Parses a stream of bytes from the file
-runParseBytes :: BS.ByteString -> Eff '[State ByteString, Parser] a -> Either ParseError a
-runParseBytes inp parse = do
+runFitsParse :: Eff '[State ByteString, Parser] a -> BS.ByteString -> Either ParseError a
+runFitsParse parse inp = do
   runPureEff $ runParser $ evalState inp parse
 
 
@@ -171,7 +166,7 @@ mainData dm = do
   pure dat
 
 
--- | Parse HDUs by running MegaParsec parsers one at a time, tracking how much of the ByteString we've consumed
+-- | Parse HDUs by running MegaParsec parsers one at a time, and tracking how much of the ByteString we've consumed
 runMega :: (Parser :> es, State ByteString :> es) => String -> MH.Parser a -> Eff es a
 runMega src parse = do
   inp <- get
