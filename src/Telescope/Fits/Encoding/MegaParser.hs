@@ -34,10 +34,22 @@ import Text.Megaparsec qualified as M
 import Text.Megaparsec.Byte qualified as M
 import Text.Megaparsec.Byte.Lexer qualified as MBL
 import Text.Megaparsec.Pos qualified as MP
+import Text.Megaparsec.State qualified as M
 
 
 type Parser = Parsec Void ByteString
 type ParseErr = ParseErrorBundle ByteString Void
+
+
+runNextParser :: String -> BS.ByteString -> Parser a -> Either ParseErr (a, BS.ByteString)
+runNextParser src inp parse = do
+  let st1 = M.initialState src inp
+  case M.runParser' parse st1 of
+    (st2, Right a) -> do
+      -- only consumes input if it succeeds
+      let rest = BS.drop st2.stateOffset inp
+      pure (a, rest)
+    (_, Left err) -> Left err
 
 
 toWord :: Char -> Word8
@@ -201,21 +213,6 @@ parseStringValue = do
   quote = toWord '\''
 
 
-requireKeyword :: Text -> Header -> Parser Value
-requireKeyword k kvs = do
-  case lookupKeyword k kvs of
-    Nothing -> fail $ "Missing: " <> show k
-    Just v -> return v
-
-
-requireNaxis :: Header -> Parser Int
-requireNaxis kvs = do
-  v <- requireKeyword "NAXIS" kvs
-  case v of
-    Integer n -> return n
-    _ -> fail "Invalid NAXIS header"
-
-
 skipEmpty :: Parser ()
 skipEmpty = void (M.many $ M.satisfy (toWord '\0' ==))
 
@@ -266,45 +263,16 @@ parseDimensions = do
   Dimensions bp <$> parseNaxes
 
 
-parsePrimary :: Parser DataHDU
-parsePrimary = do
-  -- do not consume the headers used for the dimensions
-  dm <- M.lookAhead parsePrimaryKeywords
-  hd <- parseHeader
-  dt <- parseMainData dm
-  return $ DataHDU hd (dataArray dm dt)
-
-
 parsePrimaryKeywords :: Parser Dimensions
 parsePrimaryKeywords = do
   _ <- parseKeywordRecord' "SIMPLE" parseLogic
   parseDimensions
 
 
-parseImage :: Parser DataHDU
-parseImage = do
-  -- do not consume the headers used for the dimensions
-  dm <- M.lookAhead parseImageKeywords
-  hd <- parseHeader
-  dt <- parseMainData dm
-  return $ DataHDU hd (dataArray dm dt)
-
-
 parseImageKeywords :: Parser Dimensions
 parseImageKeywords = do
   _ <- ignoreComments $ M.string' "XTENSION= 'IMAGE   '"
   parseDimensions
-
-
-parseBinTable :: Parser BinTableHDU
-parseBinTable = do
-  (dm, pc) <- M.lookAhead parseBinTableKeywords
-  hd <- parseHeader
-  dt <- parseMainData dm
-  hp <- parseBinTableHeap
-  return $ BinTableHDU hd pc hp (dataArray dm dt)
- where
-  parseBinTableHeap = return ""
 
 
 parseBinTableKeywords :: Parser (Dimensions, Int)
@@ -314,17 +282,41 @@ parseBinTableKeywords = do
   pc <- parseKeywordRecord' "PCOUNT" parseInt
   return (sz, pc)
 
+-- parsePrimary :: Parser DataHDU
+-- parsePrimary = do
+--   -- do not consume the headers used for the dimensions
+--   dm <- M.lookAhead parsePrimaryKeywords
+--   hd <- parseHeader
+--   dt <- parseMainData dm
+--   return $ DataHDU hd (dataArray dm dt)
 
-parseMainData :: Dimensions -> Parser ByteString
-parseMainData size = do
-  let len = dataSizeBytes size
-  M.takeP (Just ("Data Array of " <> show len <> " Bytes")) (fromIntegral len)
+-- parseImage :: Parser DataHDU
+-- parseImage = do
+--   -- do not consume the headers used for the dimensions
+--   dm <- M.lookAhead parseImageKeywords
+--   hd <- parseHeader
+--   dt <- parseMainData dm
+--   return $ DataHDU hd (dataArray dm dt)
+-- parseBinTable :: Parser BinTableHDU
+-- parseBinTable = do
+--   (dm, pc) <- M.lookAhead parseBinTableKeywords
+--   hd <- parseHeader
+--   dt <- parseMainData dm
+--   hp <- parseBinTableHeap
+--   return $ BinTableHDU hd pc hp (dataArray dm dt)
+--  where
+--   parseBinTableHeap = return ""
 
-
-parseExtensions :: Parser [Extension]
-parseExtensions = do
-  M.many parseExtension
- where
-  parseExtension :: Parser Extension
-  parseExtension =
-    Image <$> parseImage <|> BinTable <$> parseBinTable
+-- parseMainData :: Dimensions -> Parser ByteString
+-- parseMainData size = do
+--   let len = dataSizeBytes size
+--   M.takeP (Just ("Data Array of " <> show len <> " Bytes")) (fromIntegral len)
+--
+--
+-- parseExtensions :: Parser [Extension]
+-- parseExtensions = do
+--   M.many parseExtension
+--  where
+--   parseExtension :: Parser Extension
+--   parseExtension =
+--     Image <$> parseImage <|> BinTable <$> parseBinTable

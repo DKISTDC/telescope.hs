@@ -34,15 +34,9 @@ spec = do
   fullRecord
   fullRecordLine
   headerMap
-  requiredHeaders
-  dataArray
-  fullHDUs
   sampleNSOHeaders
-  sample2x3
-  sampleNSO
+  requiredHeaders
 
-
--- sampleNSO
 
 parse :: Parser a -> ByteString -> IO a
 parse p inp =
@@ -284,33 +278,6 @@ requiredHeaders =
       lookupKeyword "NAXIS" h `shouldBe` Just (Integer 2)
 
 
-dataArray :: Spec
-dataArray = describe "data array" $ do
-  it "should parse fake data" $ do
-    let fakeData = "1234" -- Related to NAXIS!
-    d <- parse (parseMainData (Dimensions BPInt8 (Axes [1, 4]))) fakeData
-    d `shouldBe` fakeData
-
-  it "should grab correct data array" $ do
-    let fakeData = "1234" -- Related to NAXIS!
-    h <- parse parsePrimary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> "       " <> fakeData
-    h.dataArray.rawData `shouldBe` fakeData
-
-
-fullHDUs :: Spec
-fullHDUs = describe "Full HDUs" $ do
-  it "should include required headers in the keywords" $ do
-    let fakeData = "1234" -- Related to NAXIS!
-    h <- parse parsePrimary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
-    length (keywords h.header) `shouldBe` 6
-    lookupKeyword "NAXIS" h.header `shouldBe` Just (Integer 2)
-
-  it "should parse full extension" $ do
-    bt <- parse parseBinTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
-    bt.pCount `shouldBe` 0
-    bt.heap `shouldBe` ""
-
-
 sampleNSOHeaders :: Spec
 sampleNSOHeaders = do
   describe "NSO Stripped Headers" $ do
@@ -332,63 +299,11 @@ sampleNSOHeaders = do
           _ <- parse parseRecordLine $ flattenKeywords [TE.encodeUtf8 t]
           pure ()
 
-      it "should parse xtension bintable" $ do
+      it "should parse bin table keywords" $ do
         DKISTHeaders bs <- getFixture
         (sz, pc) <- parse parseBinTableKeywords (mconcat $ C8.lines bs)
         sz.axes `shouldBe` Axes [32, 998]
         pc `shouldBe` 95968
-
-
-sample2x3 :: Spec
-sample2x3 = do
-  describe "simple2x3.fits" $ do
-    it "should parse primary" $ do
-      Simple2x3Raw bs <- getFixture
-      p <- parse parsePrimary bs
-      p.dataArray.axes `shouldBe` Axes [3, 2]
-
-
-sampleNSO :: Spec
-sampleNSO = do
-  describe "NSO Sample FITS Parse" $ do
-    it "should parse primary HDU" $ do
-      DKISTFitsRaw bs <- getFixture
-      p <- parse parsePrimary bs
-      BS.length p.dataArray.rawData `shouldBe` 0
-
-    it "should parse BINTABLE" $ do
-      DKISTFitsRaw bs <- getFixture
-      rest <- flip parse bs $ do
-        _ <- parsePrimary
-        M.takeRest
-      bt :: BinTableHDU <- parse parseBinTable rest
-      lookupKeyword "INSTRUME" bt.header `shouldBe` Just (String "VISP")
-      lookupKeyword "NAXIS" bt.header `shouldBe` Just (Integer 2)
-
-      let countedHeaderBlocks = 11 -- this was manually counted... until end of all headers
-          payloadLength = BS.length bt.dataArray.rawData
-          headerLength = countedHeaderBlocks * hduBlockSize
-          -- sizeOnDisk = 161280
-          heapLength = bt.pCount
-
-      -- Payload size is as expected
-      payloadLength `shouldBe` 32 * 998 * fromIntegral (bitPixBytes BPInt8)
-      bt.pCount `shouldBe` 95968
-
-      if C8.all (/= '\0') (C8.take 100 (C8.drop (headerLength + payloadLength + heapLength - 100) rest))
-        then pure ()
-        else failTest "The end of the heap has some null data"
-
-      if C8.all (== '\0') (C8.drop (headerLength + payloadLength + heapLength) rest)
-        then pure ()
-        else failTest "The remainder of the file contains real data"
-
-
-newtype DKISTFitsRaw = DKISTFitsRaw BS.ByteString
-instance Fixture DKISTFitsRaw where
-  fixtureAction = do
-    bs <- BS.readFile "./samples/nso_dkist.fits"
-    pure $ noCleanup $ DKISTFitsRaw bs
 
 
 newtype DKISTHeaders = DKISTHeaders BS.ByteString
@@ -405,10 +320,3 @@ instance Fixture SampleNSO where
     pure $ noCleanup $ SampleNSO $ filter (not . ignore) $ T.lines $ TE.decodeUtf8 bs
    where
     ignore t = T.isPrefixOf "CONTINUE" t || T.isPrefixOf "END" t
-
-
-newtype Simple2x3Raw = Simple2x3Raw BS.ByteString
-instance Fixture Simple2x3Raw where
-  fixtureAction = do
-    bs <- BS.readFile "samples/simple2x3.fits"
-    pure $ noCleanup $ Simple2x3Raw bs

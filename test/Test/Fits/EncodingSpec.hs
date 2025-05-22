@@ -4,28 +4,36 @@ module Test.Fits.EncodingSpec where
 
 import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as BL
-import Data.ByteString.Lazy.Char8 qualified as C8
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
+import Effectful.State.Static.Local
 import Skeletest
 import Telescope.Data.Axes
 import Telescope.Fits
-import Telescope.Fits.Encoding (nextParser, runParser)
+import Telescope.Fits.BitPix (bitPixBytes)
+import Telescope.Fits.DataArray (Dimensions (..))
+import Telescope.Fits.Encoding (mainData, parseThrow, runMega, runParseBytes)
+import Telescope.Fits.Encoding qualified as Enc
 import Telescope.Fits.Encoding.MegaParser qualified as MP
 import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
 import Telescope.Fits.HDU.Block (hduBlockSize)
 import Telescope.Fits.Header
-import Test.Fits.MegaParserSpec (Simple2x3Raw (..))
+import Test.Fits.MegaParserSpec (flattenKeywords)
 
 
 spec :: Spec
 spec = do
-  describe "decode fits" $ testDecodeFits
+  describe "decode fits" testDecodeFits
   describe "render header" testRenderHeader
   describe "render data" testRenderData
   describe "encode primary" testEncodePrimary
   describe "round trip" testRoundTrip
+  dataArraySpec
+  fullHDUs
+  simple2x3
+  sampleNSO
 
 
 testDecodeFits :: Spec
@@ -33,8 +41,8 @@ testDecodeFits = do
   describe "simple2x3.fits" $ do
     it "should parse primary" $ do
       Simple2x3Raw bs <- getFixture
-      p <- either throwM pure $ runParser bs $ nextParser "Primary Header" MP.parsePrimary
-      p.dataArray.axes `shouldBe` Axes [3, 2]
+      dm <- either throwM pure $ runParseBytes bs $ runMega "Primary Header" MP.parsePrimaryKeywords
+      dm.axes `shouldBe` Axes [3, 2]
 
     it "should load metadata" $ do
       Simple2x3Raw bs <- getFixture
@@ -162,7 +170,7 @@ testRenderHeader = do
 
 
 run :: BuilderBlock -> String
-run = C8.unpack . runRender
+run = C8.unpack . BL.toStrict . runRender
 
 
 headers :: [String] -> String
@@ -278,6 +286,100 @@ testRoundTrip = do
   matchKeyword k (KeywordRecord k2 _ _) = k == k2
 
 
+dataArraySpec :: Spec
+dataArraySpec = describe "data array" $ do
+  it "should parse fake data" $ do
+    let fakeData = "1234" -- Related to NAXIS!
+    d <- parseThrow (mainData (Dimensions BPInt8 (Axes [1, 4]))) fakeData
+    d.rawData `shouldBe` fakeData
+
+  it "should grab correct data array" $ do
+    let fakeData = "1234" -- Related to NAXIS!
+    h <- parseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> "       " <> fakeData
+    h.dataArray.rawData `shouldBe` fakeData
+
+
+fullHDUs :: Spec
+fullHDUs = describe "Full HDUs" $ do
+  it "should include required headers in the keywords" $ do
+    let fakeData = "1234" -- Related to NAXIS!
+    h <- parseThrow Enc.primary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
+    length (keywords h.header) `shouldBe` 6
+    lookupKeyword "NAXIS" h.header `shouldBe` Just (Integer 2)
+
+  it "should parse full extension" $ do
+    bt <- parseThrow Enc.binTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
+    bt.pCount `shouldBe` 0
+    bt.heap `shouldBe` ""
+
+
+simple2x3 :: Spec
+simple2x3 = do
+  describe "simple2x3.fits" $ do
+    it "should parse primary" $ do
+      Simple2x3Raw bs <- getFixture
+      p <- parseThrow Enc.primary bs
+      p.dataArray.axes `shouldBe` Axes [3, 2]
+
+
+sampleNSO :: Spec
+sampleNSO = do
+  describe "NSO Sample FITS Parse" $ do
+    it "should parse primary HDU" $ do
+      DKISTFitsRaw bs <- getFixture
+      p <- parseThrow Enc.primary bs
+      BS.length p.dataArray.rawData `shouldBe` 0
+
+    it "should parse BINTABLE" $ do
+      DKISTFitsRaw bs <- getFixture
+      (bt :: BinTableHDU, rest) <- flip parseThrow bs $ do
+        bt <- Enc.primary >> Enc.binTable
+        rest <- get @BS.ByteString
+        pure (bt, rest)
+      lookupKeyword "INSTRUME" bt.header `shouldBe` Just (String "VISP")
+      lookupKeyword "NAXIS" bt.header `shouldBe` Just (Integer 2)
+
+      let countedHeaderBlocks = 11 -- this was manually counted... until end of all headers
+          payloadLength :: Int = BS.length bt.dataArray.rawData
+          headerLength :: Int = countedHeaderBlocks * hduBlockSize
+          -- sizeOnDisk = 161280
+          heapLength :: Int = bt.pCount
+
+      -- Payload size is as expected
+      payloadLength `shouldBe` 32 * 998 * fromIntegral (bitPixBytes BPInt8)
+      bt.pCount `shouldBe` 95968
+
+      if C8.all (/= '\0') (C8.take 100 (C8.drop (headerLength + payloadLength + heapLength - 100) rest))
+        then pure ()
+        else failTest "The end of the heap has some null data"
+
+      if C8.all (== '\0') (C8.drop (headerLength + payloadLength + heapLength) rest)
+        then pure ()
+        else failTest "The remainder of the file contains real data"
+
+
+newtype FitsDecodedFix = FitsDecodedFix Fits
+instance Fixture FitsDecodedFix where
+  fixtureAction = do
+    FitsEncodedFix enc <- getFixture
+    f <- decode enc
+    pure $ noCleanup $ FitsDecodedFix f
+
+
+newtype Simple2x3Raw = Simple2x3Raw BS.ByteString
+instance Fixture Simple2x3Raw where
+  fixtureAction = do
+    bs <- BS.readFile "samples/simple2x3.fits"
+    pure $ noCleanup $ Simple2x3Raw bs
+
+
+newtype DKISTFitsRaw = DKISTFitsRaw BS.ByteString
+instance Fixture DKISTFitsRaw where
+  fixtureAction = do
+    bs <- BS.readFile "./samples/nso_dkist.fits"
+    pure $ noCleanup $ DKISTFitsRaw bs
+
+
 newtype Simple2x3Fix = Simple2x3Fix Fits
 instance Fixture Simple2x3Fix where
   fixtureAction = do
@@ -296,11 +398,3 @@ instance Fixture FitsEncodedFix where
       let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
           dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
        in DataHDU heads dat
-
-
-newtype FitsDecodedFix = FitsDecodedFix Fits
-instance Fixture FitsDecodedFix where
-  fixtureAction = do
-    FitsEncodedFix enc <- getFixture
-    f <- decode enc
-    pure $ noCleanup $ FitsDecodedFix f
