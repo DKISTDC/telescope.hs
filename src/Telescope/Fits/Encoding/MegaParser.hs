@@ -2,7 +2,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 {- |
-Module      : Data.Fits.MegaParser
+Module      : Telescope.Fits.Encoding.MegaParser
 Description : MegaParsec based parser for an HDU.
 Copyright   : (c) Zac Slade, 2023
 License     : BSD2
@@ -11,53 +11,33 @@ Stability   : experimental
 
 Parsing rules for an HDU in a FITS file.
 -}
-module Data.Fits.MegaParser where
+module Telescope.Fits.Encoding.MegaParser where
 
 import Control.Monad (replicateM_, void)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.Char (ord)
-import Data.Fits qualified as Fits
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Void (Void)
-import Data.Word (Word16, Word32, Word64, Word8)
+import Data.Word (Word8)
+import Telescope.Data.Axes
+import Telescope.Fits.BitPix
+import Telescope.Fits.DataArray
+import Telescope.Fits.HDU
+import Telescope.Fits.HDU.Block (hduRecordLength)
+import Telescope.Fits.Header hiding (FromKeyword (..), parseHeader, parseKeyword)
 import Text.Megaparsec (ParseErrorBundle, Parsec, (<|>))
 import Text.Megaparsec qualified as M
 import Text.Megaparsec.Byte qualified as M
 import Text.Megaparsec.Byte.Lexer qualified as MBL
 import Text.Megaparsec.Pos qualified as MP
 
----- local imports
-import Data.Fits
-  ( Axes
-  , BitPixFormat (..)
-  , Dimensions (Dimensions)
-  , Extension (..)
-  , Header (Header)
-  , HeaderDataUnit (HeaderDataUnit)
-  , HeaderRecord (..)
-  , KeywordRecord (..)
-  , LogicalConstant (..)
-  , Value (..)
-  , bitPixToByteSize
-  , hduRecordLength
-  )
-
 
 type Parser = Parsec Void ByteString
 type ParseErr = ParseErrorBundle ByteString Void
-
-
-data DataUnitValues
-  = FITSUInt8 Word8
-  | FITSInt16 Word16
-  | FITSInt32 Word32
-  | FITSInt64 Word64
-  | FITSFloat32 Float
-  | FITSFloat64 Double
 
 
 toWord :: Char -> Word8
@@ -155,9 +135,9 @@ parseInlineComment lineStart = do
 
 parseLineComment :: Parser Text
 parseLineComment = do
-  let keyword = "COMMENT " :: ByteString
-  _ <- M.string' keyword
-  c <- M.count (hduRecordLength - BS.length keyword) M.anySingle
+  let kw = "COMMENT " :: ByteString
+  _ <- M.string' kw
+  c <- M.count (hduRecordLength - BS.length kw) M.anySingle
   return $ wordsText c
 
 
@@ -223,7 +203,7 @@ parseStringValue = do
 
 requireKeyword :: Text -> Header -> Parser Value
 requireKeyword k kvs = do
-  case Fits.lookup k kvs of
+  case lookupKeyword k kvs of
     Nothing -> fail $ "Missing: " <> show k
     Just v -> return v
 
@@ -256,24 +236,24 @@ parsePos :: Parser Int
 parsePos = MP.unPos . MP.sourceColumn <$> M.getSourcePos
 
 
-parseBitPix :: Parser BitPixFormat
+parseBitPix :: Parser BitPix
 parseBitPix = do
   v <- parseKeywordRecord' "BITPIX" parseValue
   toBitpix v
  where
-  toBitpix (Integer 8) = return EightBitInt
-  toBitpix (Integer 16) = return SixteenBitInt
-  toBitpix (Integer 32) = return ThirtyTwoBitInt
-  toBitpix (Integer 64) = return SixtyFourBitInt
-  toBitpix (Integer (-32)) = return ThirtyTwoBitFloat
-  toBitpix (Integer (-64)) = return SixtyFourBitFloat
+  toBitpix (Integer 8) = return BPInt8
+  toBitpix (Integer 16) = return BPInt16
+  toBitpix (Integer 32) = return BPInt32
+  toBitpix (Integer 64) = return BPInt64
+  toBitpix (Integer (-32)) = return BPFloat
+  toBitpix (Integer (-64)) = return BPDouble
   toBitpix _ = fail "Invalid BITPIX header"
 
 
-parseNaxes :: Parser Axes
+parseNaxes :: Parser (Axes Column)
 parseNaxes = do
   n <- parseKeywordRecord' "NAXIS" parseInt
-  mapM parseN [1 .. n]
+  Axes <$> mapM parseN [1 .. n]
  where
   parseN :: Int -> Parser Int
   parseN n = parseKeywordRecord' (C8.pack $ "NAXIS" <> show n) parseInt
@@ -286,42 +266,43 @@ parseDimensions = do
   Dimensions bp <$> parseNaxes
 
 
-parsePrimary :: Parser HeaderDataUnit
+parsePrimary :: Parser DataHDU
 parsePrimary = do
-  dm <- parsePrimaryKeywords
+  -- do not consume the headers used for the dimensions
+  dm <- M.lookAhead parsePrimaryKeywords
   hd <- parseHeader
   dt <- parseMainData dm
-  return $ HeaderDataUnit hd dm Primary dt
+  return $ DataHDU hd (dataArray dm dt)
 
 
 parsePrimaryKeywords :: Parser Dimensions
 parsePrimaryKeywords = do
   _ <- parseKeywordRecord' "SIMPLE" parseLogic
-  M.lookAhead parseDimensions
+  parseDimensions
 
 
-parseImage :: Parser HeaderDataUnit
+parseImage :: Parser DataHDU
 parseImage = do
-  dm <- parseImageKeywords
+  -- do not consume the headers used for the dimensions
+  dm <- M.lookAhead parseImageKeywords
   hd <- parseHeader
   dt <- parseMainData dm
-  return $ HeaderDataUnit hd dm Image dt
+  return $ DataHDU hd (dataArray dm dt)
 
 
 parseImageKeywords :: Parser Dimensions
 parseImageKeywords = do
   _ <- ignoreComments $ M.string' "XTENSION= 'IMAGE   '"
-  M.lookAhead parseDimensions
+  parseDimensions
 
 
-parseBinTable :: Parser HeaderDataUnit
+parseBinTable :: Parser BinTableHDU
 parseBinTable = do
   (dm, pc) <- M.lookAhead parseBinTableKeywords
   hd <- parseHeader
   dt <- parseMainData dm
   hp <- parseBinTableHeap
-  let tab = BinTable pc hp
-  return $ HeaderDataUnit hd dm tab dt
+  return $ BinTableHDU hd pc hp (dataArray dm dt)
  where
   parseBinTableHeap = return ""
 
@@ -336,23 +317,14 @@ parseBinTableKeywords = do
 
 parseMainData :: Dimensions -> Parser ByteString
 parseMainData size = do
-  let len = dataSize size
+  let len = dataSizeBytes size
   M.takeP (Just ("Data Array of " <> show len <> " Bytes")) (fromIntegral len)
 
 
-parseHDU :: Parser HeaderDataUnit
-parseHDU =
-  parsePrimary <|> parseImage <|> parseBinTable
-
-
-parseHDUs :: Parser [HeaderDataUnit]
-parseHDUs = do
-  M.many parseHDU
-
-
-dataSize :: Dimensions -> Int
-dataSize (Dimensions bitpix axes) = size bitpix * count axes
+parseExtensions :: Parser [Extension]
+parseExtensions = do
+  M.many parseExtension
  where
-  count [] = 0
-  count ax = fromIntegral $ product ax
-  size = fromIntegral . bitPixToByteSize
+  parseExtension :: Parser Extension
+  parseExtension =
+    Image <$> parseImage <|> BinTable <$> parseBinTable

@@ -60,7 +60,7 @@ library:
 
 
 tests:
-  spec:
+  test:
     main: Spec.hs
     source-dirs: test/
     build-tools: skeletest:skeletest-preprocessor

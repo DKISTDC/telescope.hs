@@ -23,9 +23,6 @@ extra-source-files:
 
 library
     exposed-modules:
-        Data.Fits
-        Data.Fits.MegaParser
-        Data.Fits.Read
         Telescope.Asdf
         Telescope.Asdf.Class
         Telescope.Asdf.Core
@@ -45,14 +42,20 @@ library
         Telescope.Data.Parser
         Telescope.Data.WCS
         Telescope.Fits
+        Telescope.Fits.BitPix
         Telescope.Fits.Checksum
         Telescope.Fits.DataArray
         Telescope.Fits.Encoding
+        Telescope.Fits.Encoding.MegaParser
+        Telescope.Fits.Encoding.Read
         Telescope.Fits.Encoding.Render
+        Telescope.Fits.HDU
+        Telescope.Fits.HDU.Block
         Telescope.Fits.Header
         Telescope.Fits.Header.Class
+        Telescope.Fits.Header.Header
         Telescope.Fits.Header.Keyword
-        Telescope.Fits.Types
+        Telescope.Fits.Header.Value
     other-modules:
         Paths_telescope
     build-depends:
@@ -92,7 +95,7 @@ library
         src/checksum.c
     default-language: GHC2021
 
-test-suite spec
+test-suite test
     type: exitcode-stdio-1.0
     main-is: Spec.hs
     other-modules:

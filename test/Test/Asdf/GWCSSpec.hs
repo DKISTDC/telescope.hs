@@ -49,7 +49,7 @@ toAsdfSpec = do
 
 transformSpec :: Spec
 transformSpec = do
-  describe "linear" $ withMarkers ["focus"] $ do
+  describe "linear" $ do
     it "should calculate intercept as 0th value for crval = 0" $ do
       let wcs = WCSAxis{cunit = CUnit "cunit", ctype = CType "Ctype", crpix = 12.0, crval = 0, cdelt = 0.1}
       let Intercept int = wcsIntercept wcs
@@ -60,7 +60,7 @@ transformSpec = do
       let Intercept int = wcsIntercept wcs
       int `shouldSatisfy` P.approx P.tol (-0.1)
 
-  describe "(<&>) concatenate" $ withMarkers ["focus"] $ do
+  describe "(<&>) concatenate" $ do
     it "should combine two inputs" $ do
       let tx = shift 10 :: Transform (Pix X) (Shift X)
       let ty = shift 20 :: Transform (Pix Y) (Shift Y)
@@ -81,7 +81,7 @@ transformSpec = do
       tyt `shouldBe` ty.transformation
       tzt `shouldBe` tz.transformation
 
-  describe "concat and compose" $ withMarkers ["focus"] $ do
+  describe "concat and compose" $ do
     it "should compose with higher priority first" $ do
       let tx = shift 10 :: Transform (Pix X) (Shift X)
       let tx2 = scale 10 :: Transform (Shift X) (Scale X)

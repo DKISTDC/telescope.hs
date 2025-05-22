@@ -8,15 +8,18 @@ import Control.Monad (forM_)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
-import Data.Fits
-import Data.Fits qualified as Fits
-import Data.Fits.MegaParser
-import Data.Fits.Read
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Skeletest
 import System.IO
+import Telescope.Data.Axes
+import Telescope.Fits.BitPix
+import Telescope.Fits.DataArray (DataArray (..), Dimensions (..))
+import Telescope.Fits.Encoding.MegaParser
+import Telescope.Fits.HDU
+import Telescope.Fits.HDU.Block (hduBlockSize)
+import Telescope.Fits.Header (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), keywords, lookupKeyword)
 import Text.Megaparsec qualified as M
 import Text.Megaparsec.Char qualified as M
 import Prelude hiding (lookup)
@@ -33,9 +36,13 @@ spec = do
   headerMap
   requiredHeaders
   dataArray
+  fullHDUs
   sampleNSOHeaders
+  sample2x3
   sampleNSO
 
+
+-- sampleNSO
 
 parse :: Parser a -> ByteString -> IO a
 parse p inp =
@@ -220,7 +227,7 @@ continue = describe "Continue Keyword" $ do
           ]
 
     h <- parse parseHeader $ flattenKeywords hs
-    Fits.lookup "CAL_URL" h `shouldBe` Just (String "https://docs.dkist.nso.edu/projects/visp/en/v2.0.1/l0_to_l1_visp.html")
+    lookupKeyword "CAL_URL" h `shouldBe` Just (String "https://docs.dkist.nso.edu/projects/visp/en/v2.0.1/l0_to_l1_visp.html")
 
 
 headerMap :: Spec
@@ -228,22 +235,22 @@ headerMap = describe "full header" $ do
   it "should parse single header" $ do
     h <- parse parseHeader $ flattenKeywords ["KEY1='value'"]
     length (keywords h) `shouldBe` 1
-    Fits.lookup "KEY1" h `shouldBe` Just (String "value")
+    lookupKeyword "KEY1" h `shouldBe` Just (String "value")
 
   it "should parse multiple headers " $ do
     res <- parse parseHeader $ flattenKeywords ["KEY1='value'", "KEY2=  23"]
     length (keywords res) `shouldBe` 2
-    Fits.lookup "KEY2" res `shouldBe` Just (Integer 23)
+    lookupKeyword "KEY2" res `shouldBe` Just (Integer 23)
 
   it "should ignore comments" $ do
     res <- parse parseHeader $ flattenKeywords ["KEY1='value' / this is a comment"]
     length (keywords res) `shouldBe` 1
-    Fits.lookup "KEY1" res `shouldBe` Just (String "value")
+    lookupKeyword "KEY1" res `shouldBe` Just (String "value")
 
   it "should handle xtension" $ do
     res <- parse parseHeader $ flattenKeywords ["XTENSION= 'IMAGE   '"]
     length (keywords res) `shouldBe` 1
-    Fits.lookup "XTENSION" res `shouldBe` Just (String "IMAGE")
+    lookupKeyword "XTENSION" res `shouldBe` Just (String "IMAGE")
 
   it "should parse blank line before keyword" $ do
     res <- parse parseHeader $ flattenKeywords [" ", "KEY2    = 22"]
@@ -259,35 +266,49 @@ requiredHeaders =
   describe "required headers" $ do
     it "should parse bitpix" $ do
       res <- parse parseBitPix $ flattenKeywords ["BITPIX = 16"]
-      res `shouldBe` SixteenBitInt
+      res `shouldBe` BPInt16
 
     it "should parse NAXES" $ do
       res <- parse parseNaxes $ flattenKeywords ["NAXIS   =3", "NAXIS1  =1", "NAXIS2  =2", "NAXIS3  =3"]
-      res `shouldBe` [1, 2, 3]
+      res `shouldBe` Axes [1, 2, 3]
 
     it "should parse size" $ do
       res <- parse parseDimensions $ flattenKeywords ["BITPIX = -32", "NAXIS=2", "NAXIS1=10", "NAXIS2=20"]
-      res.bitpix `shouldBe` ThirtyTwoBitFloat
-      res.axes `shouldBe` [10, 20]
+      res.bitpix `shouldBe` BPFloat
+      res.axes `shouldBe` Axes [10, 20]
 
-    it "should include required headers in the keywords" $ do
+    it "should parse data headers with data" $ do
       let fakeData = "1234" -- Related to NAXIS!
-      h <- parse parsePrimary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
-      h.extension `shouldBe` Primary
-      length (keywords h.header) `shouldBe` 5
-      lookup "NAXIS" h.header `shouldBe` Just (Integer 2)
-
-    it "should parse full extension" $ do
-      h <- parse parseBinTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
-      h.extension `shouldBe` BinTable 0 ""
+      h <- parse parseHeader $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
+      length (keywords h) `shouldBe` 6
+      lookupKeyword "NAXIS" h `shouldBe` Just (Integer 2)
 
 
 dataArray :: Spec
 dataArray = describe "data array" $ do
+  it "should parse fake data" $ do
+    let fakeData = "1234" -- Related to NAXIS!
+    d <- parse (parseMainData (Dimensions BPInt8 (Axes [1, 4]))) fakeData
+    d `shouldBe` fakeData
+
   it "should grab correct data array" $ do
     let fakeData = "1234" -- Related to NAXIS!
     h <- parse parsePrimary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> "       " <> fakeData
-    h.mainData `shouldBe` fakeData
+    h.dataArray.rawData `shouldBe` fakeData
+
+
+fullHDUs :: Spec
+fullHDUs = describe "Full HDUs" $ do
+  it "should include required headers in the keywords" $ do
+    let fakeData = "1234" -- Related to NAXIS!
+    h <- parse parsePrimary $ flattenKeywords ["SIMPLE = T", "BITPIX = 8", "NAXIS=2", "NAXIS1=2", "NAXIS2=2", "TEST='hi'"] <> fakeData
+    length (keywords h.header) `shouldBe` 6
+    lookupKeyword "NAXIS" h.header `shouldBe` Just (Integer 2)
+
+  it "should parse full extension" $ do
+    bt <- parse parseBinTable $ flattenKeywords ["XTENSION= 'BINTABLE'", "BITPIX = -32", "NAXIS=0", "PCOUNT=0", "GCOUNT=1"]
+    bt.pCount `shouldBe` 0
+    bt.heap `shouldBe` ""
 
 
 sampleNSOHeaders :: Spec
@@ -313,66 +334,67 @@ sampleNSOHeaders = do
 
       it "should parse xtension bintable" $ do
         DKISTHeaders bs <- getFixture
-        (sz, _) <- parse parseBinTableKeywords $ mconcat $ C8.lines bs
-        sz.axes `shouldBe` [32, 998]
+        (sz, pc) <- parse parseBinTableKeywords (mconcat $ C8.lines bs)
+        sz.axes `shouldBe` Axes [32, 998]
+        pc `shouldBe` 95968
 
-      it "should parse NAXES correctly" $ do
-        DKISTHeaders bs <- getFixture
-        (sz, _) <- parse parseBinTableKeywords $ mconcat $ C8.lines bs
-        sz.axes `shouldBe` [32, 998]
+
+sample2x3 :: Spec
+sample2x3 = do
+  describe "simple2x3.fits" $ do
+    it "should parse primary" $ do
+      Simple2x3Raw bs <- getFixture
+      p <- parse parsePrimary bs
+      p.dataArray.axes `shouldBe` Axes [3, 2]
 
 
 sampleNSO :: Spec
 sampleNSO = do
   describe "NSO Sample FITS Parse" $ do
-    it "should parse empty primary header" $ do
-      DKISTFits bs <- getFixture
-      h0 <- eitherFail $ readPrimaryHDU bs
-      -- first header doesn't have any data
-      BS.length h0.mainData `shouldBe` 0
+    it "should parse primary HDU" $ do
+      DKISTFitsRaw bs <- getFixture
+      p <- parse parsePrimary bs
+      BS.length p.dataArray.rawData `shouldBe` 0
 
-    it "should parse both HDUs" $ do
-      DKISTFits bs <- getFixture
-      hdus <- eitherFail $ readHDUs bs
-      length hdus `shouldBe` 2
-      [_, h2] <- pure hdus
-      Fits.lookup "INSTRUME" h2.header `shouldBe` Just (String "VISP")
-      Fits.lookup "NAXIS" h2.header `shouldBe` Just (Integer 2)
+    it "should parse BINTABLE" $ do
+      DKISTFitsRaw bs <- getFixture
+      rest <- flip parse bs $ do
+        _ <- parsePrimary
+        M.takeRest
+      bt :: BinTableHDU <- parse parseBinTable rest
+      lookupKeyword "INSTRUME" bt.header `shouldBe` Just (String "VISP")
+      lookupKeyword "NAXIS" bt.header `shouldBe` Just (Integer 2)
 
       let countedHeaderBlocks = 11 -- this was manually counted... until end of all headers
-          payloadLength = BS.length h2.mainData
+          payloadLength = BS.length bt.dataArray.rawData
           headerLength = countedHeaderBlocks * hduBlockSize
           -- sizeOnDisk = 161280
-          heapLength = pCount h2.extension
+          heapLength = bt.pCount
 
       -- Payload size is as expected
-      payloadLength `shouldBe` 32 * 998 * fromIntegral (bitPixToByteSize EightBitInt)
-      pCount h2.extension `shouldBe` 95968
+      payloadLength `shouldBe` 32 * 998 * fromIntegral (bitPixBytes BPInt8)
+      bt.pCount `shouldBe` 95968
 
-      if C8.all (/= '\0') (C8.take 100 (C8.drop (headerLength + payloadLength + heapLength - 100) bs))
+      if C8.all (/= '\0') (C8.take 100 (C8.drop (headerLength + payloadLength + heapLength - 100) rest))
         then pure ()
         else failTest "The end of the heap has some null data"
 
-      if C8.all (== '\0') (C8.drop (headerLength + payloadLength + heapLength) bs)
+      if C8.all (== '\0') (C8.drop (headerLength + payloadLength + heapLength) rest)
         then pure ()
         else failTest "The remainder of the file contains real data"
- where
-  pCount :: Extension -> Int
-  pCount (BinTable p _) = p
-  pCount _ = 0
 
 
-newtype DKISTFits = DKISTFits BS.ByteString
-instance Fixture DKISTFits where
+newtype DKISTFitsRaw = DKISTFitsRaw BS.ByteString
+instance Fixture DKISTFitsRaw where
   fixtureAction = do
-    bs <- BS.readFile "./test/fits_files/nso_dkist.fits"
-    pure $ noCleanup $ DKISTFits bs
+    bs <- BS.readFile "./samples/nso_dkist.fits"
+    pure $ noCleanup $ DKISTFitsRaw bs
 
 
 newtype DKISTHeaders = DKISTHeaders BS.ByteString
 instance Fixture DKISTHeaders where
   fixtureAction = do
-    bs <- BS.readFile "./test/fits_files/nso_dkist_headers.txt"
+    bs <- BS.readFile "./samples/nso_dkist_headers.txt"
     pure $ noCleanup $ DKISTHeaders bs
 
 
@@ -383,3 +405,10 @@ instance Fixture SampleNSO where
     pure $ noCleanup $ SampleNSO $ filter (not . ignore) $ T.lines $ TE.decodeUtf8 bs
    where
     ignore t = T.isPrefixOf "CONTINUE" t || T.isPrefixOf "END" t
+
+
+newtype Simple2x3Raw = Simple2x3Raw BS.ByteString
+instance Fixture Simple2x3Raw where
+  fixtureAction = do
+    bs <- BS.readFile "samples/simple2x3.fits"
+    pure $ noCleanup $ Simple2x3Raw bs

@@ -8,8 +8,13 @@ import Data.Char (toUpper)
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Data.Text qualified as T
+import Telescope.Data.Axes
+import Telescope.Fits.BitPix
 import Telescope.Fits.Checksum
-import Telescope.Fits.Types
+import Telescope.Fits.DataArray
+import Telescope.Fits.HDU
+import Telescope.Fits.HDU.Block (hduBlockSize)
+import Telescope.Fits.Header
 
 
 renderDataArray :: ByteString -> ByteString
@@ -100,6 +105,7 @@ renderOtherKeywords (Header ks) =
           || k == "EXTEND"
           || k == "DATASUM"
           || k == "CHECKSUM"
+          || k == "SIMPLE"
           || "NAXIS" `isPrefixOf` k
   isSystemKeyword _ = False
 

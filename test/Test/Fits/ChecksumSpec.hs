@@ -3,10 +3,11 @@ module Test.Fits.ChecksumSpec where
 import Data.ByteString qualified as BS
 import Data.Word
 import Skeletest
+import Telescope.Data.Axes
 import Telescope.Fits
 import Telescope.Fits.Checksum
 import Telescope.Fits.Encoding
-import Telescope.Fits.Types
+import Telescope.Fits.Header
 
 
 spec :: Spec
@@ -44,7 +45,7 @@ specChecksum = do
 
   describe "encoding" $ do
     it "checksum of empty HDU should be (-0)" $ do
-      let empty = PrimaryHDU (Header []) (DataArray BPInt8 (Axes []) "")
+      let empty = DataHDU (Header []) (DataArray BPInt8 (Axes []) "")
       let out = encodePrimaryHDU empty
       checksum out `shouldBe` Checksum maxBound
 

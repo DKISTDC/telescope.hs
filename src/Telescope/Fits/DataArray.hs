@@ -1,26 +1,53 @@
-module Telescope.Fits.DataArray
-  ( DataArray (..)
-  , dataArray
-  , decodeDataArray
-  , encodeDataArray
-  )
-where
+module Telescope.Fits.DataArray where
 
 import Control.Monad.Catch (MonadCatch)
 import Data.ByteString (ByteString)
-import Data.Fits qualified as Fits
-import Data.Massiv.Array as M hiding (isEmpty, product)
+import Data.ByteString qualified as BS
+import Data.List qualified as L
+import Data.Massiv.Array as M hiding (Dimensions, isEmpty, product)
 import System.ByteOrder
 import Telescope.Data.Array
 import Telescope.Data.Axes
 import Telescope.Data.Binary
-import Telescope.Fits.Types
+import Telescope.Fits.BitPix
+
+
+data Dimensions = Dimensions
+  { bitpix :: BitPix
+  , axes :: Axes Column
+  }
+  deriving (Show, Eq)
+
+
+dataSizeBytes :: Dimensions -> Int
+dataSizeBytes (Dimensions bitpix axes) =
+  bitPixBytes bitpix * count axes
+ where
+  count (Axes []) = 0
+  count (Axes ax) = fromIntegral $ product ax
+
+
+-- | Raw HDU Data. See 'Telescope.Fits.DataArray'
+data DataArray = DataArray
+  { bitpix :: BitPix
+  , axes :: Axes Column
+  , rawData :: BS.ByteString
+  }
+
+
+instance Show DataArray where
+  show d =
+    L.intercalate
+      "\n"
+      [ "  data: " <> show (BS.length d.rawData) <> " bytes"
+      , "  dimensions: "
+      , "    format: " <> L.drop 2 (show d.bitpix)
+      , "    axes: " <> show d.axes.axes
+      ]
 
 
 -- > {-# LANGUAGE TypeApplications #-}
 -- > import Data.Massiv.Array
--- > import Data.Fits.Image
--- > import Data.Fits
 -- >
 -- > decodeExample :: BL.ByteString -> Either String Int
 -- > decodeExample bs = do
@@ -64,22 +91,7 @@ encodeDataArray arr =
    in DataArray{bitpix, axes, rawData}
 
 
--- | Create a DataArray from raw Fits info
-dataArray :: Fits.Dimensions -> ByteString -> DataArray
-dataArray dim dat =
-  DataArray
-    { bitpix = bitpix dim.bitpix
-    , axes = axes dim.axes
-    , rawData = dat
-    }
- where
-  bitpix :: Fits.BitPixFormat -> BitPix
-  bitpix Fits.EightBitInt = BPInt8
-  bitpix Fits.SixteenBitInt = BPInt16
-  bitpix Fits.ThirtyTwoBitInt = BPInt32
-  bitpix Fits.SixtyFourBitInt = BPInt64
-  bitpix Fits.ThirtyTwoBitFloat = BPFloat
-  bitpix Fits.SixtyFourBitFloat = BPDouble
-
-  axes :: Fits.Axes -> Axes Column
-  axes = Axes
+-- -- | Create a DataArray from raw Fits info
+dataArray :: Dimensions -> ByteString -> DataArray
+dataArray Dimensions{bitpix, axes} rawData =
+  DataArray{bitpix, axes, rawData}

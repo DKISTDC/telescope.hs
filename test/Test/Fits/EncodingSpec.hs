@@ -2,23 +2,26 @@
 
 module Test.Fits.EncodingSpec where
 
+import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.ByteString.Lazy.Char8 qualified as C8
-import Data.Massiv.Array (Ix2)
 import Data.Massiv.Array qualified as M
 import Data.Text (pack)
 import Skeletest
-import Telescope.Fits.DataArray
-import Telescope.Fits.Encoding
+import Telescope.Data.Axes
+import Telescope.Fits
+import Telescope.Fits.Encoding (nextParser, runParser)
+import Telescope.Fits.Encoding.MegaParser qualified as MP
 import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
+import Telescope.Fits.HDU.Block (hduBlockSize)
 import Telescope.Fits.Header
-import Telescope.Fits.Types
+import Test.Fits.MegaParserSpec (Simple2x3Raw (..))
 
 
 spec :: Spec
 spec = do
-  describe "decode fits" testDecodeFits
+  describe "decode fits" $ testDecodeFits
   describe "render header" testRenderHeader
   describe "render data" testRenderData
   describe "encode primary" testEncodePrimary
@@ -28,8 +31,14 @@ spec = do
 testDecodeFits :: Spec
 testDecodeFits = do
   describe "simple2x3.fits" $ do
+    it "should parse primary" $ do
+      Simple2x3Raw bs <- getFixture
+      p <- either throwM pure $ runParser bs $ nextParser "Primary Header" MP.parsePrimary
+      p.dataArray.axes `shouldBe` Axes [3, 2]
+
     it "should load metadata" $ do
-      f <- decode =<< BS.readFile "samples/simple2x3.fits"
+      Simple2x3Raw bs <- getFixture
+      f <- decode bs
       let dat = f.primaryHDU.dataArray
           hds = f.primaryHDU.header
       dat.axes `shouldBe` Axes [3, 2]
@@ -37,7 +46,8 @@ testDecodeFits = do
       lookupKeyword "CUSTOM" hds `shouldBe` Just (Integer 123456)
 
     it "should load data array" $ do
-      f <- decode =<< BS.readFile "samples/simple2x3.fits"
+      Simple2x3Raw bs <- getFixture
+      f <- decode bs
       arr <- decodeDataArray @Ix2 @Int f.primaryHDU.dataArray
       M.toLists arr `shouldBe` [[0, 1, 2], [3, 4, 5]]
 
@@ -238,7 +248,7 @@ testRoundTrip = do
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.rawData `shouldBe` fs.primaryHDU.dataArray.rawData
 
-    it "should encode headers only once" $ do
+    withMarkers ["focus"] $ it "should encode headers only once" $ do
       Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       let hs = fs.primaryHDU.header
@@ -259,8 +269,8 @@ testRoundTrip = do
 
   describe "image fits" $ do
     it "should roundtrip image extensions" $ do
-      let prim = PrimaryHDU mempty emptyDataArray
-      let img = Image $ ImageHDU mempty emptyDataArray
+      let prim = DataHDU mempty emptyDataArray
+      let img = Image $ DataHDU mempty emptyDataArray
       let out = encode $ Fits prim [img]
       fits2 <- decode out
       length fits2.extensions `shouldBe` 1
@@ -285,7 +295,7 @@ instance Fixture FitsEncodedFix where
     primary =
       let heads = Header [Keyword $ KeywordRecord "WOOT" (Integer 123) Nothing]
           dat = DataArray BPInt8 (Axes [3, 2]) $ BS.pack [0 .. 5]
-       in PrimaryHDU heads dat
+       in DataHDU heads dat
 
 
 newtype FitsDecodedFix = FitsDecodedFix Fits

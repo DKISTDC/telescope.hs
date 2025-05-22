@@ -48,8 +48,8 @@ module Telescope.Fits
 
     -- * Types
   , Fits (..)
-  , PrimaryHDU (..)
-  , ImageHDU (..)
+  , KeywordRecord (..)
+  , DataHDU (..)
   , BinTableHDU (..)
   , DataArray (..)
   , Extension (..)
@@ -81,9 +81,11 @@ module Telescope.Fits
   ) where
 
 import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
+import Telescope.Data.Axes
 import Telescope.Data.Parser (Parser)
+import Telescope.Fits.BitPix
 import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding
-import Telescope.Fits.Header (FromHeader (..), FromKeyword (..), ToHeader (..), ToKeyword (..), addComment, lookupKeyword)
-import Telescope.Fits.Types
+import Telescope.Fits.HDU
+import Telescope.Fits.Header
 

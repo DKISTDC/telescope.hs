@@ -2,7 +2,6 @@ module Telescope.Fits.Checksum where
 
 import Data.Bits (complement, shiftR, (.&.))
 import Data.ByteString.Internal
-import Data.Fits (Value (..))
 import Data.Text (Text, pack)
 import Data.Word
 import Foreign.C.String
@@ -10,6 +9,7 @@ import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr
 import GHC.IO
+import Telescope.Fits.Header.Value
 
 
 -- | Generate the Checksum per the FITS spec

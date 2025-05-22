@@ -1,6 +1,5 @@
 module Telescope.Fits.Header.Class where
 
-import Data.Fits as Fits hiding (isKeyword)
 import Data.Text (Text, pack, unpack)
 import Data.Text qualified as T
 import Data.Time.Clock (UTCTime)
@@ -11,7 +10,9 @@ import Telescope.Data.Axes (AxisOrder (..))
 import Telescope.Data.KnownText
 import Telescope.Data.Parser
 import Telescope.Data.WCS (CType (..), CUnit (..), WCSAxis (..), toWCSAxisKey)
-import Telescope.Fits.Header.Keyword (lookupKeyword)
+import Telescope.Fits.Header.Header (Header (..), HeaderRecord (..), lookupKeyword)
+import Telescope.Fits.Header.Keyword
+import Telescope.Fits.Header.Value
 import Text.Casing (fromHumps, toSnake)
 
 
@@ -24,6 +25,10 @@ class ToKeyword a where
   default toKeywordRecord :: Text -> a -> KeywordRecord
   toKeywordRecord key a =
     KeywordRecord key (toKeywordValue a) Nothing
+
+
+class FromKeyword a where
+  parseKeywordValue :: (Parser :> es) => Value -> Eff es a
 
 
 instance ToKeyword Int where
@@ -86,10 +91,6 @@ instance FromKeyword CType where
     v -> expected "CType" v
 
 
-class FromKeyword a where
-  parseKeywordValue :: (Parser :> es) => Value -> Eff es a
-
-
 class ToHeader a where
   toHeader :: a -> Header
   default toHeader :: (Generic a, GToHeader (Rep a)) => a -> Header
@@ -144,7 +145,7 @@ instance (AxisOrder ax, KnownText alt) => FromHeader (WCSAxis alt ax) where
 
 parseKeyword :: (FromKeyword a, Parser :> es) => Text -> Header -> Eff es a
 parseKeyword k h =
-  case Fits.lookup k h of
+  case lookupKeyword k h of
     Nothing -> parseFail $ "Missing key: " ++ show k
     Just v -> parseAt (Child k) $ parseKeywordValue v
 

@@ -1,7 +1,6 @@
 module Test.Fits.ClassSpec where
 
 import Control.Monad.Catch (throwM)
-import Data.Fits as Fits hiding (isKeyword)
 import Data.Text (Text)
 import Effectful
 import Effectful.Error.Static
@@ -96,14 +95,14 @@ instance AxisOrder Y where
 
 wcsSpec :: Spec
 wcsSpec = do
-  describe "axis To/From Header" $ withMarkers ["focus"] $ do
+  describe "axis To/From Header" $ do
     it "should incorporate axis order into keywords" $ do
       let hx = toHeader wcsX
-      Fits.lookup "CRPIX1" hx `shouldBe` Just (Float 1.0)
+      lookupKeyword "CRPIX1" hx `shouldBe` Just (Float 1.0)
 
     it "should incorporate wcsalt into keywords" $ do
       let h = toHeader wcsAY
-      Fits.lookup "CRVAL2A" h `shouldBe` Just (Float 5.0)
+      lookupKeyword "CRVAL2A" h `shouldBe` Just (Float 5.0)
 
     it "should roundtrip" $ do
       let h = toHeader wcsAY

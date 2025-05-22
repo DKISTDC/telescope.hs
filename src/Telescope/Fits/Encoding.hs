@@ -1,6 +1,7 @@
 module Telescope.Fits.Encoding
   ( -- * Decoding
     decode
+  , runParser
 
     -- * Encoding
   , encode
@@ -13,7 +14,6 @@ module Telescope.Fits.Encoding
     -- * Parser
   , nextParser
   , parseFits
-  , parseMainData
   , HDUError (..)
   )
 where
@@ -22,18 +22,19 @@ import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.Fits qualified as Fits
-import Data.Fits.MegaParser qualified as Fits
-import Data.Fits.Read (FitsError (..))
 import Data.Text (Text)
 import Data.Text.Encoding qualified as TE
 import Effectful
 import Effectful.Error.Static
 import Effectful.State.Static.Local
 import Telescope.Fits.Checksum
-import Telescope.Fits.DataArray (dataArray)
+import Telescope.Fits.DataArray (DataArray (..), Dimensions (..), dataArray, dataSizeBytes)
+import Telescope.Fits.Encoding.MegaParser (Parser, ParseErr)
+import Telescope.Fits.Encoding.MegaParser qualified as MP
+-- import Telescope.Fits.Encoding.Read
 import Telescope.Fits.Encoding.Render
-import Telescope.Fits.Types
+import Telescope.Fits.HDU
+import Telescope.Fits.Header
 import Text.Megaparsec qualified as M
 import Text.Megaparsec.State qualified as M
 
@@ -44,8 +45,7 @@ import Text.Megaparsec.State qualified as M
 -}
 decode :: forall m. (MonadThrow m) => ByteString -> m Fits
 decode inp = do
-  let res = runPureEff $ runErrorNoCallStack @HDUError $ evalState inp parseFits
-  case res of
+  case runParser inp parseFits of
     Left e -> throwM e
     Right a -> pure a
 
@@ -61,12 +61,17 @@ encode f =
    in mconcat $ primary : exts
 
 
-encodePrimaryHDU :: PrimaryHDU -> ByteString
+runParser :: BS.ByteString -> Eff '[State ByteString, Error HDUError] a -> Either HDUError a
+runParser inp parse = do
+  runPureEff $ runErrorNoCallStack @HDUError $ evalState inp parse
+
+
+encodePrimaryHDU :: DataHDU -> ByteString
 encodePrimaryHDU p =
   encodeHDU (renderPrimaryHeader p.header p.dataArray) p.dataArray.rawData
 
 
-encodeImageHDU :: ImageHDU -> ByteString
+encodeImageHDU :: DataHDU -> ByteString
 encodeImageHDU p =
   encodeHDU (renderImageHeader p.header p.dataArray) p.dataArray.rawData
 
@@ -107,15 +112,14 @@ parseFits = do
   es <- extensions
   pure $ Fits p es
  where
-  primary :: Eff es PrimaryHDU
+  primary :: Eff es DataHDU
   primary = do
     (dm, hd) <- nextParser "Primary Header" $ do
-      dm <- Fits.parsePrimaryKeywords
-      hd <- Fits.parseHeader
+      dm <- M.lookAhead MP.parsePrimaryKeywords
+      hd <- MP.parseHeader
       pure (dm, hd)
-
     darr <- parseMainData dm
-    pure $ PrimaryHDU hd darr
+    pure $ DataHDU hd darr
 
   extensions :: Eff es [Extension]
   extensions = do
@@ -135,50 +139,43 @@ parseFits = do
     case (resImg, resTbl) of
       (Right i, _) -> pure $ Image i
       (_, Right b) -> pure $ BinTable b
-      (Left (_, FormatError ie), Left (_, FormatError be)) -> throwM $ InvalidHDU [ie, be]
+      -- (Left (_, FormatError ie), Left (_, FormatError be)) -> throwM $ InvalidHDU [ie, be]
       (Left _, Left (_, be)) -> throwM be
 
-  image :: Eff es ImageHDU
+  image :: Eff es DataHDU
   image = do
-    (dm, hd) <- imageHeader
-    darr <- parseMainData dm
-    pure $ ImageHDU hd darr
-
-  imageHeader :: Eff es (Fits.Dimensions, Header)
-  imageHeader = do
-    nextParser "Image Header" $ do
-      dm <- Fits.parseImageKeywords
-      hd <- Fits.parseHeader
+    (dm, hd) <- nextParser "Image Header" $ do
+      dm <- M.lookAhead MP.parseImageKeywords
+      hd <- MP.parseHeader
       pure (dm, hd)
+    darr <- parseMainData dm
+    pure $ DataHDU hd darr
 
   binTable :: Eff es BinTableHDU
   binTable = do
-    (dm, pcount, hd) <- binTableHeader
+    (dm, pcount, hd) <-  do
+      nextParser "BinTable Header" $ do
+        (dm, pcount) <- M.lookAhead MP.parseBinTableKeywords
+        hd <- MP.parseHeader
+        pure (dm, pcount, hd)
+
     darr <- parseMainData dm
     rest <- get
     let heap = BS.take pcount rest
     put $ BS.dropWhile (== 0) $ BS.drop pcount rest
     pure $ BinTableHDU hd pcount heap darr
 
-  binTableHeader :: Eff es (Fits.Dimensions, Int, Header)
-  binTableHeader = do
-    nextParser "BinTable Header" $ do
-      (dm, pcount) <- Fits.parseBinTableKeywords
-      hd <- Fits.parseHeader
-      pure (dm, pcount, hd)
 
-
-parseMainData :: (State ByteString :> es) => Fits.Dimensions -> Eff es DataArray
+parseMainData :: (State ByteString :> es) => Dimensions -> Eff es DataArray
 parseMainData dm = do
   rest <- get
-  let len = Fits.dataSize dm
+  let len = dataSizeBytes dm
   let dat = dataArray dm (BS.take len rest)
   put $ BS.dropWhile (== 0) $ BS.drop len rest
   pure dat
 
-
 -- | Parse HDUs by running MegaParsec parsers one at a time, tracking how much of the ByteString we've consumed
-nextParser :: (Error HDUError :> es, State ByteString :> es) => String -> Fits.Parser a -> Eff es a
+nextParser :: (Error HDUError :> es, State ByteString :> es) => String -> Parser a -> Eff es a
 nextParser src parse = do
   bs <- get
   let st1 = M.initialState src bs
@@ -187,12 +184,19 @@ nextParser src parse = do
       -- only consumes input if it succeeds
       put $ BS.drop st2.stateOffset bs
       pure a
-    (_, Left err) -> throwError $ FormatError $ ParseError err
+    (_, Left err) -> throwError $ ParseError err
 
 
 data HDUError
   = InvalidExtension String
   | MissingPrimary
-  | FormatError FitsError
-  | InvalidHDU [FitsError]
-  deriving (Show, Exception)
+  | ParseError ParseErr
+  -- | FormatError FitsError
+  -- | InvalidHDU [FitsError]
+  deriving (Exception)
+
+instance Show HDUError where
+  show (InvalidExtension s) = "InvalidExtension: " <> s
+  show MissingPrimary = "Missing Primary HDU"
+  show (ParseError e) = "ParseError " <> M.errorBundlePretty e
+
