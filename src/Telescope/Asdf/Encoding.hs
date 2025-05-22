@@ -96,7 +96,7 @@ parseAsdfTree etree eblks = do
 streamAsdfFile :: (Error AsdfError :> es, IOE :> es) => Encoded Tree -> [Encoded Block] -> Eff es (Object, Anchors)
 streamAsdfFile (Encoded inp) ebks = do
   blocks <- mapM decodeBlock ebks
-  runParseError . runYamlError $ do
+  runYamlError $ do
     runReader blocks . runState @Anchors mempty . runResource . runConduit $ Yaml.decode inp .| sinkTree
 
 
@@ -118,5 +118,7 @@ runYamlError :: (Error AsdfError :> es) => Eff (Error YamlError : es) a -> Eff e
 runYamlError = runErrorNoCallStackWith @YamlError (throwError . YamlError . show)
 
 
-runParseError :: (Error AsdfError :> es) => Eff (Error ParseError : es) a -> Eff es a
-runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)
+runParseError :: (Error AsdfError :> es) => Eff es (Either ParseError a) -> Eff es a
+runParseError eff = do
+  res <- eff
+  either (throwError . ParseError . show) pure res

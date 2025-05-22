@@ -46,8 +46,7 @@ library
         Telescope.Fits.Checksum
         Telescope.Fits.DataArray
         Telescope.Fits.Encoding
-        Telescope.Fits.Encoding.MegaParser
-        Telescope.Fits.Encoding.Read
+        Telescope.Fits.Encoding.MegaHeader
         Telescope.Fits.Encoding.Render
         Telescope.Fits.HDU
         Telescope.Fits.HDU.Block
@@ -110,7 +109,7 @@ test-suite test
         Test.Fits.ChecksumSpec
         Test.Fits.ClassSpec
         Test.Fits.EncodingSpec
-        Test.Fits.MegaParserSpec
+        Test.Fits.MegaHeaderSpec
         Paths_telescope
     hs-source-dirs:
         test/

@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Telescope.Data.Parser where
 
 import Control.Monad.Catch (Exception)
@@ -11,28 +13,25 @@ import Effectful.Reader.Static
 
 data Parser :: Effect where
   ParseFail :: String -> Parser m a
-  PathAdd :: Ref -> m a -> Parser m a
+  PathMod :: (Path -> Path) -> m a -> Parser m a
 
 
 type instance DispatchOf Parser = 'Dynamic
 
 
 runParser
-  :: (Error ParseError :> es)
-  => Eff (Parser : es) a
-  -> Eff es a
-runParser = reinterpret (runReader @Path mempty) $ \env -> \case
+  :: Eff (Parser : es) a
+  -> Eff es (Either ParseError a)
+runParser = reinterpret (runErrorNoCallStack @ParseError . runReader @Path mempty) $ \env -> \case
   ParseFail e -> do
     path <- ask @Path
     throwError $ ParseFailure path e
-  PathAdd p m -> do
-    -- copied from Effectful.Reader.Dynamic
-    localSeqUnlift env $ \unlift -> local (<> Path [p]) (unlift m)
+  PathMod mp m -> do
+    localSeqUnlift env $ \unlift -> local mp (unlift m)
 
 
-runPureParser :: Eff '[Parser, Error ParseError] a -> Either ParseError a
-runPureParser eff = runPureEff . runErrorNoCallStack @ParseError $ runParser eff
-
+-- copied from Effectful.Reader.Dynamic
+-- localSeqUnlift env $ \unlift -> local (<> Path [p]) (unlift m)
 
 data ParseError
   = ParseFailure Path String
@@ -85,4 +84,4 @@ parseFail e = send $ ParseFail e
 -- | Add a child to the parsing 'Path'
 parseAt :: (Parser :> es) => Ref -> Eff es a -> Eff es a
 parseAt p parse = do
-  send $ PathAdd p parse
+  send $ PathMod (<> Path [p]) parse

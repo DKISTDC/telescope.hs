@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Test.Fits.MegaParserSpec where
+module Test.Fits.MegaHeaderSpec where
 
 import Control.Exception (Exception (displayException))
 import Control.Monad (forM_)
@@ -15,10 +15,8 @@ import Skeletest
 import System.IO
 import Telescope.Data.Axes
 import Telescope.Fits.BitPix
-import Telescope.Fits.DataArray (DataArray (..), Dimensions (..))
-import Telescope.Fits.Encoding.MegaParser
-import Telescope.Fits.HDU
-import Telescope.Fits.HDU.Block (hduBlockSize)
+import Telescope.Fits.DataArray (Dimensions (..))
+import Telescope.Fits.Encoding.MegaHeader
 import Telescope.Fits.Header (Header (..), HeaderRecord (..), KeywordRecord (..), LogicalConstant (..), Value (..), keywords, lookupKeyword)
 import Text.Megaparsec qualified as M
 import Text.Megaparsec.Char qualified as M

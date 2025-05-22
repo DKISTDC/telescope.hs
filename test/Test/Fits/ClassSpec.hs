@@ -52,9 +52,9 @@ classSpec = do
       toKeywordValue True `shouldBe` Logic T
 
     it "should parseKeywordValue" $ do
-      runPureParser (parseKeywordValue @Int $ Integer 23) `shouldBe` Right 23
-      runPureParser (parseKeywordValue @Text $ String "woot") `shouldBe` Right "woot"
-      runPureParser (parseKeywordValue @Bool $ Logic F) `shouldBe` Right False
+      runPureEff (runParser (parseKeywordValue @Int $ Integer 23)) `shouldBe` Right 23
+      runPureEff (runParser (parseKeywordValue @Text $ String "woot")) `shouldBe` Right "woot"
+      runPureEff (runParser (parseKeywordValue @Bool $ Logic F)) `shouldBe` Right False
 
   describe "ToHeader" $ do
     it "should uppercase and snake keywords" $ do
@@ -78,7 +78,7 @@ classSpec = do
   describe "FromHeader" $ do
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
-      let et = runPureParser $ parseHeader h
+      let et = runPureEff $ runParser $ parseHeader h
       et `shouldSatisfy` P.right (P.con Test{age = P.eq 40})
       et `shouldSatisfy` P.right (P.con Test{firstName = P.eq "Alice"})
 
@@ -113,5 +113,9 @@ wcsSpec = do
   wcsAY = WCSAxis (CType "Y") (CUnit "M") 4 5 6 :: WCSAxis 'A Y
 
 
-parseIO :: Eff '[Parser, Error ParseError, IOE] a -> IO a
-parseIO p = runEff $ runErrorNoCallStackWith @ParseError throwM $ runParser p
+parseIO :: Eff '[Parser, IOE] a -> IO a
+parseIO p = do
+  res <- runEff $ runParser p
+  case res of
+    Left e -> throwM e
+    Right a -> pure a

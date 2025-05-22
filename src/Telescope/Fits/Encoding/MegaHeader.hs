@@ -1,17 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK hide #-}
+-- {-# OPTIONS_HADDOCK hide #-}
 
-{- |
-Module      : Telescope.Fits.Encoding.MegaParser
-Description : MegaParsec based parser for an HDU.
-Copyright   : (c) Zac Slade, 2023
-License     : BSD2
-Maintainer  : krakrjak@gmail.com
-Stability   : experimental
-
-Parsing rules for an HDU in a FITS file.
--}
-module Telescope.Fits.Encoding.MegaParser where
+module Telescope.Fits.Encoding.MegaHeader where
 
 import Control.Monad (replicateM_, void)
 import Data.ByteString (ByteString)
@@ -41,6 +31,7 @@ type Parser = Parsec Void ByteString
 type ParseErr = ParseErrorBundle ByteString Void
 
 
+-- | Runs a single parser and returns the remainder of the input
 runNextParser :: String -> BS.ByteString -> Parser a -> Either ParseErr (a, BS.ByteString)
 runNextParser src inp parse = do
   let st1 = M.initialState src inp

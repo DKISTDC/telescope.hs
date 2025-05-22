@@ -16,11 +16,11 @@ import Telescope.Fits.BitPix (bitPixBytes)
 import Telescope.Fits.DataArray (Dimensions (..))
 import Telescope.Fits.Encoding (mainData, parseThrow, runMega, runParseBytes)
 import Telescope.Fits.Encoding qualified as Enc
-import Telescope.Fits.Encoding.MegaParser qualified as MP
+import Telescope.Fits.Encoding.MegaHeader qualified as MH
 import Telescope.Fits.Encoding.Render hiding (justify, pad, spaces)
 import Telescope.Fits.HDU.Block (hduBlockSize)
 import Telescope.Fits.Header
-import Test.Fits.MegaParserSpec (flattenKeywords)
+import Test.Fits.MegaHeaderSpec (flattenKeywords)
 
 
 spec :: Spec
@@ -41,7 +41,7 @@ testDecodeFits = do
   describe "simple2x3.fits" $ do
     it "should parse primary" $ do
       Simple2x3Raw bs <- getFixture
-      dm <- either throwM pure $ runParseBytes bs $ runMega "Primary Header" MP.parsePrimaryKeywords
+      dm <- either throwM pure $ runParseBytes bs $ runMega "Primary Header" MH.parsePrimaryKeywords
       dm.axes `shouldBe` Axes [3, 2]
 
     it "should load metadata" $ do
