@@ -1,0 +1,649 @@
+SIMPLE  =                    T / conforms to FITS standard                      
+BITPIX  =                    8 / array data type                                
+NAXIS   =                    0 / number of array dimensions                     
+EXTEND  =                    T                                                  
+DATE    = '2009-11-10'         / date this file was written (yyyy-mm-dd)        
+FILETYPE= 'SCI      '          / type of data found in data file                
+                                                                                
+TELESCOP= 'HST'                / telescope used to acquire data                 
+INSTRUME= 'WFPC2 '             / identifier for instrument used to acquire data 
+EQUINOX =               2000.0 / equinox of celestial coord. system             
+                                                                                
+              / WFPC-II DATA DESCRIPTOR KEYWORDS                                
+                                                                                
+ROOTNAME= 'hst_8599_53_wfpc2_f814w_wf' / rootname of the observation set        
+PROCTIME=   5.514584475694E+04 / Pipeline processing time (MJD)                 
+OPUS_VER= 'OPUS 2009_3       ' / OPUS software system version number            
+CAL_VER = '2.5.5 (Apr 17, 2009)' / CALWP2 code version                          
+                                                                                
+              / SCIENCE INSTRUMENT CONFIGURATION                                
+                                                                                
+MODE    = 'FULL'               / instr. mode: FULL (full res.), AREA (area int.)
+SERIALS = 'OFF'                / serial clocks: ON, OFF                         
+                                                                                
+              / IMAGE TYPE CHARACTERISTICS                                      
+                                                                                
+IMAGETYP= 'EXT               ' / DARK/BIAS/IFLAT/UFLAT/VFLAT/KSPOT/EXT/ECAL     
+CDBSFILE= 'NO                ' / GENERIC/BIAS/DARK/PREF/FLAT/MASK/ATOD/NO       
+PKTFMT  =                   97 / packet format code                             
+                                                                                
+              / FILTER CONFIGURATION                                            
+                                                                                
+FILTNAM1= 'F814W   '           / first filter name                              
+FILTNAM2= '        '           / second filter name                             
+FILTER1 =                   38 / first filter number (0-48)                     
+FILTER2 =                    0 / second filter number (0-48)                    
+FILTROT =             0.000000 / partial filter rotation angle (degrees)        
+LRFWAVE =             0.000000 / linear ramp filter wavelength                  
+                                                                                
+              / ARCHIVE SEARCH KEYWORDS                                         
+                                                                                
+BANDWID =               1539.0 / bandwidth of the filter                        
+CENTRWV =               8012.0 / central wavelength of the filter               
+                                                                                
+              / INSTRUMENT STATUS USED IN DATA PROCESSING                       
+                                                                                
+UCH1CJTM=              -88.211 / TEC cold junction #1 temperature (Celsius)     
+UCH2CJTM=             -88.6697 / TEC cold junction #2 temperature (Celsius)     
+UCH3CJTM=             -88.2569 / TEC cold junction #3 temperature (Celsius)     
+UCH4CJTM=             -88.7671 / TEC cold junction #4 temperature (Celsius)     
+UBAY3TMP=              14.5969 / bay 3 A1 temperature (deg C)                   
+KSPOTS  = 'OFF'                / Status of Kelsall spot lamps: ON, OFF          
+SHUTTER = 'B'                  / Shutter in place at beginning of the exposure  
+ATODGAIN=                 15.0 / Analog to Digital Gain (Electrons/DN)          
+                                                                                
+              / RSDP CONTROL KEYWORDS                                           
+                                                                                
+MASKCORR= 'COMPLETE'           / Do mask correction: PERFORM, OMIT, COMPLETE    
+ATODCORR= 'COMPLETE'           / Do A-to-D correction: PERFORM, OMIT, COMPLETE  
+WF4TCORR= 'PERFORM '           / correct WF4 data for temp-dependent amp error  
+BLEVCORR= 'COMPLETE'           / Do bias level correction                       
+BIASCORR= 'COMPLETE'           / Do bias correction: PERFORM, OMIT, COMPLETE    
+DARKCORR= 'COMPLETE'           / Do dark correction: PERFORM, OMIT, COMPLETE    
+FLATCORR= 'COMPLETE'           / Do flat field correction                       
+SHADCORR= 'OMIT    '           / Do shaded shutter correction                   
+DOSATMAP= 'OMIT    '           / Output saturated pixel map                     
+DOPHOTOM= 'COMPLETE'           / Fill photometry keywords                       
+DOHISTOS= 'OMIT    '           / Make histograms: PERFORM, OMIT, COMPLETE       
+DRIZCORR= 'COMPLETE'           / drizzle processing                             
+OUTDTYPE= 'REAL  '             / Output image datatype: REAL, LONG, SHORT       
+                                                                                
+              / CALIBRATION REFERENCE FILES                                     
+                                                                                
+MASKFILE= 'uref$f8213081u.r0h     ' / name of the input DQF of known bad pixels 
+ATODFILE= 'uref$dbu1405fu.r1h' / name of the A-to-D conversion file             
+WF4TFILE= 'N/A     '           / name of the WF4 correction reference file      
+BLEVFILE= 'ucal$u65w5301r.x0h     ' / Engineering file with extended register da
+BLEVDFIL= 'ucal$u65w5301r.q1h     ' / Engineering file DQF                      
+BIASFILE= 'uref$l9i12087u.r2h' / name of the bias frame reference file          
+BIASDFIL= 'uref$l9i12087u.b2h' / name of the bias frame reference DQF           
+DARKFILE= 'uref$l4i1331ku.r3h' / name of the dark reference file                
+DARKDFIL= 'uref$l4i1331ku.b3h' / name of the dark reference DQF                 
+FLATFILE= 'uref$m3c10050u.r4h' / name of the flat field reference file          
+FLATDFIL= 'uref$m3c10050u.b4h' / name of the flat field reference DQF           
+SHADFILE= 'uref$e371355iu.r5h' / name of the reference file for shutter sha     
+PHOTTAB = '                       ' / name of the photometry calibration table  
+GRAPHTAB= 'mtab$t2605492m_tmg.fits' / the HST graph table                       
+COMPTAB = 'mtab$tb320214m_tmc.fits' / the HST components table                  
+IDCTAB  = 'uref$ta81040lu_idc.fits' / Distortion correction table               
+OFFTAB  = 'uref$s9518396u_off.fits' / Drift correction table                    
+DGEOFILE= 'uref$s8f1222cu_dxy.fits' / Distortion correction image               
+                                                                                
+              / DEFAULT KEYWORDS SET BY STSCI                                   
+                                                                                
+SATURATE=                 4095 / Data value at which saturation occurs          
+USCALE  =                  1.0 / Scale factor for output image                  
+UZERO   =                  0.0 / Zero point for output image                    
+                                                                                
+              / READOUT DURATION INFORMATION                                    
+                                                                                
+READTIME=                  464 / Length of time for CCD readout in clock ticks  
+                                                                                
+              / PLANETARY SCIENCE KEYWORDS                                      
+                                                                                
+PA_V3   =           234.693100 / position angle of V3-axis of HST (deg)         
+RA_SUN  =   1.636827944393E+01 / right ascension of the sun (deg)               
+DEC_SUN =   6.965912474615E+00 / declination of the sun (deg)                   
+EQNX_SUN=               2000.0 / equinox of the sun                             
+MTFLAG  =                    F / moving target flag; T if it is a moving target 
+EQRADTRG=             0.000000 / equatorial radius of target (km)               
+FLATNTRG=             0.000000 / flattening of target                           
+NPDECTRG=             0.000000 / north pole declination of target (deg)         
+NPRATRG =             0.000000 / north pole right ascension of target (deg)     
+ROTRTTRG=             0.000000 / rotation rate of target                        
+LONGPMER=             0.000000 / longitude of prime meridian (deg)              
+EPLONGPM=             0.000000 / epoch of longitude of prime meridian (sec)     
+SURFLATD=             0.000000 / surface feature latitude (deg)                 
+SURFLONG=             0.000000 / surface feature longitude (deg)                
+SURFALTD=             0.000000 / surface feature altitude (km)                  
+                                                                                
+              / PODPS FILL VALUES                                               
+                                                                                
+PODPSFF =                    0 / 0=(no  podps fill); 1=(podps fill present)     
+STDCFFF =                    0 / 0=(no st dcf fill); 1=(st dcf fill present)    
+STDCFFP = '0x5569'             / st dcf fill pattern (hex)                      
+RSDPFILL=                 -100 / bad data fill value for calibrated images      
+                                                                                
+              / EXPOSURE TIME AND RELATED INFORMATION                           
+                                                                                
+UEXPODUR=                   40 / commanded duration of exposure (sec)           
+NSHUTA17=                    0 / Number of AP17 shutter B closes                
+DARKTIME=   4.000000000000E+01 / Dark time (seconds)                            
+UEXPOTIM=                29816 / Major frame pulse time preceding exposure start
+PSTRTIME= '2001.097:12:52:37 ' / predicted obs. start time (yyyy.ddd:hh:mm:ss)  
+PSTPTIME= '2001.097:13:00:37 ' / predicted obs. stop time (yyyy.ddd:hh:mm:ss)   
+                                                                                
+              / EXPOSURE INFORMATION                                            
+                                                                                
+SUNANGLE=           159.792038 / angle between sun and V1 axis                  
+MOONANGL=            22.756710 / angle between moon and V1 axis                 
+SUN_ALT =           -31.452923 / altitude of the sun above Earth's limb         
+FGSLOCK = 'FINE/GYRO         ' / commanded FGS lock (FINE,COARSE,GYROS,UNKNOWN) 
+GYROMODE= '3'                  / number of gyros scheduled, T=3+OBAD            
+REFFRAME= 'GSC1    '           / guide star catalog version                     
+                                                                                
+DATE-OBS= '2001-04-07'         / UT date of start of observation (yyyy-mm-dd)   
+TIME-OBS= '12:51:14'           / UT time of start of observation (hh:mm:ss)     
+EXPSTART=       52006.53558745 / exposure start time (Modified Julian Date)     
+EXPEND  =       52006.54600557 / exposure end time (Modified Julian Date)       
+EXPTIME =                640.0 / exposure duration (seconds)--calculated        
+EXPFLAG = 'NORMAL       '      / Exposure interruption indicator                
+QUALCOM1= 'NO APPARENT PROBLEMS                                                '
+QUALCOM2= '                                                                    '
+QUALCOM3= '                                                                    '
+QUALITY = 'OK                                                                  '
+                                                                                
+TARGNAME= 'NGC4027                       ' / proposer's target name             
+RA_TARG =   1.798758333333E+02 / right ascension of the target (deg) (J2000)    
+DEC_TARG=  -1.926527777778E+01 / declination of the target (deg) (J2000)        
+ECL_LONG=           187.799452 / ecliptic longitude of the target (deg) (J2000) 
+ECL_LAT =           -17.677355 / ecliptic latitude of the target (deg) (J2000)  
+GAL_LONG=           286.361609 / galactic longitude of the target (deg) (J2000) 
+GAL_LAT =            41.923057 / galactic latitude of the target (deg) (J2000)  
+                                                                                
+PROPOSID=                 8599 / PEP proposal identifier                        
+PEP_EXPO= '53-001         '    / PEP exposure identifier including sequence     
+LINENUM = '53.001         '    / PEP proposal line number                       
+SEQLINE = '               '    / PEP line number of defined sequence            
+SEQNAME = '               '    / PEP define/use sequence name                   
+                                                                                
+                                                                                
+              / OTFR KEYWORDS                                                   
+                                                                                
+T_SGSTAR= 'F                 ' / OMS calculated guide star control              
+                                                                                
+              / PATTERN KEYWORDS                                                
+                                                                                
+PATTERN1= 'NONE                    ' / primary pattern type                     
+P1_SHAPE= '                  ' / primary pattern shape                          
+P1_PURPS= '          '         / primary pattern purpose                        
+P1_NPTS =                    0 / number of points in primary pattern            
+P1_PSPAC=             0.000000 / point spacing for primary pattern (arc-sec)    
+P1_LSPAC=             0.000000 / line spacing for primary pattern (arc-sec)     
+P1_ANGLE=             0.000000 / angle between sides of parallelogram patt (deg)
+P1_FRAME= '         '          / coordinate frame of primary pattern            
+P1_ORINT=             0.000000 / orientation of pattern to coordinate frame (deg
+P1_CENTR= '   '                / center pattern relative to pointing (yes/no)   
+PATTSTEP=                    0 / position number of this point in the pattern   
+NEXTEND =                    3 / Number of standard extensions                  
+MDRIZSKY=   0.9906617603388032 / Sky value subtracted by Multidrizzle           
+FILENAME= 'hst_8599_53_wfpc2_f814w_wf_drz.fits'                                 
+ASN_MTYP= 'PROD-DTH'                                                            
+NDRIZIM =                   12 / Drizzle, No. images drizzled onto output       
+D001VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D001GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D001DATA= 'u65w5301r_c0h.fits[sci,1]' / Drizzle, input data image               
+D001DEXP=                 40.0 / Drizzle, input image exposure time (s)         
+D001OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D001OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D001OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D001MASK= 'u65w5301r_c1h_final_mask1.fits' / Drizzle, input weighting image     
+D001WTSC=    68.87081281152354 / Drizzle, weighting factor for input image      
+D001KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D001PIXF=                  1.0 / Drizzle, linear size of drop                   
+D001COEF= 'u65w5301r_c0h_coeffs1.dat' / Drizzle, coefficients file name         
+D001XGIM= 'uref$s8f1222cu_dxy.fits[DX,1]' / Drizzle, X distortion image name    
+D001YGIM= 'uref$s8f1222cu_dxy.fits[DY,1]' / Drizzle, Y distortion image name    
+D001LAM =             799.5943 / Drizzle, wavelength applied for transformation 
+D001SCAL=    2.195438083683607 / Drizzle, scale (pixel size) of output image    
+D001ROT =          99.54134275 / Drizzle, rotation angle, degrees anticlockwise 
+D001XSH =   -61.15342297224083 / Drizzle, X shift applied                       
+D001YSH =   -3.814371469153798 / Drizzle, Y shift applied                       
+D001SFTU= 'output  '           / Drizzle, units used for shifts                 
+D001SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D001EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D001INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D001OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D001FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D001INXC=                400.5 / Drizzle, reference center of input image (X)   
+D001INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D001OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D001OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D002VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D002GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D002DATA= 'u65w5301r_c0h.fits[sci,2]' / Drizzle, input data image               
+D002DEXP=                 40.0 / Drizzle, input image exposure time (s)         
+D002OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D002OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D002OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D002MASK= 'u65w5301r_c1h_final_mask2.fits' / Drizzle, input weighting image     
+D002WTSC=    1576.197620187847 / Drizzle, weighting factor for input image      
+D002KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D002PIXF=                  1.0 / Drizzle, linear size of drop                   
+D002COEF= 'u65w5301r_c0h_coeffs2.dat' / Drizzle, coefficients file name         
+D002XGIM= 'uref$s8f1222cu_dxy.fits[DX,2]' / Drizzle, X distortion image name    
+D002YGIM= 'uref$s8f1222cu_dxy.fits[DY,2]' / Drizzle, Y distortion image name    
+D002LAM =    798.3444999999999 / Drizzle, wavelength applied for transformation 
+D002SCAL=     1.00375409205509 / Drizzle, scale (pixel size) of output image    
+D002ROT =        -170.95467542 / Drizzle, rotation angle, degrees anticlockwise 
+D002XSH =   -325.1848920830859 / Drizzle, X shift applied                       
+D002YSH =   -1258.353748072129 / Drizzle, Y shift applied                       
+D002SFTU= 'output  '           / Drizzle, units used for shifts                 
+D002SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D002EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D002INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D002OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D002FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D002INXC=                400.5 / Drizzle, reference center of input image (X)   
+D002INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D002OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D002OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D003VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D003GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D003DATA= 'u65w5301r_c0h.fits[sci,3]' / Drizzle, input data image               
+D003DEXP=                 40.0 / Drizzle, input image exposure time (s)         
+D003OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D003OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D003OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D003MASK= 'u65w5301r_c1h_final_mask3.fits' / Drizzle, input weighting image     
+D003WTSC=    1574.932735440289 / Drizzle, weighting factor for input image      
+D003KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D003PIXF=                  1.0 / Drizzle, linear size of drop                   
+D003COEF= 'u65w5301r_c0h_coeffs3.dat' / Drizzle, coefficients file name         
+D003XGIM= 'uref$s8f1222cu_dxy.fits[DX,3]' / Drizzle, X distortion image name    
+D003YGIM= 'uref$s8f1222cu_dxy.fits[DY,3]' / Drizzle, Y distortion image name    
+D003LAM =             801.2215 / Drizzle, wavelength applied for transformation 
+D003SCAL=    1.003955569078345 / Drizzle, scale (pixel size) of output image    
+D003ROT =         -80.63666144 / Drizzle, rotation angle, degrees anticlockwise 
+D003XSH =    1314.791867504182 / Drizzle, X shift applied                       
+D003YSH =   -1009.612260970399 / Drizzle, Y shift applied                       
+D003SFTU= 'output  '           / Drizzle, units used for shifts                 
+D003SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D003EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D003INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D003OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D003FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D003INXC=                400.5 / Drizzle, reference center of input image (X)   
+D003INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D003OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D003OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D004VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D004GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D004DATA= 'u65w5301r_c0h.fits[sci,4]' / Drizzle, input data image               
+D004DEXP=                 40.0 / Drizzle, input image exposure time (s)         
+D004OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D004OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D004OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D004MASK= 'u65w5301r_c1h_final_mask4.fits' / Drizzle, input weighting image     
+D004WTSC=    1577.970207095428 / Drizzle, weighting factor for input image      
+D004KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D004PIXF=                  1.0 / Drizzle, linear size of drop                   
+D004COEF= 'u65w5301r_c0h_coeffs4.dat' / Drizzle, coefficients file name         
+D004XGIM= 'uref$s8f1222cu_dxy.fits[DX,4]' / Drizzle, X distortion image name    
+D004YGIM= 'uref$s8f1222cu_dxy.fits[DY,4]' / Drizzle, Y distortion image name    
+D004LAM =             800.1602 / Drizzle, wavelength applied for transformation 
+D004SCAL=     1.00347208556487 / Drizzle, scale (pixel size) of output image    
+D004ROT =    9.914328429999999 / Drizzle, rotation angle, degrees anticlockwise 
+D004XSH =    1053.612094879144 / Drizzle, X shift applied                       
+D004YSH =    632.0593292005854 / Drizzle, Y shift applied                       
+D004SFTU= 'output  '           / Drizzle, units used for shifts                 
+D004SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D004EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D004INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D004OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D004FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D004INXC=                400.5 / Drizzle, reference center of input image (X)   
+D004INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D004OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D004OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D005VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D005GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D005DATA= 'u65w5302r_c0h.fits[sci,1]' / Drizzle, input data image               
+D005DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D005OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D005OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D005OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D005MASK= 'u65w5302r_c1h_final_mask1.fits' / Drizzle, input weighting image     
+D005WTSC=    3873.983220648199 / Drizzle, weighting factor for input image      
+D005KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D005PIXF=                  1.0 / Drizzle, linear size of drop                   
+D005COEF= 'u65w5302r_c0h_coeffs1.dat' / Drizzle, coefficients file name         
+D005XGIM= 'uref$s8f1222cu_dxy.fits[DX,1]' / Drizzle, X distortion image name    
+D005YGIM= 'uref$s8f1222cu_dxy.fits[DY,1]' / Drizzle, Y distortion image name    
+D005LAM =             799.5943 / Drizzle, wavelength applied for transformation 
+D005SCAL=    2.195438083683607 / Drizzle, scale (pixel size) of output image    
+D005ROT =          99.54134275 / Drizzle, rotation angle, degrees anticlockwise 
+D005XSH =   -61.15342297224083 / Drizzle, X shift applied                       
+D005YSH =   -3.814371469153798 / Drizzle, Y shift applied                       
+D005SFTU= 'output  '           / Drizzle, units used for shifts                 
+D005SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D005EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D005INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D005OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D005FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D005INXC=                400.5 / Drizzle, reference center of input image (X)   
+D005INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D005OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D005OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D006VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D006GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D006DATA= 'u65w5302r_c0h.fits[sci,2]' / Drizzle, input data image               
+D006DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D006OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D006OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D006OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D006MASK= 'u65w5302r_c1h_final_mask2.fits' / Drizzle, input weighting image     
+D006WTSC=    88661.11613556638 / Drizzle, weighting factor for input image      
+D006KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D006PIXF=                  1.0 / Drizzle, linear size of drop                   
+D006COEF= 'u65w5302r_c0h_coeffs2.dat' / Drizzle, coefficients file name         
+D006XGIM= 'uref$s8f1222cu_dxy.fits[DX,2]' / Drizzle, X distortion image name    
+D006YGIM= 'uref$s8f1222cu_dxy.fits[DY,2]' / Drizzle, Y distortion image name    
+D006LAM =    798.3444999999999 / Drizzle, wavelength applied for transformation 
+D006SCAL=     1.00375409205509 / Drizzle, scale (pixel size) of output image    
+D006ROT =        -170.95467542 / Drizzle, rotation angle, degrees anticlockwise 
+D006XSH =   -325.1848920830859 / Drizzle, X shift applied                       
+D006YSH =   -1258.353748072129 / Drizzle, Y shift applied                       
+D006SFTU= 'output  '           / Drizzle, units used for shifts                 
+D006SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D006EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D006INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D006OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D006FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D006INXC=                400.5 / Drizzle, reference center of input image (X)   
+D006INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D006OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D006OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D007VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D007GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D007DATA= 'u65w5302r_c0h.fits[sci,3]' / Drizzle, input data image               
+D007DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D007OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D007OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D007OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D007MASK= 'u65w5302r_c1h_final_mask3.fits' / Drizzle, input weighting image     
+D007WTSC=    88589.96636851627 / Drizzle, weighting factor for input image      
+D007KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D007PIXF=                  1.0 / Drizzle, linear size of drop                   
+D007COEF= 'u65w5302r_c0h_coeffs3.dat' / Drizzle, coefficients file name         
+D007XGIM= 'uref$s8f1222cu_dxy.fits[DX,3]' / Drizzle, X distortion image name    
+D007YGIM= 'uref$s8f1222cu_dxy.fits[DY,3]' / Drizzle, Y distortion image name    
+D007LAM =             801.2215 / Drizzle, wavelength applied for transformation 
+D007SCAL=    1.003955569078345 / Drizzle, scale (pixel size) of output image    
+D007ROT =         -80.63666144 / Drizzle, rotation angle, degrees anticlockwise 
+D007XSH =    1314.791867504182 / Drizzle, X shift applied                       
+D007YSH =   -1009.612260970399 / Drizzle, Y shift applied                       
+D007SFTU= 'output  '           / Drizzle, units used for shifts                 
+D007SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D007EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D007INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D007OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D007FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D007INXC=                400.5 / Drizzle, reference center of input image (X)   
+D007INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D007OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D007OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D008VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D008GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D008DATA= 'u65w5302r_c0h.fits[sci,4]' / Drizzle, input data image               
+D008DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D008OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D008OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D008OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D008MASK= 'u65w5302r_c1h_final_mask4.fits' / Drizzle, input weighting image     
+D008WTSC=    88760.82414911783 / Drizzle, weighting factor for input image      
+D008KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D008PIXF=                  1.0 / Drizzle, linear size of drop                   
+D008COEF= 'u65w5302r_c0h_coeffs4.dat' / Drizzle, coefficients file name         
+D008XGIM= 'uref$s8f1222cu_dxy.fits[DX,4]' / Drizzle, X distortion image name    
+D008YGIM= 'uref$s8f1222cu_dxy.fits[DY,4]' / Drizzle, Y distortion image name    
+D008LAM =             800.1602 / Drizzle, wavelength applied for transformation 
+D008SCAL=     1.00347208556487 / Drizzle, scale (pixel size) of output image    
+D008ROT =    9.914328429999999 / Drizzle, rotation angle, degrees anticlockwise 
+D008XSH =    1053.612094879144 / Drizzle, X shift applied                       
+D008YSH =    632.0593292005854 / Drizzle, Y shift applied                       
+D008SFTU= 'output  '           / Drizzle, units used for shifts                 
+D008SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D008EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D008INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D008OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D008FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D008INXC=                400.5 / Drizzle, reference center of input image (X)   
+D008INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D008OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D008OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D009VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D009GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D009DATA= 'u65w5303r_c0h.fits[sci,1]' / Drizzle, input data image               
+D009DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D009OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D009OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D009OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D009MASK= 'u65w5303r_c1h_final_mask1.fits' / Drizzle, input weighting image     
+D009WTSC=    3873.983220648199 / Drizzle, weighting factor for input image      
+D009KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D009PIXF=                  1.0 / Drizzle, linear size of drop                   
+D009COEF= 'u65w5303r_c0h_coeffs1.dat' / Drizzle, coefficients file name         
+D009XGIM= 'uref$s8f1222cu_dxy.fits[DX,1]' / Drizzle, X distortion image name    
+D009YGIM= 'uref$s8f1222cu_dxy.fits[DY,1]' / Drizzle, Y distortion image name    
+D009LAM =             799.5943 / Drizzle, wavelength applied for transformation 
+D009SCAL=    2.195438083683607 / Drizzle, scale (pixel size) of output image    
+D009ROT =          99.54134275 / Drizzle, rotation angle, degrees anticlockwise 
+D009XSH =   -61.15342297224083 / Drizzle, X shift applied                       
+D009YSH =   -3.814371469153798 / Drizzle, Y shift applied                       
+D009SFTU= 'output  '           / Drizzle, units used for shifts                 
+D009SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D009EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D009INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D009OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D009FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D009INXC=                400.5 / Drizzle, reference center of input image (X)   
+D009INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D009OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D009OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D010VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D010GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D010DATA= 'u65w5303r_c0h.fits[sci,2]' / Drizzle, input data image               
+D010DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D010OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D010OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D010OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D010MASK= 'u65w5303r_c1h_final_mask2.fits' / Drizzle, input weighting image     
+D010WTSC=    88661.11613556638 / Drizzle, weighting factor for input image      
+D010KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D010PIXF=                  1.0 / Drizzle, linear size of drop                   
+D010COEF= 'u65w5303r_c0h_coeffs2.dat' / Drizzle, coefficients file name         
+D010XGIM= 'uref$s8f1222cu_dxy.fits[DX,2]' / Drizzle, X distortion image name    
+D010YGIM= 'uref$s8f1222cu_dxy.fits[DY,2]' / Drizzle, Y distortion image name    
+D010LAM =    798.3444999999999 / Drizzle, wavelength applied for transformation 
+D010SCAL=     1.00375409205509 / Drizzle, scale (pixel size) of output image    
+D010ROT =        -170.95467542 / Drizzle, rotation angle, degrees anticlockwise 
+D010XSH =   -325.1848920830859 / Drizzle, X shift applied                       
+D010YSH =   -1258.353748072129 / Drizzle, Y shift applied                       
+D010SFTU= 'output  '           / Drizzle, units used for shifts                 
+D010SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D010EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D010INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D010OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D010FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D010INXC=                400.5 / Drizzle, reference center of input image (X)   
+D010INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D010OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D010OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D011VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D011GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D011DATA= 'u65w5303r_c0h.fits[sci,3]' / Drizzle, input data image               
+D011DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D011OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D011OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D011OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D011MASK= 'u65w5303r_c1h_final_mask3.fits' / Drizzle, input weighting image     
+D011WTSC=    88589.96636851627 / Drizzle, weighting factor for input image      
+D011KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D011PIXF=                  1.0 / Drizzle, linear size of drop                   
+D011COEF= 'u65w5303r_c0h_coeffs3.dat' / Drizzle, coefficients file name         
+D011XGIM= 'uref$s8f1222cu_dxy.fits[DX,3]' / Drizzle, X distortion image name    
+D011YGIM= 'uref$s8f1222cu_dxy.fits[DY,3]' / Drizzle, Y distortion image name    
+D011LAM =             801.2215 / Drizzle, wavelength applied for transformation 
+D011SCAL=    1.003955569078345 / Drizzle, scale (pixel size) of output image    
+D011ROT =         -80.63666144 / Drizzle, rotation angle, degrees anticlockwise 
+D011XSH =    1314.791867504182 / Drizzle, X shift applied                       
+D011YSH =   -1009.612260970399 / Drizzle, Y shift applied                       
+D011SFTU= 'output  '           / Drizzle, units used for shifts                 
+D011SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D011EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D011INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D011OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D011FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D011INXC=                400.5 / Drizzle, reference center of input image (X)   
+D011INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D011OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D011OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+D012VER = 'Callable DRIZZLE Version 0.7 (4th Apr 2005) ' / Drizzle, task version
+D012GEOM= 'User parameters'    / Drizzle, source of geometric information       
+D012DATA= 'u65w5303r_c0h.fits[sci,4]' / Drizzle, input data image               
+D012DEXP=                300.0 / Drizzle, input image exposure time (s)         
+D012OUDA= 'hst_8599_53_wfpc2_f814w_wf_drz_sci.fits' / Drizzle, output data image
+D012OUWE= 'hst_8599_53_wfpc2_f814w_wf_drz_weight.fits' / Drizzle, output weighti
+D012OUCO= 'hst_8599_53_wfpc2_f814w_wf_drz_context.fits' / Drizzle, output contex
+D012MASK= 'u65w5303r_c1h_final_mask4.fits' / Drizzle, input weighting image     
+D012WTSC=    88760.82414911783 / Drizzle, weighting factor for input image      
+D012KERN= 'square  '           / Drizzle, form of weight distribution kernel    
+D012PIXF=                  1.0 / Drizzle, linear size of drop                   
+D012COEF= 'u65w5303r_c0h_coeffs4.dat' / Drizzle, coefficients file name         
+D012XGIM= 'uref$s8f1222cu_dxy.fits[DX,4]' / Drizzle, X distortion image name    
+D012YGIM= 'uref$s8f1222cu_dxy.fits[DY,4]' / Drizzle, Y distortion image name    
+D012LAM =             800.1602 / Drizzle, wavelength applied for transformation 
+D012SCAL=     1.00347208556487 / Drizzle, scale (pixel size) of output image    
+D012ROT =    9.914328429999999 / Drizzle, rotation angle, degrees anticlockwise 
+D012XSH =    1053.612094879144 / Drizzle, X shift applied                       
+D012YSH =    632.0593292005854 / Drizzle, Y shift applied                       
+D012SFTU= 'output  '           / Drizzle, units used for shifts                 
+D012SFTF= 'output  '           / Drizzle, frame in which shifts were applied    
+D012EXKY= 'EXPTIME '           / Drizzle, exposure keyword name in input image  
+D012INUN= 'counts  '           / Drizzle, units of input image - counts or cps  
+D012OUUN= 'cps     '           / Drizzle, units of output image - counts or cps 
+D012FVAL= 'INDEF   '           / Drizzle, fill value for zero weight output pix 
+D012INXC=                400.5 / Drizzle, reference center of input image (X)   
+D012INYC=                400.5 / Drizzle, reference center of input image (Y)   
+D012OUXC=                900.5 / Drizzle, reference center of output image (X)  
+D012OUYC=                900.5 / Drizzle, reference center of output image (Y)  
+HISTORY   MASKFILE=uref$f8213081u.r0h  MASKCORR=COMPLETED                       
+HISTORY   PEDIGREE=INFLIGHT 01/01/1994 - 15/05/1995                             
+HISTORY   DESCRIP=STATIC MASK - INCLUDES CHARGE TRANSFER TRAPS                  
+HISTORY   BIASFILE=uref$l9i12087u.r2h  BIASCORR=COMPLETED                       
+HISTORY   PEDIGREE=INFLIGHT 06/09/00 - 27/08/01                                 
+HISTORY   DESCRIP=Pipeline bias, bias from 09/06/00 - 27/08/01                  
+HISTORY   DARKFILE=uref$l4i1331ku.r3h  DARKCORR=COMPLETED                       
+HISTORY   PEDIGREE=INFLIGHT 02/04/2001                                          
+HISTORY   DESCRIP=Pipeline dark: 120 frame superdark with hotpixels from        
+HISTORY   02/04/2001                                                            
+HISTORY   FLATFILE=uref$m3c10050u.r4h  FLATCORR=COMPLETED                       
+HISTORY   PEDIGREE=INFLIGHT 30/10/1996 - 30/04/2001                             
+HISTORY   DESCRIP=Improved Cyc6-9 flat, rms errors < 0.2-0.3% - see ISR 2002-02 
+HISTORY   The following throughput tables were used:                            
+HISTORY   crotacomp$hst_ota_007_syn.fits, crwfpc2comp$wfpc2_optics_006_syn.fits,
+HISTORY   crwfpc2comp$wfpc2_f814w_006_syn.fits,                                 
+HISTORY   crwfpc2comp$wfpc2_dqepc1_005_syn.fits,                                
+HISTORY   crwfpc2comp$wfpc2_a2d15pc1_004_syn.fits,                              
+HISTORY   crwfpc2comp$wfpc2_flatpc1_003_syn.fits                                
+HISTORY   The following throughput tables were used:                            
+HISTORY   crotacomp$hst_ota_007_syn.fits, crwfpc2comp$wfpc2_optics_006_syn.fits,
+HISTORY   crwfpc2comp$wfpc2_f814w_006_syn.fits,                                 
+HISTORY   crwfpc2comp$wfpc2_dqewfc2_005_syn.fits,                               
+HISTORY   crwfpc2comp$wfpc2_a2d15wf2_004_syn.fits,                              
+HISTORY   crwfpc2comp$wfpc2_flatwf2_003_syn.fits                                
+HISTORY   The following throughput tables were used:                            
+HISTORY   crotacomp$hst_ota_007_syn.fits, crwfpc2comp$wfpc2_optics_006_syn.fits,
+HISTORY   crwfpc2comp$wfpc2_f814w_006_syn.fits,                                 
+HISTORY   crwfpc2comp$wfpc2_dqewfc3_005_syn.fits,                               
+HISTORY   crwfpc2comp$wfpc2_a2d15wf3_004_syn.fits,                              
+HISTORY   crwfpc2comp$wfpc2_flatwf3_003_syn.fits                                
+HISTORY   The following throughput tables were used:                            
+HISTORY   crotacomp$hst_ota_007_syn.fits, crwfpc2comp$wfpc2_optics_006_syn.fits,
+HISTORY   crwfpc2comp$wfpc2_f814w_006_syn.fits,                                 
+HISTORY   crwfpc2comp$wfpc2_dqewfc4_005_syn.fits,                               
+HISTORY   crwfpc2comp$wfpc2_a2d15wf4_004_syn.fits,                              
+HISTORY   crwfpc2comp$wfpc2_flatwf4_003_syn.fits                                
+HISTORY   Ran task WARMPIX, version 1.2 (Apr 28, 2003) at Wed 01:16:15          
+HISTORY   11-Nov-2009, rej_thresh=0.10000, fix_thresh=0.00300,                  
+HISTORY   var_thresh=0.00300,                                                   
+HISTORY   fix_dqval=1024, rej_val=INDEF                                         
+HISTORY PyDrizzle processing performed using:                                   
+HISTORY     PyDrizzle Version 6.3.2 (23-Oct-2009)                               
+HISTORY     Numpy Version 1.1.0                                                 
+HISTORY     PyFITS Version 2.2.2dev518                                          
+HISTORY u65w5301r_c0h.fits MDRIZSKY = 0.0362479089318                           
+HISTORY u65w5302r_c0h.fits MDRIZSKY = 4.39400167984                             
+HISTORY u65w5303r_c0h.fits MDRIZSKY = 4.33143690671                             
+HISTORY MultiDrizzle product generated using:                                   
+HISTORY  PyDrizzle Version 6.3.2 (23-Oct-2009)                                  
+HISTORY  NUMPY Version  1.1.0                                                   
+HISTORY  PyFITS Version    2.2.2dev518                                          
+HISTORY  MultiDrizzle 3.3.7dev                                                  
+HISTORY  Python Version:                                                        
+HISTORY  # 2.5.1 (r251:54863, Jul 10 2008, 17:25:56)                            
+HISTORY  # [GCC 4.1.2 20070925 (Red Hat 4.1.2-33)]                              
+HISTORY  #                                                                      
+COMMENT HLA WFPC2 Process Version 3 (DR3)                                       
+COMMENT HLA processed at CADC: Mon Dec 14 22:27:07 2009                         
+COMMENT = 'The Hubble Legacy Archive (HLA) project augments the archival &'     
+CONTINUE  'service provided for data from the Hubble Space Telescope (HST) &'   
+CONTINUE  'and is a collaboration between the Space Telescope Science &'        
+CONTINUE  'Institute (STScI/NASA), the Space Telescope European Coordinating &' 
+CONTINUE  'Facility/European Space Agency (ST-ECF/ESA) and the Canadian &'      
+CONTINUE  'Astronomy Data Centre/Canadian Space Agency (CADC/NRC/CSA).&'        
+COMMENT = 'If you have used HLA files for your research, please include the &'  
+CONTINUE  'following acknowledgment:&'                                          
+COMMENT = 'This research used the HLA facilities of the STScI, the ST-ECF and &'
+CONTINUE  'the CADC with the support of the following granting agencies: &'     
+CONTINUE  'NASA/NSF, ESA, NRC, CSA&'                                            
+END                                                                             
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

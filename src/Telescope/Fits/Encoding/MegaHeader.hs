@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 -- {-# OPTIONS_HADDOCK hide #-}
 
 module Telescope.Fits.Encoding.MegaHeader where
@@ -16,7 +17,6 @@ import Data.Word (Word8)
 import Telescope.Data.Axes
 import Telescope.Fits.BitPix
 import Telescope.Fits.DataArray
-import Telescope.Fits.HDU
 import Telescope.Fits.HDU.Block (hduRecordLength)
 import Telescope.Fits.Header hiding (FromKeyword (..), parseHeader, parseKeyword)
 import Text.Megaparsec (ParseErrorBundle, Parsec, (<|>))
@@ -63,8 +63,16 @@ parseRecordLine :: Parser HeaderRecord
 parseRecordLine = do
   M.try (Keyword <$> parseKeywordRecord)
     <|> M.try (Comment <$> parseLineComment)
-    <|> BlankLine
-    <$ parseLineBlank
+    <|> M.try (History <$> parseLineHistory)
+    <|> (BlankLine <$ parseLineBlank)
+
+
+parseLineHistory :: Parser Text
+parseLineHistory = do
+  lineStart <- parsePos
+  _ <- M.string' "HISTORY "
+  M.space
+  untilLineEnd lineStart M.anySingle
 
 
 parseKeywordRecord :: Parser KeywordRecord
@@ -110,28 +118,26 @@ parseLineEnd lineStart = do
   M.try (Nothing <$ spacesToLineEnd lineStart) <|> (Just <$> parseInlineComment lineStart)
 
 
-spacesToLineEnd :: Int -> Parser ()
-spacesToLineEnd lineStart = do
+untilLineEnd :: Int -> Parser Word8 -> Parser Text
+untilLineEnd lineStart parseChar = do
   curr <- parsePos
   let used = curr - lineStart
-  parseSpacesN (hduRecordLength - used)
+  bs <- M.count (hduRecordLength - used) parseChar
+  return $ wordsText bs
+
+
+spacesToLineEnd :: Int -> Parser ()
+spacesToLineEnd lineStart = do
+  _ <- untilLineEnd lineStart (M.char $ toWord ' ')
   pure ()
-
-
-parseSpacesN :: Int -> Parser ()
-parseSpacesN n = replicateM_ n (M.char $ toWord ' ')
 
 
 parseInlineComment :: Int -> Parser Text
 parseInlineComment lineStart = do
-  -- any number of spaces... the previous combinator has eaten up blank lines already
   M.space
   _ <- M.char $ toWord '/'
   _ <- M.optional charSpace
-  curr <- parsePos
-  let used = curr - lineStart
-  c <- M.count (hduRecordLength - used) M.anySingle
-  return $ T.strip $ wordsText c
+  T.strip <$> untilLineEnd lineStart M.anySingle
  where
   charSpace = M.char $ toWord ' '
 
@@ -146,7 +152,7 @@ parseLineComment = do
 
 parseLineBlank :: Parser ()
 parseLineBlank = do
-  _ <- M.string' (BS.replicate hduRecordLength (toWord ' '))
+  _ <- withComments $ M.count' 0 80 (M.satisfy (== toWord ' '))
   pure ()
 
 

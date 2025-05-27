@@ -255,7 +255,7 @@ testRoundTrip = do
       f2 <- decode $ encode fs
       f2.primaryHDU.dataArray.rawData `shouldBe` fs.primaryHDU.dataArray.rawData
 
-    withMarkers ["focus"] $ it "should encode headers only once" $ do
+    it "should encode headers only once" $ do
       Simple2x3Fix fs <- getFixture
       f2 <- decode $ encode fs
       let hs = fs.primaryHDU.header

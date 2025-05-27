@@ -22,7 +22,8 @@ instance Show Header where
    where
     line :: HeaderRecord -> Text
     line (Keyword kr) = keywordRecordLine kr
-    line (Comment c) = c
+    line (History t) = "HISTORY " <> t
+    line (Comment c) = "COMMENT " <> c
     line BlankLine = " "
 
 
@@ -35,6 +36,7 @@ instance Show Header where
 data HeaderRecord
   = Keyword KeywordRecord
   | Comment Text
+  | History Text
   | BlankLine
   deriving (Show, Eq)
 

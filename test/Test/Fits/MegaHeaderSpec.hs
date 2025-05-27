@@ -32,8 +32,9 @@ spec = do
   fullRecord
   fullRecordLine
   headerMap
-  sampleNSOHeaders
   requiredHeaders
+  sampleNSOHeaders
+  sampleHubbleHeaders
 
 
 parse :: Parser a -> ByteString -> IO a
@@ -304,11 +305,49 @@ sampleNSOHeaders = do
         pc `shouldBe` 95968
 
 
+sampleHubbleHeaders :: Spec
+sampleHubbleHeaders = do
+  describe "Hubble Headers" $ withMarkers ["focus"] $ do
+    it "should parse weird comment lines" $ do
+      let hs =
+            [ "SIMPLE  =                    T / conforms to FITS standard                      "
+            , "BITPIX  =                    8 / array data type                                "
+            , "NAXIS   =                    0 / number of array dimensions                     "
+            , "EXTEND  =                    T                                                  "
+            , "DATE    = '2009-11-10'         / date this file was written (yyyy-mm-dd)        "
+            , "FILETYPE= 'SCI      '          / type of data found in data file                "
+            , "                                                                                "
+            , "TELESCOP= 'HST'                / telescope used to acquire data                 "
+            , "INSTRUME= 'WFPC2 '             / identifier for instrument used to acquire data "
+            , "EQUINOX =               2000.0 / equinox of celestial coord. system             "
+            , "                                                                                "
+            , "              / WFPC-II DATA DESCRIPTOR KEYWORDS                                "
+            , "                                                                                "
+            , "ROOTNAME= 'hst_8599_53_wfpc2_f814w_wf' / rootname of the observation set        "
+            ]
+
+      h <- parse parseHeader $ flattenKeywords hs
+      length (keywords h) `shouldBe` 10
+
+    it "should parse hubble headers" $ do
+      HubbleHeaders bs <- getFixture
+      h <- parse parseHeader $ mconcat (C8.lines bs)
+      lookupKeyword "DATE-OBS" h `shouldBe` Just (String "2001-04-07")
+      lookupKeyword "FILTROT" h `shouldBe` Just (Float 0)
+
+
 newtype DKISTHeaders = DKISTHeaders BS.ByteString
 instance Fixture DKISTHeaders where
   fixtureAction = do
     bs <- BS.readFile "./samples/nso_dkist_headers.txt"
     pure $ noCleanup $ DKISTHeaders bs
+
+
+newtype HubbleHeaders = HubbleHeaders BS.ByteString
+instance Fixture HubbleHeaders where
+  fixtureAction = do
+    bs <- BS.readFile "./samples/hubble_headers.txt"
+    pure $ noCleanup $ HubbleHeaders bs
 
 
 newtype SampleNSO = SampleNSO [Text]
