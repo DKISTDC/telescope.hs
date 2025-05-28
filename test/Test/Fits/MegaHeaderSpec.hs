@@ -3,7 +3,6 @@
 
 module Test.Fits.MegaHeaderSpec where
 
-import Control.Exception (Exception (displayException))
 import Control.Monad (forM_)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
@@ -40,7 +39,7 @@ spec = do
 parse :: Parser a -> ByteString -> IO a
 parse p inp =
   case M.parse p "Test" inp of
-    Left e -> fail $ displayException e
+    Left e -> fail $ showParseError e
     Right v -> pure v
 
 
@@ -208,12 +207,28 @@ comments = do
 
 
 continue :: Spec
-continue = describe "Continue Keyword" $ do
-  it "should be picked up in parseValue" $ do
-    res <- parse parseValue $ flattenKeywords ["'hello&'CONTINUE '!'"]
-    res `shouldBe` String "hello!"
+continue = describe "Continue Keyword" $ withMarkers ["continue"] $ do
+  it "parses a normal string" $ do
+    let input = "'normal string  '     END"
+    t <- parse parseStringContinue input
+    t `shouldBe` "normal string"
 
-  it "should combine continue into previous keyword" $ do
+  it "parses a CONTINUE with space after" $ do
+    let input = "'has some sp&'CONTINUE  'ace'                                                                  "
+    t <- parse parseStringContinue input
+    t `shouldBe` "has some space"
+
+  it "parses a CONTINUE with comment" $ do
+    let input = "'has a comm'CONTINUE  'ent'    / hello world                                                 "
+    t <- parse parseStringContinue input
+    t `shouldBe` "has a comment"
+
+  it "parses a short CONTINUE" $ do
+    let input = "'stops before the e'  CONTINUE  'nd'                                                                  "
+    t <- parse parseStringContinue input
+    t `shouldBe` "stops before the end"
+
+  it "combines continue into previous keyword" $ do
     let hs =
           [ "CAL_URL = 'https://docs.dkist.nso.edu/projects/visp/en/v2.0.1/l0_to_l1_visp.ht&'"
           , "CONTINUE  'ml'                                                                  "
@@ -221,6 +236,17 @@ continue = describe "Continue Keyword" $ do
 
     h <- parse parseHeader $ flattenKeywords hs
     lookupKeyword "CAL_URL" h `shouldBe` Just (String "https://docs.dkist.nso.edu/projects/visp/en/v2.0.1/l0_to_l1_visp.html")
+
+  it "parses funny hubble full-line comments" $ do
+    -- Hubble has a comment KEYWORD at the end, which doesn't go fully to the end of the line
+    let input =
+          flattenKeywords
+            [ "COMMENT = 'If you have used HLA files for your research, please include the &'  "
+            , "CONTINUE  'following acknowledgment:&'                                          "
+            ]
+
+    h <- parse parseHeader input
+    h.records `shouldBe` [Keyword $ KeywordRecord "COMMENT" (String "If you have used HLA files for your research, please include the following acknowledgment:&") Nothing]
 
 
 headerMap :: Spec
@@ -329,9 +355,31 @@ sampleHubbleHeaders = do
       h <- parse parseHeader $ flattenKeywords hs
       length (keywords h) `shouldBe` 10
 
+    it "unknown error reproduce" $ do
+      let hs =
+            [ "EQUINOX =              '2000.0'                                                 "
+            , "                                                                                "
+            , "              / WFPC-II DATA DESCRIPTOR KEYWORDS                                "
+            , "ROOTNAME= 'hst_8599_53_wfpc2_f814w_wf' / rootname of the observation set        "
+            ]
+
+      h <- parse parseHeader $ flattenKeywords hs
+      length (keywords h) `shouldBe` 2
+
     it "should parse hubble headers" $ do
+      let hs1 =
+            flattenKeywords
+              [ "SIMPLE  =                    T / conforms to FITS standard                      "
+              , "BITPIX  =                    8 / array data type                                "
+              , "NAXIS   =                    0 / number of array dimensions                     "
+              , "EXTEND  =                    T                                                  "
+              , "DATE    = '2009-11-10'         / date this file was written (yyyy-mm-dd)        "
+              ]
       HubbleHeaders bs <- getFixture
-      h <- parse parseHeader $ mconcat (C8.lines bs)
+      let input = mconcat $ C8.lines bs
+      BS.take 400 input <> "END" `shouldBe` hs1
+
+      h <- parse parseHeader $ BS.take (601 * 80) input <> "END"
       lookupKeyword "DATE-OBS" h `shouldBe` Just (String "2001-04-07")
       lookupKeyword "FILTROT" h `shouldBe` Just (Float 0)
 

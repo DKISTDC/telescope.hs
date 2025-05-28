@@ -153,6 +153,7 @@ QUALCOM2= '                                                                    '
 QUALCOM3= '                                                                    '
 QUALITY = 'OK                                                                  '
                                                                                 
+              / TARGET & PROPOSAL ID                                            
 TARGNAME= 'NGC4027                       ' / proposer's target name             
 RA_TARG =   1.798758333333E+02 / right ascension of the target (deg) (J2000)    
 DEC_TARG=  -1.926527777778E+01 / declination of the target (deg) (J2000)        
@@ -609,8 +610,6 @@ COMMENT = 'This research used the HLA facilities of the STScI, the ST-ECF and &'
 CONTINUE  'the CADC with the support of the following granting agencies: &'     
 CONTINUE  'NASA/NSF, ESA, NRC, CSA&'                                            
 END                                                                             
-                                                                                
-                                                                                
                                                                                 
                                                                                 
                                                                                 

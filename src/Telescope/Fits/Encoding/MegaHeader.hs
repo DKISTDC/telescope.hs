@@ -4,11 +4,13 @@
 
 module Telescope.Fits.Encoding.MegaHeader where
 
-import Control.Monad (replicateM_, void)
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.Char (ord)
+import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -23,6 +25,8 @@ import Text.Megaparsec (ParseErrorBundle, Parsec, (<|>))
 import Text.Megaparsec qualified as M
 import Text.Megaparsec.Byte qualified as M
 import Text.Megaparsec.Byte.Lexer qualified as MBL
+import Text.Megaparsec.Error (ParseError (..), ParseErrorBundle (..))
+import Text.Megaparsec.Error qualified as MP
 import Text.Megaparsec.Pos qualified as MP
 import Text.Megaparsec.State qualified as M
 
@@ -41,6 +45,27 @@ runNextParser src inp parse = do
       let rest = BS.drop st2.stateOffset inp
       pure (a, rest)
     (_, Left err) -> Left err
+
+
+showParseError :: ParseErr -> String
+showParseError bundle =
+  let pos = bundle.bundlePosState
+      inp = pos.pstateInput
+   in L.intercalate "\n HI " (NE.toList (fmap (showError inp) bundle.bundleErrors))
+ where
+  showError :: ByteString -> ParseError ByteString Void -> String
+  showError inp err =
+    showCurrent inp (MP.errorOffset err) <> "\n  " <> L.intercalate "\n  " (lines (MP.parseErrorPretty err))
+
+  showCurrent inp off =
+    let line = floor @Float @Int (fromIntegral off / fromIntegral hduRecordLength)
+        col = off - (line * hduRecordLength)
+     in "HDU Header "
+          <> show line
+          <> " column "
+          <> show col
+          <> ": \n"
+          <> show (BS.take hduRecordLength $ BS.drop (line * hduRecordLength) inp)
 
 
 toWord :: Char -> Word8
@@ -187,14 +212,22 @@ parseStringContinue :: Parser Text
 parseStringContinue = do
   t <- parseStringValue
 
-  mc <- M.optional $ do
-    _ <- M.string' "CONTINUE"
-    M.space
-    parseStringContinue
+  mc <- M.optional $ M.try parseContinue
 
   case mc of
     Nothing -> return t
     Just tc -> return $ T.dropWhileEnd (== '&') t <> tc
+
+
+parseContinue :: Parser Text
+parseContinue = do
+  M.space
+  lineStart <- parsePos
+  _ <- M.string' "CONTINUE"
+  M.space
+  more <- parseStringContinue
+  _ <- parseLineEnd lineStart
+  pure more
 
 
 parseStringValue :: Parser Text
@@ -204,9 +237,10 @@ parseStringValue = do
   -- considered an empty string, and trailing whitespace is ignored
   -- within the quotes, but not leading spaces.
   ls <- M.between (M.char quote) (M.char quote) $ M.many $ M.anySingleBut quote
-  consumeDead
   return (T.stripEnd $ wordsText ls)
  where
+  -- consumeDead :: Parser ()
+  -- consumeDead = M.space >> skipEmpty
   quote = toWord '\''
 
 
@@ -214,13 +248,8 @@ skipEmpty :: Parser ()
 skipEmpty = void (M.many $ M.satisfy (toWord '\0' ==))
 
 
-consumeDead :: Parser ()
-consumeDead = M.space >> skipEmpty
-
-
-parseEnd :: Parser ()
-parseEnd = M.string' "end" >> M.space <* M.eof
-
+-- parseEnd :: Parser ()
+-- parseEnd = M.string' "end" >> M.space <* M.eof
 
 parseEquals :: Parser ()
 parseEquals = M.space >> M.char (toWord '=') >> M.space
