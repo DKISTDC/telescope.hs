@@ -20,7 +20,6 @@ class ToKeyword a where
   toKeywordValue :: a -> Value
 
 
-  -- Can ignore the selector name, modify it, etc
   toKeywordRecord :: Text -> a -> KeywordRecord
   default toKeywordRecord :: Text -> a -> KeywordRecord
   toKeywordRecord key a =

@@ -38,6 +38,7 @@ library
         Telescope.Data.Array
         Telescope.Data.Axes
         Telescope.Data.Binary
+        Telescope.Data.DataCube
         Telescope.Data.KnownText
         Telescope.Data.Parser
         Telescope.Data.WCS

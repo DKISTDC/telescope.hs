@@ -1,6 +1,5 @@
 module Telescope.Fits.Header.Keyword where
 
-import Data.List qualified as L
 import Data.Text (Text)
 import Data.Text qualified as T
 import Telescope.Fits.HDU.Block (hduRecordLength)

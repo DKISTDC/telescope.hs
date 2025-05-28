@@ -1,7 +1,6 @@
 module Telescope.Fits.HDU where
 
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
 import Data.List qualified as L
 import Telescope.Data.Axes
 import Telescope.Fits.BitPix
@@ -29,7 +28,7 @@ data DataHDU = DataHDU
 
 
 instance Show DataHDU where
-  show p = showHDU "HDU" p.header p.dataArray
+  show p = showHDU "DataHDU" p.header p.dataArray
 
 
 data BinTableHDU = BinTableHDU
@@ -63,16 +62,11 @@ emptyDataArray :: DataArray
 emptyDataArray = DataArray BPInt8 (Axes []) ""
 
 
--- data BinaryTable = BinaryTable
---   { pCount :: Int
---   , heap :: ByteString
---   }
-
 data Extension
   = Image DataHDU
   | BinTable BinTableHDU
 
 
 instance Show Extension where
-  show (Image i) = show i
-  show (BinTable b) = show b
+  show (Image i) = "\nImage: " <> show i
+  show (BinTable b) = "\nBinTable: " <> show b

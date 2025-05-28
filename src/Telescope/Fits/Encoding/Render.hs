@@ -12,7 +12,6 @@ import Telescope.Data.Axes
 import Telescope.Fits.BitPix
 import Telescope.Fits.Checksum
 import Telescope.Fits.DataArray
-import Telescope.Fits.HDU
 import Telescope.Fits.HDU.Block (hduBlockSize)
 import Telescope.Fits.Header
 
@@ -126,10 +125,10 @@ fillBlock fill b =
 renderKeywordLine :: Text -> Value -> Maybe Text -> BuilderBlock
 renderKeywordLine k v mc =
   let kv = renderKeywordValue k v
-   in pad 80 $ addComment kv mc
+   in pad 80 $ insertComment kv mc
  where
-  addComment kv Nothing = kv
-  addComment kv (Just c) =
+  insertComment kv Nothing = kv
+  insertComment kv (Just c) =
     let mx = 80 - kv.length
      in kv <> renderComment mx c
 

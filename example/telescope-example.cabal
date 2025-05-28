@@ -1,0 +1,50 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           telescope-example
+version:        0.1.0.0
+synopsis:       Example for Telescope
+category:       Science, Astronomy
+homepage:       https://github.com/dkistdc/telescope.hs#readme
+bug-reports:    https://github.com/dkistdc/telescope.hs/issues
+author:         Sean Hess
+maintainer:     shess@nso.edu
+copyright:      (c) 2024 Sean Hess
+license:        BSD-3-Clause
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/dkistdc/telescope.hs
+
+executable example
+  main-is: Main.hs
+  other-modules:
+      Notebook
+      Paths_telescope_example
+  autogen-modules:
+      Paths_telescope_example
+  hs-source-dirs:
+      ./app
+  default-extensions:
+      OverloadedStrings
+  ghc-options: -Wall -fdefer-typed-holes -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Chart
+    , Chart-diagrams
+    , Color ==0.4.0
+    , JuicyPixels
+    , base
+    , bytestring
+    , effectful
+    , filepath
+    , massiv
+    , massiv-io
+    , string-interpolate
+    , telescope
+    , text
+  default-language: GHC2021

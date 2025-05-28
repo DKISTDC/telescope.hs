@@ -2,15 +2,7 @@
 
 module Telescope.Fits.BitPix where
 
-import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
-import Data.List qualified as L
-import Data.Maybe (mapMaybe)
-import Data.Text (Text)
-import Data.Text qualified as T
 import GHC.Int
-import Telescope.Data.Axes
-import Telescope.Fits.Header (Header)
 import Prelude hiding (lookup)
 
 
