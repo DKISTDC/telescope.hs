@@ -95,7 +95,7 @@ We can use `Array` from [Data.Massiv](https://hackage.haskell.org/package/massiv
 ```
 
 
-![Hubble Output](./example/output/hubble1.png)
+![Hubble Output](https://raw.githubusercontent.com/DKISTDC/telescope.hs/main/example/output/hubble1.png)
 
 #### Parsing Headers
 

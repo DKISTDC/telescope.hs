@@ -1,5 +1,5 @@
 name:               telescope-example
-version:            0.1.0.0
+version:            0.3.0
 synopsis:           Example for Telescope
 github:             dkistdc/telescope.hs
 license:            BSD-3-Clause

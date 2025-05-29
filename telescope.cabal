@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:               telescope
-version:            0.2.0
+version:            0.3.0
 synopsis:           Astronomical Observations (FITS, ASDF, WCS, etc)
 description:        Work with astronomical observations from modern telescopes
 license:            BSD3
@@ -20,6 +20,7 @@ extra-source-files:
     README.md
     src/checksum.c
     src/checksum.h
+    example/output/hubble1.png
 
 library
     exposed-modules:
@@ -69,7 +70,7 @@ library
         exceptions ==0.10.*,
         libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
-        massiv-io,
+        massiv-io ==1.0.*,
         megaparsec ==9.6.*,
         resourcet-effectful >=1.0.1 && <1.1,
         scientific ==0.3.*,
@@ -144,7 +145,7 @@ test-suite test
         exceptions ==0.10.*,
         libyaml >=0.1.4 && <0.2,
         massiv ==1.0.*,
-        massiv-io,
+        massiv-io ==1.0.*,
         megaparsec ==9.6.*,
         resourcet-effectful >=1.0.1 && <1.1,
         scientific ==0.3.*,
