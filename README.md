@@ -1,11 +1,9 @@
-
 Telescope
 =========
 
 [![Hackage Version](https://img.shields.io/hackage/v/telescope?color=success)](https://hackage.haskell.org/package/telescope)
 
-
-Haskell library to read and write Astronomical images from telescopes
+Haskell library to work with scientific data files for astronomical observations
 
 * [FITS](https://fits.gsfc.nasa.gov/fits_standard.html) (Flexible Image Transport System) Files
 * [ASDF](https://asdf-standard.readthedocs.io/) (Advanced Scientific Data Format) Files
