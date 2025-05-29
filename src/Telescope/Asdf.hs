@@ -1,31 +1,74 @@
+{- |
+Module:      Telescope.Asdf
+Copyright:   (c) 2024 Sean Hess
+License:     BSD3
+Maintainer:  Sean Hess <shess@nso.edu>
+Stability:   experimental
+Portability: portable
+
+Read, and Write ASDF (Advanced Scientific Data Format) files
+
+> import Data.ByteString qualified as BS
+> import Telescope.Asdf
+>
+> data Example = Example
+>   { name :: Text
+>   , items :: [Text]
+>   , sequence :: [Int64]
+>   , random :: Array D Ix1 Double
+>   }
+>   deriving (Generic, FromAsdf)
+>
+> example :: IO ()
+> example = do
+>   inp <- BS.readFile "samples/example.asdf"
+>   ex :: Example <- decodeM inp
+>   print ex.name
+>   print ex.items
+>   print $ take 30 ex.sequence
+>   print $ take 10 $ M.toList ex.random
+-}
 module Telescope.Asdf
-  ( ToAsdf (..)
-  , FromAsdf (..)
+  ( -- * Encoding
+    encodeM
+  , encode
+  , ToAsdf (..)
+
+    -- * Decoding
   , decodeM
   , decodeEither
   , decode
-  , encodeM
-  , encode
+  , FromAsdf (..)
+  , (.:)
+  , (.:?)
   , AsdfError
+  , Parser
+
+    -- * Binary Data
   , FromNDArray (..)
   , ToNDArray (..)
-  , SchemaTag
+  , NDArrayData (..)
+
+    -- * ASDF Tree
+  , Asdf (..)
   , Node (..)
   , Value (..)
   , Key
   , Object
   , fromValue
-  , NDArrayData (..)
+  , SchemaTag
+
+    -- * JSON Reference
   , jsonPointer
   , jsonReference
   , JSONReference (..)
   , JSONPointer (..)
+
+    -- * YAML Anchors
   , Anchor (..)
-  , Parser
-  , Asdf (..)
+
+    -- ** Exports
   , Generic
-  , (.:)
-  , (.:?)
   )
 where
 
