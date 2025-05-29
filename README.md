@@ -194,4 +194,4 @@ example = do
 
 ### Collaborators
 
-* The FITS code was developed in collaboration with @krakrjak
+* The FITS code was developed in collaboration with [@krakrjak](https://github.com/krakrjak/fits-parse)
