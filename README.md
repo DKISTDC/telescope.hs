@@ -2,7 +2,7 @@
 Telescope
 =========
 
-[![Hackage Version](https://img.shields.io/hackage/v/telescope)](https://hackage.haskell.org/package/telescope)
+[![Hackage Version](https://img.shields.io/hackage/v/telescope?color=success)](https://hackage.haskell.org/package/telescope)
 
 
 Haskell library to read and write Astronomical images from telescopes
