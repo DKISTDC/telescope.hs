@@ -3,8 +3,6 @@ module Telescope.Fits.Encoding where
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.List qualified as L
-import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Text.Encoding qualified as TE
 import Effectful

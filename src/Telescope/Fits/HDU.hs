@@ -55,7 +55,7 @@ showHDU name h d =
 
 showHeader :: Header -> String
 showHeader h =
-  "  Header: " <> show (length $ keywords h)
+  "  Header: " <> show (length $ keywords h) <> " records"
 
 
 emptyDataArray :: DataArray

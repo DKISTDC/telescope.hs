@@ -87,9 +87,10 @@ parseHeader = do
 parseRecordLine :: Parser HeaderRecord
 parseRecordLine = do
   M.try (Keyword <$> parseKeywordRecord)
+    <|> M.try (BlankLine <$ parseLineBlank)
     <|> M.try (Comment <$> parseLineComment)
-    <|> M.try (History <$> parseLineHistory)
-    <|> (BlankLine <$ parseLineBlank)
+    <|> M.try (Comment <$> parseLineCommentSpaces)
+    <|> (History <$> parseLineHistory)
 
 
 parseLineHistory :: Parser Text
@@ -173,6 +174,15 @@ parseLineComment = do
   _ <- M.string' kw
   c <- M.count (hduRecordLength - BS.length kw) M.anySingle
   return $ wordsText c
+
+
+parseLineCommentSpaces :: Parser Text
+parseLineCommentSpaces = do
+  -- Invalid comments used by JWST
+  lineStart <- parsePos
+  -- exactly 8 spaces
+  _ <- M.count 8 (M.satisfy (== toWord ' '))
+  T.strip <$> untilLineEnd lineStart M.anySingle
 
 
 parseLineBlank :: Parser ()

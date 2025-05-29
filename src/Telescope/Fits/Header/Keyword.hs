@@ -2,7 +2,6 @@ module Telescope.Fits.Header.Keyword where
 
 import Data.Text (Text)
 import Data.Text qualified as T
-import Telescope.Fits.HDU.Block (hduRecordLength)
 import Telescope.Fits.Header.Value
 
 
@@ -15,22 +14,6 @@ data KeywordRecord = KeywordRecord
   , comment :: Maybe Text
   }
   deriving (Show, Eq)
-
-
-keywordRecordLine :: KeywordRecord -> Text
-keywordRecordLine (KeywordRecord k v mc) =
-  T.justifyLeft 8 ' ' k
-    <> "="
-    <> T.justifyLeft (hduRecordLength - 10) ' ' (T.pack $ val v)
-    <> inlineComment mc
- where
-  val (Integer n) = show n
-  val (Float f) = show f
-  val (Logic l) = "              " ++ show l
-  val (String t) = T.unpack t
-
-  inlineComment Nothing = ""
-  inlineComment (Just c) = " / " <> c
 
 
 isKeyword :: Text -> KeywordRecord -> Bool

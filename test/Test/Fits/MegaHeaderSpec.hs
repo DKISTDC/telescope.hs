@@ -34,6 +34,7 @@ spec = do
   requiredHeaders
   sampleNSOHeaders
   sampleHubbleHeaders
+  sampleJWSTHeaders
 
 
 parse :: Parser a -> ByteString -> IO a
@@ -158,7 +159,7 @@ fullRecordLine = describe "parseRecordLine" $ do
 
 comments :: Spec
 comments = do
-  describe "Full-line comments" $ do
+  describe "Full-line comments" $ withMarkers ["focus"] $ do
     it "should parse full-line comments" $ do
       res <- parse parseLineComment $ flattenKeywords ["COMMENT --------------------------- VISP Instrument ----------------------------"]
       res `shouldBe` "--------------------------- VISP Instrument ----------------------------"
@@ -170,6 +171,25 @@ comments = do
     it "should parse blank comments" $ do
       res <- parse parseLineComment $ flattenKeywords ["COMMENT                                                                         "]
       res `shouldBe` "                                                                        "
+
+    it "should parse silly JWST blank-line comments" $ do
+      res <- parse parseLineCommentSpaces $ flattenKeywords ["        Association information                                                "]
+      res `shouldBe` "Association information"
+
+    it "should parse silly JWST blank-line comments as a header" $ do
+      let hs =
+            flattenKeywords
+              [ "                                                                                "
+              , "        Association information                                                 "
+              , "                                                                                "
+              ]
+
+      h <- parse parseHeader hs
+      length h.records `shouldBe` 3
+
+    it "fails space-line comments on blank lines" $ do
+      res <- parse parseRecordLine (flattenKeywords ["                                                                                "])
+      res `shouldBe` BlankLine
 
   describe "inline comments" $ do
     it "should parse comment" $ do
@@ -333,7 +353,7 @@ sampleNSOHeaders = do
 
 sampleHubbleHeaders :: Spec
 sampleHubbleHeaders = do
-  describe "Hubble Headers" $ withMarkers ["focus"] $ do
+  describe "Hubble Headers" $ do
     it "should parse weird comment lines" $ do
       let hs =
             [ "SIMPLE  =                    T / conforms to FITS standard                      "
@@ -384,6 +404,16 @@ sampleHubbleHeaders = do
       lookupKeyword "FILTROT" h `shouldBe` Just (Float 0)
 
 
+sampleJWSTHeaders :: Spec
+sampleJWSTHeaders = do
+  describe "JWST Headers" $ withMarkers ["focus"] $ do
+    it "should parse jwst headers" $ do
+      JWSTHeaders bs <- getFixture
+      let input = mconcat $ C8.lines bs
+      h <- parse parseHeader input
+      length (keywords h) `shouldBe` 214
+
+
 newtype DKISTHeaders = DKISTHeaders BS.ByteString
 instance Fixture DKISTHeaders where
   fixtureAction = do
@@ -396,6 +426,13 @@ instance Fixture HubbleHeaders where
   fixtureAction = do
     bs <- BS.readFile "./samples/hubble_headers.txt"
     pure $ noCleanup $ HubbleHeaders bs
+
+
+newtype JWSTHeaders = JWSTHeaders BS.ByteString
+instance Fixture JWSTHeaders where
+  fixtureAction = do
+    bs <- BS.readFile "./samples/jwst_headers.txt"
+    pure $ noCleanup $ JWSTHeaders bs
 
 
 newtype SampleNSO = SampleNSO [Text]

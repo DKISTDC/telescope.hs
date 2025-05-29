@@ -1,10 +1,14 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Telescope.Fits.Encoding.Render where
 
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Lazy.Char8 qualified as BL8
 import Data.Char (toUpper)
+import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Data.Text qualified as T
@@ -33,7 +37,7 @@ renderImageHeader h d dsum =
       , renderKeywordLine "PCOUNT" (Integer 0) Nothing
       , renderKeywordLine "GCOUNT" (Integer 1) Nothing
       , renderDatasum dsum
-      , renderOtherKeywords h
+      , renderRecords $ nonSystemRecords h
       , renderEnd
       ]
 
@@ -46,7 +50,7 @@ renderPrimaryHeader h d dsum =
       , renderDataKeywords d.bitpix d.axes
       , renderKeywordLine "EXTEND" (Logic T) Nothing
       , renderDatasum dsum
-      , renderOtherKeywords h
+      , renderRecords $ nonSystemRecords h
       , renderEnd
       ]
 
@@ -90,23 +94,35 @@ renderDataKeywords bp (Axes as) =
     BPDouble -> -64
 
 
+renderRecords :: [HeaderRecord] -> BuilderBlock
+renderRecords hrs =
+  mconcat $ fmap renderHeaderRecord hrs
+
+
 -- | 'Header' contains all other keywords. Filter out any that match system keywords so they aren't rendered twice
-renderOtherKeywords :: Header -> BuilderBlock
-renderOtherKeywords (Header ks) =
-  mconcat $ map toLine $ filter (not . isSystemKeyword) ks
+nonSystemRecords :: Header -> [HeaderRecord]
+nonSystemRecords (Header ks) =
+  filter (not . isSystemKeyword) ks
  where
-  toLine (Keyword kr) = renderKeywordLine kr.keyword kr.value kr.comment
-  toLine (Comment c) = pad 80 $ string $ "COMMENT " <> unpack c
-  toLine BlankLine = pad 80 ""
-  isSystemKeyword (Keyword kr) =
-    let k = kr.keyword
-     in k == "BITPIX"
-          || k == "EXTEND"
-          || k == "DATASUM"
-          || k == "CHECKSUM"
-          || k == "SIMPLE"
-          || "NAXIS" `isPrefixOf` k
-  isSystemKeyword _ = False
+  isSystemKeyword hr =
+    case hr of
+      Keyword kr ->
+        let k = kr.keyword
+         in k == "BITPIX"
+              || k == "EXTEND"
+              || k == "DATASUM"
+              || k == "CHECKSUM"
+              || k == "SIMPLE"
+              || "NAXIS" `isPrefixOf` k
+      _ -> False
+
+
+renderHeaderRecord :: HeaderRecord -> BuilderBlock
+renderHeaderRecord = \case
+  Keyword kr -> renderKeywordLine kr.keyword kr.value kr.comment
+  Comment c -> pad 80 $ string $ "COMMENT " <> unpack c
+  History h -> pad 80 $ string $ "HISTORY " <> unpack h
+  BlankLine -> pad 80 ""
 
 
 -- | Fill out the header or data block to the nearest 2880 bytes
@@ -208,3 +224,13 @@ padding b n = builderBlock n . mconcat . replicate n $ b
 
 string :: String -> BuilderBlock
 string s = builderBlock (length s) (stringUtf8 s)
+
+
+instance Show Header where
+  show h =
+    unlines $ L.unfoldr chunk $ BL8.unpack $ runRender $ renderRecords h.records
+   where
+    chunk :: String -> Maybe (String, String)
+    chunk "" = Nothing
+    chunk inp =
+      Just $ splitAt 80 inp

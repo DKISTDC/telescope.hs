@@ -63,8 +63,13 @@ module Telescope.Fits
   , dataArray
   , emptyDataArray
 
+    -- * Visualize
+  , heatmap
+  , writeImage
+
     -- * Exports from Data.Massiv.Array
   , Array
+  , D
   , Ix1
   , Ix2
   , Ix3
@@ -80,9 +85,11 @@ module Telescope.Fits
   -- , test
   ) where
 
-import Data.Massiv.Array (Array, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
+import Data.Massiv.Array (Array, D, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
+import Data.Massiv.Array.IO (writeImage)
 import Telescope.Data.Axes
 import Telescope.Data.Parser (Parser)
+import Telescope.Data.Array (heatmap)
 import Telescope.Fits.BitPix
 import Telescope.Fits.DataArray
 import Telescope.Fits.Encoding

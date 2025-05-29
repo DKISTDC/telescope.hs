@@ -3,7 +3,6 @@ module Telescope.Fits.Header.Header where
 import Data.List qualified as L
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
-import Data.Text qualified as T
 import Telescope.Fits.Header.Keyword
 import Telescope.Fits.Header.Value
 
@@ -16,15 +15,6 @@ newtype Header = Header {records :: [HeaderRecord]}
   deriving newtype (Eq, Semigroup, Monoid)
 
 
-instance Show Header where
-  show h =
-    T.unpack $ T.intercalate "\n" $ fmap line h.records
-   where
-    line :: HeaderRecord -> Text
-    line (Keyword kr) = keywordRecordLine kr
-    line (History t) = "HISTORY " <> t
-    line (Comment c) = "COMMENT " <> c
-    line BlankLine = " "
 
 
 {- | Headers contain lines that are any of the following

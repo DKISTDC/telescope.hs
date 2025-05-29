@@ -8,6 +8,8 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Massiv.Array (Array, Comp (..), D, Index, Ix1, Ix2 (..), Ix3, Ix4, Ix5, IxN (..), Lower, Prim, Source, Stream, Sz (..), Vector)
 import Data.Massiv.Array qualified as M
+import Data.Massiv.Array.IO (Linearity (..), Pixel (..), SRGB)
+import Data.Massiv.Array.IO qualified as M
 import Data.Word (Word8)
 import Telescope.Data.Axes
 import Telescope.Data.Binary
@@ -192,3 +194,16 @@ indexAxesN (d :> ix) =
 -- | Get the Axes for a given array size
 sizeAxes :: (AxesIndex ix, Index ix) => Sz ix -> Axes Column
 sizeAxes (Sz ix) = toColumnMajor $ indexAxes ix
+
+
+-- approximates python's viridis
+heatmap :: forall n. (Ord n, RealFrac n) => Array D Ix2 n -> Array D Ix2 (Pixel (SRGB 'NonLinear) Word8)
+heatmap arr =
+  let maxn = maximum arr :: n
+   in fmap (color . (/ maxn)) arr
+ where
+  color x =
+    let r = floor (255 * abs (x - 0.3))
+        g = floor (255 * x)
+        b = floor (255 * (1 - x))
+     in M.PixelSRGB r g b
