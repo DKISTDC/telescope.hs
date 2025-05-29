@@ -40,11 +40,12 @@ module Telescope.Fits
     -- * Parsing Headers
   , FromHeader (..)
   , FromKeyword (..)
+  , Parser
+  , runParser
 
-    -- * Creating Headers
+    -- * Writing Headers
   , ToKeyword (..)
   , ToHeader (..)
-  , Parser
 
     -- * Types
   , Fits (..)
@@ -88,7 +89,7 @@ module Telescope.Fits
 import Data.Massiv.Array (Array, D, Dim (..), Ix1, Ix2, Ix3, Ix4, Ix5, size, (!>), (!?>), (<!), (<!>), (<!?))
 import Data.Massiv.Array.IO (writeImage)
 import Telescope.Data.Axes
-import Telescope.Data.Parser (Parser)
+import Telescope.Data.Parser (Parser, runParser)
 import Telescope.Data.Array (heatmap)
 import Telescope.Fits.BitPix
 import Telescope.Fits.DataArray

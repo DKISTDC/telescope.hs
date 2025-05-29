@@ -169,6 +169,12 @@ instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf (NonEmpty a) where
   toValue as = toValue $ NE.toList as
 
 
+instance {-# OVERLAPS #-} FromAsdf Object where
+  parseValue = \case
+    Object o -> pure o
+    node -> expected "Object" node
+
+
 instance (ToAsdf a, ToAsdf b) => ToAsdf (a, b) where
   toValue (a, b) = Array [toNode a, toNode b]
 instance (FromAsdf a, FromAsdf b) => FromAsdf (a, b) where

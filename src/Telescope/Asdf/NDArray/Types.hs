@@ -9,8 +9,6 @@ import Telescope.Data.Axes
 import Telescope.Data.Binary
 
 
--- import Telescope.Asdf.Node
-
 {- | In-tree representation of an NDArray. You can parse a file as this and get it back. Not really what we want though
 but in haskell we can't easily just parse a multi-dimensional array
 we could do a simpler representation. Using an ADT

@@ -23,9 +23,13 @@ module Telescope.Asdf
   , Anchor (..)
   , Parser
   , Asdf (..)
+  , Generic
+  , (.:)
+  , (.:?)
   )
 where
 
+import GHC.Generics
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core (Asdf (..))
 import Telescope.Asdf.Encoding

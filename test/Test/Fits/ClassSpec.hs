@@ -3,7 +3,6 @@ module Test.Fits.ClassSpec where
 import Control.Monad.Catch (throwM)
 import Data.Text (Text)
 import Effectful
-import Effectful.Error.Static
 import GHC.Generics
 import Skeletest
 import Skeletest.Predicate qualified as P

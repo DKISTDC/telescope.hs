@@ -6,8 +6,8 @@ Telescope
 
 Haskell library to read and write Astronomical images from telescopes
 
-* [FITS](https://fits.gsfc.nasa.gov/fits_standard.html) File Format
-* [ASDF](https://asdf-standard.readthedocs.io/) File Format
+* [FITS](https://fits.gsfc.nasa.gov/fits_standard.html) (Flexible Image Transport System) Files
+* [ASDF](https://asdf-standard.readthedocs.io/) (Advanced Scientific Data Format) Files
 
 FITS Example
 -------
@@ -86,7 +86,7 @@ Image: DataHDU
     axes: [1800,1800]
 ```
 
-We can use Massiv's `Array` to parse, manipulate, and display data
+We can use `Array` from [Data.Massiv](https://hackage.haskell.org/package/massiv) to parse, manipulate, and display data
 
 ```
   Image img : _ <- pure fits.extensions
@@ -94,7 +94,102 @@ We can use Massiv's `Array` to parse, manipulate, and display data
   writeImage "hubble1.png" (heatmap arr)
 ```
 
+
 ![Hubble Output](./example/output/hubble1.png)
+
+#### Parsing Headers
+
+Parse header keywords into Haskell records
+
+```
+import Telescope.Fits
+import Effectful
+
+data HubbleInfo = HubbleInfo
+  { telescop :: Text
+  , instrume :: Text
+  , equinox :: Float
+  } deriving (Generic, FromHeader, ToHeader)
+
+main = do
+  ...
+  let h = fits.primaryHDU.header
+  print $ lookupKeyword "INSTRUME" h
+
+  case runPureEff $ runParser $ parseHeader h of
+    Left e -> fail $ show e
+    Right info -> do
+      print info.telescop
+      print info.equinox
+```
+
+ASDF Example
+------------
+
+ASDF files contain a YAML tree and binary data afterwards. They are readable and the tree is editable in a text editor.
+
+```
+example :: IO ()
+example = do
+  inp <- BS.readFile "../samples/dkist.asdf"
+  dset :: Dataset <- decodeM inp
+  print dset.info
+
+data DKISTInfo = DKISTInfo
+  { instrumentName :: Text
+  , frameCount :: Int
+  }
+  deriving (Show, Generic, FromAsdf)
+
+
+data Dataset = Dataset
+  { info :: DKISTInfo
+  }
+instance FromAsdf Dataset where
+  -- parse .dataset.meta.inventory into DKISTInfo
+  parseValue val =
+    case val of
+      Object o -> do
+        dset <- o .: "dataset"
+        meta <- dset .: "meta"
+        info <- meta .: "inventory"
+        pure $ Dataset info
+      k -> expected "Object" k
+```
+
+
+```
+DKISTInfo {instrumentName = "VISP", frameCount = 1960}
+```
+
+Data can be parsed directly from the YAML tree or from binary-encoded data blocks (an NDArray)
+
+```
+data Example = Example
+  { foo :: Int32
+  , powers :: Maybe Powers
+  , sequence :: [Int64]
+  , random :: Array D Ix1 Double
+  }
+  deriving (Generic, FromAsdf)
+
+example :: IO ()
+example = do
+  inp <- BS.readFile "../samples/example.asdf"
+  ex :: Example <- decodeM inp
+  print ex.name
+  print ex.items
+  print $ take 30 ex.sequence
+  print $ take 10 $ M.toList ex.random
+```
+
+```
+"Monty"
+["one","two","three","four","five"]
+[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+[0.7842310832387069,0.2279459557291822,0.9534462812074139,0.5100515929833191,0.6597920763222204,0.8778040169160855,0.8079416746447109,0.5373925949744411,0.5169365152585088,0.436101639340324]
+```
+
 
 ### Collaborators
 
