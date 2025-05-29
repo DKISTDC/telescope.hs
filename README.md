@@ -2,7 +2,8 @@
 Telescope
 =========
 
-[![Hackage](https://img.shields.io/hackage/v/telescope.svg&color=success)](https://hackage.haskell.org/package/telescope)
+[![Hackage Version](https://img.shields.io/hackage/v/telescope)](https://hackage.haskell.org/package/telescope)
+
 
 Haskell library to read and write Astronomical images from telescopes
 
@@ -10,7 +11,7 @@ Haskell library to read and write Astronomical images from telescopes
 * [ASDF](https://asdf-standard.readthedocs.io/) (Advanced Scientific Data Format) Files
 
 FITS Example
--------
+------------
 
 ```
 import Telescope.Fits
