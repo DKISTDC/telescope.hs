@@ -192,6 +192,19 @@ example = do
 ```
 
 
-### Collaborators
+Getting Raw Telescope Data
+--------------------------
 
-* The FITS code was developed in collaboration with [@krakrjak](https://github.com/krakrjak/fits-parse)
+* [NSO DKIST Solar Telescope](https://dkist.data.nso.edu/)
+* [MAST](https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html) - Hubble and JWST
+
+
+
+Attributions
+---------------------------
+
+<a href="https://nso.edu">
+  <img alt="National Solar Observatory" src="https://nso1.b-cdn.net/wp-content/uploads/2020/03/NSO-logo-orange-text.png" width="400"/>
+</a>
+
+FITS code was developed in collaboration with [@krakrjak](https://github.com/krakrjak/fits-parse)
