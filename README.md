@@ -94,7 +94,7 @@ We can use Massiv's `Array` to parse, manipulate, and display data
   writeImage "hubble1.png" (heatmap arr)
 ```
 
-![Hubble Output](./example/output/hubble.png)
+![Hubble Output](./example/output/hubble1.png)
 
 ### Collaborators
 
