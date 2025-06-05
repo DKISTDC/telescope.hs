@@ -69,11 +69,11 @@ instance (ToAxes a) => ToAxes (Linear a) where
   toAxes = fmap ("lin_" <>) (toAxes @a)
 
 
-newtype Lon = Lon Float
+newtype Lon = Lon Double
   deriving newtype (ToAsdf)
-newtype Lat = Lat Float
+newtype Lat = Lat Double
   deriving newtype (ToAsdf)
-newtype LonPole = LonPole Float
+newtype LonPole = LonPole Double
   deriving newtype (ToAsdf)
 
 
@@ -181,15 +181,15 @@ instance ToAsdf Direction where
   toValue = String . T.toLower . pack . show
 
 
-data Shift a = Shift Float deriving (Show, Eq)
-data Scale a = Scale Float deriving (Show, Eq)
+data Shift a = Shift Double deriving (Show, Eq)
+data Scale a = Scale Double deriving (Show, Eq)
 data Identity = Identity deriving (Show, Eq)
-data Intercept = Intercept Float deriving (Show, Eq)
-data Affine = Affine {matrix :: Array M.D Ix2 Float, translation :: (Float, Float)}
+data Intercept = Intercept Double deriving (Show, Eq)
+data Affine = Affine {matrix :: Array M.D Ix2 Double, translation :: (Double, Double)}
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
   deriving (Generic)
-data Linear a = Linear1d {intercept :: Float, slope :: Float}
+data Linear a = Linear1d {intercept :: Double, slope :: Double}
   deriving (Generic)
 
 
@@ -447,11 +447,11 @@ instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
 
 -- Transforms -----------------------------------------------
 
-shift :: forall a f. (ToAxes (f a), ToAxes (Shift a)) => Float -> Transform (f a) (Shift a)
+shift :: forall a f. (ToAxes (f a), ToAxes (Shift a)) => Double -> Transform (f a) (Shift a)
 shift d = transform $ Shift d
 
 
-scale :: forall a f. (ToAxes (f a), ToAxes (Scale a)) => Float -> Transform (f a) (Scale a)
+scale :: forall a f. (ToAxes (f a), ToAxes (Scale a)) => Double -> Transform (f a) (Scale a)
 scale d = transform $ Scale d
 
 
@@ -459,7 +459,7 @@ linear :: forall a. (ToAxes a) => Intercept -> Scale a -> Transform (Pix a) (Lin
 linear (Intercept dlt) (Scale scl) = transform $ Linear1d{intercept = dlt, slope = scl}
 
 
-rotate :: (ToAxes x, ToAxes y) => Array M.D Ix2 Float -> Transform (Linear x, Linear y) (Rot (x, y))
+rotate :: (ToAxes x, ToAxes y) => Array M.D Ix2 Double -> Transform (Linear x, Linear y) (Rot (x, y))
 rotate arr =
   transform $ Affine arr (0, 0)
 

@@ -24,9 +24,9 @@ newtype CType = CType Text deriving (Eq, Show)
 data WCSAxis (alt :: WCSAlt) axis = WCSAxis
   { ctype :: CType
   , cunit :: CUnit
-  , crpix :: Float
-  , crval :: Float
-  , cdelt :: Float
+  , crpix :: Double
+  , crval :: Double
+  , cdelt :: Double
   }
   deriving (Generic, Eq, Show)
 

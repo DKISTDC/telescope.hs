@@ -46,6 +46,14 @@ instance FromKeyword Float where
     v -> expected "Float" v
 
 
+instance ToKeyword Double where
+  toKeywordValue = Float
+instance FromKeyword Double where
+  parseKeywordValue = \case
+    Float n -> pure n
+    v -> expected "Double" v
+
+
 instance ToKeyword Text where
   toKeywordValue = String
 instance FromKeyword Text where
