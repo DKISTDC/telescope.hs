@@ -19,15 +19,30 @@ data Parser :: Effect where
 type instance DispatchOf Parser = 'Dynamic
 
 
+-- runParser
+--   :: Eff (Parser : es) a
+--   -> Eff es (Either ParseError a)
+-- runParser = reinterpret (runErrorNoCallStack @ParseError . runReader @Path mempty) $ \env -> \case
+--   ParseFail e -> do
+--     path <- ask @Path
+--     throwError $ ParseFailure path e
+--   PathMod mp m -> do
+--     localSeqUnlift env $ \unlift -> local mp (unlift m)
+
 runParser
-  :: Eff (Parser : es) a
-  -> Eff es (Either ParseError a)
-runParser = reinterpret (runErrorNoCallStack @ParseError . runReader @Path mempty) $ \env -> \case
+  :: (Error ParseError :> es)
+  => Eff (Parser : es) a
+  -> Eff es a
+runParser = reinterpret (runReader @Path mempty) $ \env -> \case
   ParseFail e -> do
     path <- ask @Path
     throwError $ ParseFailure path e
   PathMod mp m -> do
     localSeqUnlift env $ \unlift -> local mp (unlift m)
+
+
+runParserPure :: Eff '[Parser, Error ParseError] a -> Either ParseError a
+runParserPure = runPureEff . runErrorNoCallStack @ParseError . runParser
 
 
 -- copied from Effectful.Reader.Dynamic

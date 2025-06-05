@@ -7,6 +7,7 @@ import Data.Massiv.Array (Array, D, Ix1)
 import Data.Massiv.Array qualified as M
 import Data.Text (Text, unpack)
 import Effectful
+import Effectful.Error.Static
 import GHC.Generics (Generic)
 import GHC.Int (Int64)
 import Skeletest
@@ -265,9 +266,9 @@ instance Fixture RefTreeFix where
     pure $ noCleanup $ RefTreeFix tree
 
 
-parseIO :: Eff '[Parser, IOE] a -> IO a
+parseIO :: Eff '[Parser, Error ParseError, IOE] a -> IO a
 parseIO p = do
-  res <- runEff $ runParser p
+  res <- runEff $ runErrorNoCallStack @ParseError $ runParser p
   case res of
     Left e -> throwM e
     Right a -> pure a

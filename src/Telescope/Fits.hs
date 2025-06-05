@@ -31,6 +31,7 @@ module Telescope.Fits
   , encodeDataArray
 
     -- * Headers
+  , keywords
   , lookupKeyword
   , Header
   , Value (..)

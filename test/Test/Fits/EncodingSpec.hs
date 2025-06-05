@@ -153,16 +153,16 @@ testRenderHeader = do
 
   describe "renderOtherKeywords" $ do
     it "should render comments" $ do
-      let h = Header [Comment "hello world"]
-      run (renderOtherKeywords h) `shouldBe` pad 80 "COMMENT hello world"
+      let rs = [Comment "hello world"]
+      run (renderRecords rs) `shouldBe` pad 80 "COMMENT hello world"
 
     it "should render blanks" $ do
-      let h = Header [BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` headers ["", "WOOT    = " <> justify 20 "12345"]
+      let rs = [BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
+      run (renderRecords rs) `shouldBe` headers ["", "WOOT    = " <> justify 20 "12345"]
 
     it "should render blanks between" $ do
-      let h = Header [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
-      run (renderOtherKeywords h) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 20 "12345"]
+      let rs = [Comment "comment", BlankLine, Keyword (KeywordRecord "WOOT" (Integer 12345) Nothing)]
+      run (renderRecords rs) `shouldBe` headers ["COMMENT comment", "", "WOOT    = " <> justify 20 "12345"]
  where
   runValue :: Value -> String
   runValue = run . renderValue

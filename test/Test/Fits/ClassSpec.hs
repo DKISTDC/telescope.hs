@@ -3,6 +3,7 @@ module Test.Fits.ClassSpec where
 import Control.Monad.Catch (throwM)
 import Data.Text (Text)
 import Effectful
+import Effectful.Error.Static
 import GHC.Generics
 import Skeletest
 import Skeletest.Predicate qualified as P
@@ -51,9 +52,9 @@ classSpec = do
       toKeywordValue True `shouldBe` Logic T
 
     it "should parseKeywordValue" $ do
-      runPureEff (runParser (parseKeywordValue @Int $ Integer 23)) `shouldBe` Right 23
-      runPureEff (runParser (parseKeywordValue @Text $ String "woot")) `shouldBe` Right "woot"
-      runPureEff (runParser (parseKeywordValue @Bool $ Logic F)) `shouldBe` Right False
+      runParserPure (parseKeywordValue @Int $ Integer 23) `shouldBe` Right 23
+      runParserPure (parseKeywordValue @Text $ String "woot") `shouldBe` Right "woot"
+      runParserPure (parseKeywordValue @Bool $ Logic F) `shouldBe` Right False
 
   describe "ToHeader" $ do
     it "should uppercase and snake keywords" $ do
@@ -77,7 +78,7 @@ classSpec = do
   describe "FromHeader" $ do
     it "should convert datatype" $ do
       let h = toHeader (Test 40 "Alice")
-      let et = runPureEff $ runParser $ parseHeader h
+      let et = runParserPure $ parseHeader h
       et `shouldSatisfy` P.right (P.con Test{age = P.eq 40})
       et `shouldSatisfy` P.right (P.con Test{firstName = P.eq "Alice"})
 
@@ -112,9 +113,9 @@ wcsSpec = do
   wcsAY = WCSAxis (CType "Y") (CUnit "M") 4 5 6 :: WCSAxis 'A Y
 
 
-parseIO :: Eff '[Parser, IOE] a -> IO a
+parseIO :: Eff '[Parser, Error ParseError, IOE] a -> IO a
 parseIO p = do
-  res <- runEff $ runParser p
+  res <- runEff $ runErrorNoCallStack @ParseError $ runParser p
   case res of
     Left e -> throwM e
     Right a -> pure a

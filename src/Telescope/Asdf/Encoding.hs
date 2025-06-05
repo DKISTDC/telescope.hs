@@ -118,7 +118,5 @@ runYamlError :: (Error AsdfError :> es) => Eff (Error YamlError : es) a -> Eff e
 runYamlError = runErrorNoCallStackWith @YamlError (throwError . YamlError . show)
 
 
-runParseError :: (Error AsdfError :> es) => Eff es (Either ParseError a) -> Eff es a
-runParseError eff = do
-  res <- eff
-  either (throwError . ParseError . show) pure res
+runParseError :: (Error AsdfError :> es) => Eff (Error ParseError : es) a -> Eff es a
+runParseError = runErrorNoCallStackWith @ParseError (throwError . ParseError . show)

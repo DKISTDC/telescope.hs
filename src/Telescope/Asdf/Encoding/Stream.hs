@@ -20,7 +20,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
-import Telescope.Data.Parser (runParser)
+import Telescope.Data.Parser (runParserPure)
 import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
 import Text.Read (readMaybe)
@@ -240,7 +240,7 @@ ndArrayDataFromMaps maps = do
 
   parseLocal :: (FromAsdf a, Error YamlError :> es) => String -> Value -> Eff es a
   parseLocal expected val = do
-    res <- runParser . runReader @Anchors mempty $ parseValue val
+    let res = runParserPure . runReader @Anchors mempty $ parseValue val
     case res of
       Left _ -> throwError $ NDArrayExpected expected val
       Right a -> pure a

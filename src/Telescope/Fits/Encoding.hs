@@ -7,6 +7,7 @@ import Data.Text (Text)
 import Data.Text.Encoding qualified as TE
 import Effectful
 import Effectful.Dispatch.Dynamic
+import Effectful.Error.Static
 import Effectful.State.Static.Local
 import Telescope.Data.Parser
 import Telescope.Fits.Checksum
@@ -38,16 +39,16 @@ encode f =
    in mconcat $ prim : exts
 
 
-fitsParseThrow :: (MonadThrow m) => Eff '[State ByteString, Parser] a -> ByteString -> m a
+fitsParseThrow :: (MonadThrow m) => Eff '[State ByteString, Parser, Error ParseError] a -> ByteString -> m a
 fitsParseThrow parse inp =
   case runFitsParse parse inp of
     Left e -> throwM e
     Right a -> pure a
 
 
-runFitsParse :: Eff '[State ByteString, Parser] a -> BS.ByteString -> Either ParseError a
+runFitsParse :: Eff '[State ByteString, Parser, Error ParseError] a -> BS.ByteString -> Either ParseError a
 runFitsParse parse inp = do
-  runPureEff $ runParser $ evalState inp parse
+  runParserPure $ evalState inp parse
 
 
 parseFits :: forall es. (State ByteString :> es, Parser :> es) => Eff es Fits
@@ -82,8 +83,9 @@ extensions n = do
 
 extension :: (State ByteString :> es, Parser :> es) => Eff es Extension
 extension = do
-  resImg <- runParser image
-  resTbl <- runParser binTable
+  -- I don't understand how to use NonDet to fix this
+  resImg <- runErrorNoCallStack @ParseError $ runParser image
+  resTbl <- runErrorNoCallStack @ParseError $ runParser binTable
   case (resImg, resTbl) of
     (Right i, _) -> pure $ Image i
     (_, Right b) -> pure $ BinTable b
