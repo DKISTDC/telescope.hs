@@ -113,6 +113,14 @@ instance (ToHeader a) => ToHeader [a] where
   toHeader = mconcat . fmap toHeader
 
 
+instance ToHeader Header where
+  toHeader = id
+
+
+instance ToHeader [HeaderRecord] where
+  toHeader = Header
+
+
 instance (AxisOrder ax, KnownText alt) => ToHeader (WCSAxis alt ax) where
   toHeader axis =
     mconcat
@@ -134,6 +142,14 @@ class FromHeader a where
   parseHeader :: (Parser :> es) => Header -> Eff es a
   default parseHeader :: (Generic a, GFromHeader (Rep a), Parser :> es) => Header -> Eff es a
   parseHeader h = to <$> gParseHeader h
+
+
+instance FromHeader Header where
+  parseHeader = pure
+
+
+instance FromHeader [HeaderRecord] where
+  parseHeader h = pure h.records
 
 
 instance (AxisOrder ax, KnownText alt) => FromHeader (WCSAxis alt ax) where
