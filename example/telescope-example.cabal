@@ -5,7 +5,7 @@ cabal-version: 2.2
 -- see: https://github.com/sol/hpack
 
 name:           telescope-example
-version:        0.3.0
+version:        0.4.0
 synopsis:       Example for Telescope
 category:       Science, Astronomy
 homepage:       https://github.com/dkistdc/telescope.hs#readme
