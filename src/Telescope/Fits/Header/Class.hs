@@ -117,8 +117,8 @@ instance ToHeader Header where
   toHeader = id
 
 
-instance ToHeader [HeaderRecord] where
-  toHeader = Header
+instance ToHeader HeaderRecord where
+  toHeader hr = Header [hr]
 
 
 instance (AxisOrder ax, KnownText alt) => ToHeader (WCSAxis alt ax) where
