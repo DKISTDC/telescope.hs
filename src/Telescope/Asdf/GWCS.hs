@@ -16,6 +16,7 @@ import GHC.Generics
 import Telescope.Asdf
 import Telescope.Asdf.Core
 import Telescope.Data.WCS (WCSAxis (..))
+import Text.Casing (quietSnake)
 
 
 -- | GWCS pipelines consist of an input and output 'GWCSStep'
@@ -432,7 +433,7 @@ instance (ToAsdf as) => ToAsdf (CompositeFrame as) where
 class ToAxes (as :: Type) where
   toAxes :: [AxisName]
   default toAxes :: (Generic as, GTypeName (Rep as)) => [AxisName]
-  toAxes = [AxisName $ pack $ gtypeName (from (undefined :: as))]
+  toAxes = [AxisName $ pack $ quietSnake $ gtypeName (from (undefined :: as))]
 
 
 instance ToAxes () where
