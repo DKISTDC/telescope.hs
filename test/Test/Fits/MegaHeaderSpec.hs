@@ -159,7 +159,7 @@ fullRecordLine = describe "parseRecordLine" $ do
 
 comments :: Spec
 comments = do
-  describe "Full-line comments" $ withMarkers ["focus"] $ do
+  describe "Full-line comments" $ do
     it "should parse full-line comments" $ do
       res <- parse parseLineComment $ flattenKeywords ["COMMENT --------------------------- VISP Instrument ----------------------------"]
       res `shouldBe` "--------------------------- VISP Instrument ----------------------------"
@@ -406,7 +406,7 @@ sampleHubbleHeaders = do
 
 sampleJWSTHeaders :: Spec
 sampleJWSTHeaders = do
-  describe "JWST Headers" $ withMarkers ["focus"] $ do
+  describe "JWST Headers" $ do
     it "should parse jwst headers" $ do
       JWSTHeaders bs <- getFixture
       let input = mconcat $ C8.lines bs

@@ -3,6 +3,7 @@
 
 module Telescope.Asdf.GWCS where
 
+import Control.Applicative ((<|>))
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
@@ -12,9 +13,11 @@ import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
 import Data.Time.Clock (UTCTime)
+import Effectful
 import GHC.Generics
 import Telescope.Asdf
 import Telescope.Asdf.Core
+import Telescope.Data.Parser
 import Telescope.Data.WCS (WCSAxis (..))
 import Text.Casing (quietSnake)
 
@@ -32,6 +35,19 @@ instance (ToAsdf inp, ToAsdf out) => ToAsdf (GWCS inp out) where
       ]
 
 
+instance (FromAsdf inp, FromAsdf out) => FromAsdf (GWCS inp out) where
+  parseValue = \case
+    Object o -> do
+      steps :: [Value] <- o .: "steps"
+      case steps of
+        [inpv, outv] -> do
+          inp <- parseValue inpv
+          out <- parseValue outv
+          pure $ GWCS inp out
+        other -> expected "GWCS steps: [input,output]" other
+    val -> expected "GWCS" val
+
+
 -- | A step contains a frame (like 'CelestialFrame') and a 'Transform a b'
 data GWCSStep frame = GWCSStep
   { frame :: frame
@@ -42,10 +58,11 @@ data GWCSStep frame = GWCSStep
 
 instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where
   schema _ = "tag:stsci.edu:gwcs/step-1.1.0"
+instance (FromAsdf frame) => FromAsdf (GWCSStep frame)
 
 
 newtype AxisName = AxisName Text
-  deriving newtype (IsString, ToAsdf, Show, Semigroup, Eq)
+  deriving newtype (IsString, ToAsdf, FromAsdf, Show, Semigroup, Eq)
 
 
 newtype AxisType = AxisType Text
@@ -88,24 +105,31 @@ data Transformation = Transformation
 
 
 instance ToAsdf Transformation where
-  schema t =
-    case t.forward of
-      Compose _ _ -> "!transform/compose-1.2.0"
-      Concat _ _ -> "!transform/concatenate-1.2.0"
-      Direct{schemaTag} -> schemaTag
-
-
+  schema t = schema t.forward
   toValue t =
-    inputFields <> case t.forward of
-      Compose a b -> Object [("forward", toNode [a, b])]
-      Concat a b -> Object [("forward", toNode [a, b])]
-      Direct{fields} -> fields
+    Object
+      [ ("inputs", toNode t.inputs)
+      , ("outputs", toNode t.outputs)
+      ]
+      <> toValue t.forward
+
+
+instance FromAsdf Transformation where
+  parseNode (Node sch _ val) = do
+    case val of
+      Object o -> do
+        inps <- o .: "inputs"
+        outs <- o .: "outputs"
+        frwd <- parseNode (Node sch Nothing (Object $ filter (not . isDirectKey) o))
+        pure $ Transformation inps outs frwd
+      other -> expected "Transformation" other
    where
-    inputFields =
-      Object
-        [ ("inputs", toNode t.inputs)
-        , ("outputs", toNode t.outputs)
-        ]
+    isDirectKey (k, _) =
+      k == "inputs" || k == "outputs"
+
+
+  -- parse a direct forward transformation using the logic defined in parseNode
+  parseValue val = parseNode (Node mempty Nothing val)
 
 
 data Forward
@@ -113,6 +137,60 @@ data Forward
   | Concat Transformation Transformation
   | Direct {schemaTag :: SchemaTag, fields :: Value}
   deriving (Show, Eq)
+
+
+instance ToAsdf Forward where
+  schema (Compose _ _) = "!transform/compose-1.2.0"
+  schema (Concat _ _) = "!transform/concatenate-1.2.0"
+  schema (Direct sch _) = sch
+
+
+  toValue = \case
+    Compose a b -> Object [("forward", toNode [a, b])]
+    Concat a b -> Object [("forward", toNode [a, b])]
+    Direct{fields} -> fields
+
+
+instance FromAsdf Forward where
+  parseNode (Node sch _ val) =
+    case sch of
+      "!transform/compose-1.2.0" -> parseCompose val
+      "!transform/concatenate-1.2.0" -> parseConcat val
+      _ -> parseDirect sch val
+
+
+  parseValue v =
+    -- parse it blindly: compose and concat might match the same one!
+    runParserAlts (expected "Forward" v) $ do
+      tryParserEmpty (parseCompose v) <|> tryParserEmpty (parseConcat v) <|> tryParserEmpty (parseDirect "..." v)
+
+
+parseCompose :: (Parser :> es) => Value -> Eff es Forward
+parseCompose = \case
+  Object o -> do
+    res <- o .: "forward"
+    case res of
+      Just [a, b] -> pure $ Compose a b
+      fwd -> expected "Compose a b" fwd
+  val -> expected "Compose a b" val
+
+
+parseConcat :: (Parser :> es) => Value -> Eff es Forward
+parseConcat = \case
+  Object o -> do
+    res <- o .: "forward"
+    case res of
+      Just [a, b] -> pure $ Concat a b
+      fwd -> expected "Concat a b" fwd
+  val -> expected "Concat a b" val
+
+
+parseDirect :: (Parser :> es) => SchemaTag -> Value -> Eff es Forward
+parseDirect sch = \case
+  Object o -> do
+    a <- parseValue (Object o)
+    pure $ Direct sch a
+  val -> expected "Direct a" val
 
 
 {- | A Transform specifies how we manipulate a type in a pipeline
@@ -277,6 +355,24 @@ instance ToAsdf SpectralFrame where
       , ("axes_order", toNode [f.axisOrder])
       , ("axis_physical_types", toNode [String "em.wl"])
       , ("unit", toNode [Nanometers])
+      ]
+
+
+data TemporalFrame = TemporalFrame
+  { name :: Text
+  , time :: UTCTime
+  , axisOrder :: Int
+  }
+instance ToAsdf TemporalFrame where
+  schema _ = "tag:stsci.edu:gwcs/temporal_frame-1.0.0"
+  toValue f =
+    Object
+      [ ("name", toNode f.name)
+      , ("axis_names", toNode [String "time"])
+      , ("axes_order", toNode [f.axisOrder])
+      , ("axis_physical_types", toNode [String "time"])
+      , ("reference_frame", toNode f.time)
+      , ("unit", toNode [Seconds])
       ]
 
 

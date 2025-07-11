@@ -173,6 +173,10 @@ parseKeyword k h =
     Just v -> parseAt (Child k) $ parseKeywordValue v
 
 
+genericToHeader :: (Generic a, GToHeader (Rep a)) => a -> Header
+genericToHeader = gToHeader . from
+
+
 class GToHeader f where
   gToHeader :: f p -> Header
 
@@ -200,6 +204,10 @@ instance {-# OVERLAPS #-} (ToKeyword a, Selector s) => GToHeader (M1 S s (K1 R (
 
 instance {-# OVERLAPS #-} (ToHeader a, Selector s) => GToHeader (M1 S s (K1 R (HeaderFor a))) where
   gToHeader (M1 (K1 (HeaderFor a))) = toHeader a
+
+
+genericParseHeader :: (Generic a, GFromHeader (Rep a), Parser :> es) => Header -> Eff es a
+genericParseHeader h = to <$> gParseHeader h
 
 
 class GFromHeader f where

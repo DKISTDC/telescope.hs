@@ -1,13 +1,17 @@
 module Test.Asdf.GWCSSpec where
 
+import Data.ByteString.Char8 (unpack)
 import Data.List.NonEmpty qualified as NE
+import Effectful
 import GHC.Generics (Generic)
 import Skeletest
 import Skeletest.Predicate qualified as P
+import Telescope.Asdf qualified as Asdf
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.GWCS
 import Telescope.Asdf.Node
+import Telescope.Data.Parser
 import Telescope.Data.WCS
 import Test.Asdf.ClassSpec (expectObject)
 
@@ -24,7 +28,7 @@ spec = do
 
 
 toAsdfSpec :: Spec
-toAsdfSpec = do
+toAsdfSpec = withMarkers ["focus"] $ do
   describe "Coordinate Frames" $ do
     it "should auto number axes order" $ do
       o <- expectObject $ toValue frame
@@ -42,6 +46,54 @@ toAsdfSpec = do
               lookup "axes_order" f2 `shouldBe` Just (toNode @[Int] [0, 1])
             _ -> fail $ "Expected frame objects" ++ show ns
         f -> fail $ "Expected frames" ++ show f
+
+  describe "Transformation" $ do
+    it "encodes direct transformation" $ do
+      let t = Transformation ["one", "two"] ["x", "y"] (Direct "!schema" (Object [("key", fromValue (String "hello"))]))
+      let Node sch _ val = toNode t
+      sch `shouldBe` "!schema"
+
+      o <- expectObject val
+      fmap fst o `shouldBe` ["inputs", "outputs", "key"]
+
+      lookup "key" o `shouldBe` Just (fromValue (String "hello"))
+
+    it "decodes direct transformation" $ do
+      let t = Transformation ["one", "two"] ["x", "y"] (Direct "!schema" (Object [("key", fromValue (String "hello"))]))
+      let val = toValue t
+      let res :: Either ParseError Transformation = runParserPure $ parseValue val
+      case res of
+        Left e -> failTest (show e)
+        Right a -> do
+          a.inputs `shouldBe` t.inputs
+          a.outputs `shouldBe` t.outputs
+          a.forward.fields `shouldBe` t.forward.fields
+
+    it "encodes compose" $ do
+      let d = Direct "!basic" (Object [])
+      toValue d `shouldBe` Object []
+
+      let basic = Transformation ["a"] ["b"] (Direct "!basic" (Object []))
+      let t = Transformation ["one"] ["x"] (Compose basic basic)
+      let Node sch _ val = toNode t
+      sch `shouldBe` "!transform/compose-1.2.0"
+
+      o <- expectObject val
+      lookup "inputs" o `shouldBe` Just (fromValue $ Array [fromValue $ String "one"])
+      lookup "outputs" o `shouldBe` Just (fromValue $ Array [fromValue $ String "x"])
+
+      case lookup "forward" o of
+        Just (Node _ _ (Array [na, nb])) -> do
+          na `shouldBe` toNode basic
+          nb `shouldBe` toNode basic
+        _ -> failTest ".forward == [a, b]"
+
+    it "decodes compose" $ do
+      let basic = Transformation ["a"] ["b"] (Direct "!basic" (Object []))
+      let comp = Transformation ["one"] ["x"] (Compose basic basic)
+      let node = toNode comp
+      let res = runParserPure $ parseNode node
+      res `shouldBe` Right comp
  where
   axes = [FrameAxis 0 "one" "type" Pixel, FrameAxis 1 "two" "type" Pixel]
   frame = CoordinateFrame "woot" (NE.fromList axes)

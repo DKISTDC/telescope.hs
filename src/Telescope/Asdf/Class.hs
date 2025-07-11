@@ -95,6 +95,10 @@ class FromAsdf a where
   parseValue val = expected "Object" val
 
 
+  parseNode :: (Parser :> es) => Node -> Eff es a
+  parseNode (Node _ _ v) = parseValue v
+
+
 instance ToAsdf Int where
   toValue n = toValue (fromIntegral @Int @Int64 n)
 instance FromAsdf Int where
@@ -358,11 +362,6 @@ instance FromAsdf UTCTime where
     case res of
       Left e -> parseFail e
       Right a -> pure a
-
-
--- | Parse a node, ignoring the schema tag
-parseNode :: (FromAsdf a, Parser :> es) => Node -> Eff es a
-parseNode (Node _ _ v) = parseValue v
 
 
 {- | Parse a key from an 'Object'

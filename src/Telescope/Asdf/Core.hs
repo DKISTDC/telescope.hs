@@ -27,6 +27,7 @@ data Unit
   | Meters
   | Kilometers
   | Arcseconds
+  | Seconds
   | Unit Text
   deriving (Eq)
 
@@ -39,6 +40,7 @@ instance ToAsdf Unit where
     Degrees -> "deg"
     Nanometers -> "nm"
     Kilometers -> "km"
+    Seconds -> "s"
     Arcseconds -> "arcsec"
     Meters -> "m"
     (Unit t) -> String t
@@ -51,6 +53,7 @@ instance FromAsdf Unit where
     String "nm" -> pure Nanometers
     String "km" -> pure Kilometers
     String "m" -> pure Meters
+    String "s" -> pure Seconds
     String "arcsec" -> pure Arcseconds
     String t -> pure $ Unit t
     val -> expected "String" val

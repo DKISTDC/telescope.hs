@@ -1,6 +1,21 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Telescope.Data.Parser where
+module Telescope.Data.Parser
+  ( Parser (..)
+  , runParser
+  , runParserPure
+  , runParserAlts
+  , Ref (..)
+  , Path (..)
+  , ParseError (..)
+  , expected
+  , parseFail
+  , parseAt
+  , Alternative (..)
+  , NonDet
+  , tryParserEmpty
+  )
+where
 
 import Control.Monad.Catch (Exception)
 import Data.List (intercalate)
@@ -8,6 +23,7 @@ import Data.Text (Text, unpack)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static
+import Effectful.NonDet
 import Effectful.Reader.Static
 
 
@@ -18,16 +34,6 @@ data Parser :: Effect where
 
 type instance DispatchOf Parser = 'Dynamic
 
-
--- runParser
---   :: Eff (Parser : es) a
---   -> Eff es (Either ParseError a)
--- runParser = reinterpret (runErrorNoCallStack @ParseError . runReader @Path mempty) $ \env -> \case
---   ParseFail e -> do
---     path <- ask @Path
---     throwError $ ParseFailure path e
---   PathMod mp m -> do
---     localSeqUnlift env $ \unlift -> local mp (unlift m)
 
 runParser
   :: (Error ParseError :> es)
@@ -45,8 +51,21 @@ runParserPure :: Eff '[Parser, Error ParseError] a -> Either ParseError a
 runParserPure = runPureEff . runErrorNoCallStack @ParseError . runParser
 
 
--- copied from Effectful.Reader.Dynamic
--- localSeqUnlift env $ \unlift -> local (<> Path [p]) (unlift m)
+runParserAlts :: (Parser :> es) => Eff es a -> Eff (NonDet : es) a -> Eff es a
+runParserAlts err eff = do
+  res <- runNonDet OnEmptyKeep eff
+  case res of
+    Left _ -> err
+    Right a -> pure a
+
+
+tryParserEmpty :: (NonDet :> es, Parser :> es) => Eff (Parser : Error ParseError : es) a -> Eff es a
+tryParserEmpty eff = do
+  res <- runErrorNoCallStack @ParseError $ runParser eff
+  case res of
+    Left _ -> empty
+    Right a -> pure a
+
 
 data ParseError
   = ParseFailure Path String
