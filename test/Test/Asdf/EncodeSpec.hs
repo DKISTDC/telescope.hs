@@ -33,6 +33,22 @@ spec = do
   describe "external verification" externalSpec
   describe "references" referenceSpec
   describe "anchors" anchorSpec
+  describe "schemas" schemaSpec
+
+
+schemaSpec :: Spec
+schemaSpec = withMarkers ["focus"] $ do
+  it "unit nodes have correct schema" $ do
+    toNode Nanometers `shouldBe` Node "!unit/unit-1.0.0" Nothing (String "nm")
+
+  it "encoded unit has correct schema" $ do
+    (out, _) <- runAsdfM $ encodeNode (toNode Nanometers)
+    out `shouldBe` "!unit/unit-1.0.0 nm\n"
+
+  it "encoded quantity has correct schema" $ do
+    let q :: Quantity = Quantity Nanometers (Number 854.2)
+    (out, _) <- runAsdfM $ encodeNode $ toNode q
+    out `shouldBe` "!unit/quantity-1.2.0 {unit: !unit/unit-1.0.0 nm, value: 854.2}\n"
 
 
 anchorSpec :: Spec

@@ -179,6 +179,12 @@ instance {-# OVERLAPS #-} FromAsdf Object where
     node -> expected "Object" node
 
 
+instance ToAsdf () where
+  toValue () = Null
+instance FromAsdf () where
+  parseValue _ = pure ()
+
+
 instance (ToAsdf a, ToAsdf b) => ToAsdf (a, b) where
   toValue (a, b) = Array [toNode a, toNode b]
 instance (FromAsdf a, FromAsdf b) => FromAsdf (a, b) where
@@ -290,8 +296,10 @@ instance FromAsdf Value where
 
 
 instance ToAsdf Node where
+  toNode n = n
   toValue (Node _ _ val) = val
 instance FromAsdf Node where
+  parseNode = pure
   parseValue val = pure $ Node mempty Nothing val
 
 

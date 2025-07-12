@@ -1,12 +1,9 @@
 module Test.Asdf.GWCSSpec where
 
-import Data.ByteString.Char8 (unpack)
 import Data.List.NonEmpty qualified as NE
-import Effectful
 import GHC.Generics (Generic)
 import Skeletest
 import Skeletest.Predicate qualified as P
-import Telescope.Asdf qualified as Asdf
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
 import Telescope.Asdf.GWCS
@@ -28,7 +25,7 @@ spec = do
 
 
 toAsdfSpec :: Spec
-toAsdfSpec = withMarkers ["focus"] $ do
+toAsdfSpec = do
   describe "Coordinate Frames" $ do
     it "should auto number axes order" $ do
       o <- expectObject $ toValue frame

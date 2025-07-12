@@ -12,7 +12,7 @@ import Telescope.Data.Parser
 spec :: Spec
 spec = do
   describe "Data.Parser" $ do
-    describe "parsing" $ withMarkers ["focus"] $ do
+    describe "parsing" $ do
       it "parses something" $ do
         res <- runParseTest $ do
           pure "hello"

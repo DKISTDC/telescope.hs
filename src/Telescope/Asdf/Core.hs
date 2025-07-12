@@ -68,7 +68,7 @@ data Quantity = Quantity
 
 
 instance ToAsdf Quantity where
-  schema _ = "!unit/quantity-1.1.0"
+  schema _ = "!unit/quantity-1.2.0"
 instance FromAsdf Quantity
 
 

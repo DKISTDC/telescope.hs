@@ -48,7 +48,7 @@ basicSpec = do
 
 
 exampleSpec :: Spec
-exampleSpec = do
+exampleSpec = withMarkers ["focus"] $ do
   it "should parse example.asdf" $ do
     inp <- BS.readFile "samples/example.asdf"
     e <- decodeM @Example inp
@@ -56,11 +56,40 @@ exampleSpec = do
     e.foo `shouldBe` 42
     e.items `shouldBe` ["one", "two", "three", "four", "five"]
 
+  it "parses quantity and unit with expected schemas" $ do
+    inp <- BS.readFile "samples/example.asdf"
+
+    Object o <- decodeM @Value inp
+
+    case lookup "intercept" o of
+      Just (Node sch _ (Object q)) -> do
+        sch `shouldBe` "!unit/quantity-1.2.0"
+        case lookup "unit" q of
+          Just (Node schq _ u) -> do
+            schq `shouldBe` "!unit/unit-1.0.0"
+            u `shouldBe` String "nm"
+          _ -> failTest "expected document.intercept.value"
+      _ -> failTest "expected document.intercept"
+
+  it "parses quantity schema from Generic" $ do
+    inp <- BS.readFile "samples/example.asdf"
+    ex2 <- decodeM @Example2 inp
+    ex2.intercept.schema `shouldBe` "!unit/quantity-1.2.0"
+
+    let q = Quantity Nanometers (Number 854.2)
+    ex2.intercept.schema `shouldBe` (toNode q).schema
+
 
 data Example = Example
   { foo :: Int
   , name :: Text
   , items :: [Text]
+  }
+  deriving (Generic, FromAsdf, ToAsdf)
+
+
+data Example2 = Example2
+  { intercept :: Node
   }
   deriving (Generic, FromAsdf, ToAsdf)
 

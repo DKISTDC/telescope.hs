@@ -21,7 +21,9 @@ instance Show SchemaTag where
 
 
 schemaTag :: String -> SchemaTag
-schemaTag = SchemaTag . Just . pack
+schemaTag "" = SchemaTag Nothing
+schemaTag s =
+  SchemaTag $ Just $ T.replace "tag:stsci.edu:asdf/" "!" $ pack s
 
 
 instance IsString SchemaTag where

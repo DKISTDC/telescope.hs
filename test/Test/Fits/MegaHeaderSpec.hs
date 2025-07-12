@@ -227,7 +227,7 @@ comments = do
 
 
 continue :: Spec
-continue = describe "Continue Keyword" $ withMarkers ["continue"] $ do
+continue = describe "Continue Keyword" $ do
   it "parses a normal string" $ do
     let input = "'normal string  '     END"
     t <- parse parseStringContinue input

@@ -57,7 +57,7 @@ encodeStream con = do
   format =
     Yaml.defaultFormatOptions
       & Yaml.setTagRendering Yaml.renderUriTags
-      & Yaml.setWidth (Just 100)
+      & Yaml.setWidth Nothing -- no column limit
 
 
 -- | Decode a 'ByteString' to a 'FromAsdf'

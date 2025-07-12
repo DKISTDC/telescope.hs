@@ -339,17 +339,14 @@ event = do
 
 
 parseSchemaTag :: Tag -> SchemaTag
-parseSchemaTag (UriTag s) =
-  let t = pack s
-      mt = T.stripPrefix "tag:stsci.edu:asdf/" t
-   in SchemaTag (maybe (pure t) pure mt)
+parseSchemaTag (UriTag s) = schemaTag s
 parseSchemaTag _ = mempty
 
 
 isNDArray :: SchemaTag -> Bool
 isNDArray (SchemaTag Nothing) = False
 isNDArray (SchemaTag (Just t)) =
-  "core/ndarray" `T.isPrefixOf` t
+  "!core/ndarray" `T.isPrefixOf` t
 
 
 expect :: (Error YamlError :> es) => Event -> ConduitT Event o (Eff es) ()
