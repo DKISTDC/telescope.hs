@@ -3,7 +3,7 @@
 
 module Telescope.Asdf.GWCS where
 
-import Control.Applicative ((<|>))
+import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
@@ -270,6 +270,7 @@ data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi 
   deriving (Generic)
 data Linear a = Linear1d {intercept :: Double, slope :: Double}
   deriving (Generic)
+data Mapping = Mapping {mapping :: [Int]}
 
 
 instance ToAsdf Identity where
@@ -311,6 +312,12 @@ instance ToAsdf Affine where
           [ ("matrix", toNode $ M.toLists a.matrix)
           , ("translation", toNode [tx, ty])
           ]
+
+
+instance ToAsdf Mapping where
+  schema _ = "!transform/remap_axes-1.4.0"
+  toValue m =
+    Object [("mapping", toNode $ toList m.mapping)]
 
 
 -- Frames -----------------------------------------------
@@ -540,6 +547,8 @@ instance (ToAxes a, ToAxes b, ToAxes c) => ToAxes (a, b, c) where
   toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c]
 instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
   toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
+instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d, ToAxes e) => ToAxes (a, b, c, d, e) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d, toAxes @e]
 
 
 -- Transforms -----------------------------------------------
@@ -577,7 +586,7 @@ data Alpha deriving (Generic, ToAxes)
 data Delta deriving (Generic, ToAxes)
 
 
-identity :: (ToAxes bs, ToAxes cs) => Transform bs cs
+identity :: (ToAxes a) => Transform a a
 identity = transform Identity
 
 
@@ -604,6 +613,8 @@ instance (Datatype d) => GTypeName (D1 d f) where
 
 
 type family TConcat a b where
+  TConcat (a, b, c, d) e = (a, b, c, d, e)
+  TConcat a (b, c, d, e) = (a, b, c, d, e)
   TConcat (a, b, c) d = (a, b, c, d)
   TConcat a (b, c, d) = (a, b, c, d)
   TConcat (a, b) (c, d) = (a, b, c, d)
