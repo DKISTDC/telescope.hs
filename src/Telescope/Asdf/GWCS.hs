@@ -12,7 +12,7 @@ import Data.Massiv.Array qualified as M
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
-import Data.Time.Clock (UTCTime)
+import Data.Time.LocalTime (LocalTime)
 import Effectful
 import GHC.Generics
 import Telescope.Asdf
@@ -315,7 +315,7 @@ instance ToAsdf Affine where
 
 
 instance ToAsdf Mapping where
-  schema _ = "!transform/remap_axes-1.4.0"
+  schema _ = "!transform/remap_axes-1.3.0"
   toValue m =
     Object [("mapping", toNode $ toList m.mapping)]
 
@@ -367,7 +367,7 @@ instance ToAsdf SpectralFrame where
 
 data TemporalFrame = TemporalFrame
   { name :: Text
-  , time :: UTCTime
+  , time :: LocalTime
   , axisOrder :: Int
   }
 instance ToAsdf TemporalFrame where
@@ -425,8 +425,7 @@ instance ToAsdf ICRSFrame where
 
 data HelioprojectiveFrame = HelioprojectiveFrame
   { coordinates :: Cartesian3D
-  , obstime :: UTCTime
-  , rsun :: Quantity
+  , observation :: HelioObservation
   }
 instance ToAsdf HelioprojectiveFrame where
   schema _ = "tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0"
@@ -434,10 +433,18 @@ instance ToAsdf HelioprojectiveFrame where
     Object
       [("frame_attributes", fromValue attributes)]
    where
-    observer = HelioObserver (CartesianRepresentation frame.coordinates) observation
-    observation = HelioObservation frame.obstime frame.rsun
+    observer = HelioObserver (CartesianRepresentation frame.coordinates) frame.observation
     attributes =
-      Object [("observer", toNode observer)] <> toValue observation
+      Object [("observer", toNode observer)] <> toValue frame.observation
+instance FromAsdf HelioprojectiveFrame where
+  parseValue = \case
+    Object o -> do
+      atts :: Object <- o .: "frame_attributes"
+      observer :: HelioObserver <- atts .: "observer"
+      observation <- parseValue (Object atts)
+      let CartesianRepresentation coords = observer.coordinates
+      pure $ HelioprojectiveFrame coords observation
+    other -> expected "helioprojective frame" other
 
 
 -- reference_frame: !<tag:sunpy.org:sunpy/coordinates/frames/helioprojective-1.0.0>
@@ -476,13 +483,20 @@ instance ToAsdf HelioObserver where
       [ ("data", toNode obs.coordinates)
       , ("frame_attributes", toNode obs.observation)
       ]
+instance FromAsdf HelioObserver where
+  parseValue = \case
+    Object o -> do
+      d <- o .: "data"
+      atts <- o .: "frame_attributes"
+      pure $ HelioObserver d atts
+    other -> expected "Helioobserver" other
 
 
 data HelioObservation = HelioObservation
-  { obstime :: UTCTime
+  { obstime :: LocalTime
   , rsun :: Quantity
   }
-  deriving (Generic, ToAsdf)
+  deriving (Generic, ToAsdf, FromAsdf)
 
 
 data Cartesian3D = Cartesian3D
@@ -490,7 +504,7 @@ data Cartesian3D = Cartesian3D
   , y :: Quantity
   , z :: Quantity
   }
-  deriving (Generic, ToAsdf)
+  deriving (Generic, ToAsdf, FromAsdf)
 
 
 data CartesianRepresentation dims = CartesianRepresentation dims
@@ -504,6 +518,11 @@ instance (ToAsdf dims) => ToAsdf (CartesianRepresentation dims) where
   schema _ = "tag:astropy.org:astropy/coordinates/representation-1.0.0"
   toValue (CartesianRepresentation dims) =
     Object [("components", toNode dims), ("type", "CartesianRepresentation")]
+instance (FromAsdf dims) => FromAsdf (CartesianRepresentation dims) where
+  parseValue = \case
+    Object o -> do
+      CartesianRepresentation <$> o .: "components"
+    other -> expected "CartesianRepresentation" other
 
 
 data FrameAxis = FrameAxis
@@ -514,7 +533,7 @@ data FrameAxis = FrameAxis
   }
 
 
-data CompositeFrame as = CompositeFrame as
+data CompositeFrame as = CompositeFrame {frames :: as}
 instance (ToAsdf as) => ToAsdf (CompositeFrame as) where
   schema _ = "tag:stsci.edu:gwcs/composite_frame-1.0.0"
   toValue (CompositeFrame as) =
@@ -522,6 +541,11 @@ instance (ToAsdf as) => ToAsdf (CompositeFrame as) where
       [ ("name", toNode $ String "CompositeFrame")
       , ("frames", toNode as)
       ]
+instance (FromAsdf as) => FromAsdf (CompositeFrame as) where
+  parseValue = \case
+    Object o -> do
+      CompositeFrame <$> o .: "name"
+    other -> expected "CompositeFrame" other
 
 
 -- ToAxes -----------------------------------------------
@@ -549,6 +573,8 @@ instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d) => ToAxes (a, b, c, d) where
   toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d]
 instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d, ToAxes e) => ToAxes (a, b, c, d, e) where
   toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d, toAxes @e]
+instance (ToAxes a, ToAxes b, ToAxes c, ToAxes d, ToAxes e, ToAxes f) => ToAxes (a, b, c, d, e, f) where
+  toAxes = mconcat [toAxes @a, toAxes @b, toAxes @c, toAxes @d, toAxes @e, toAxes @f]
 
 
 -- Transforms -----------------------------------------------
@@ -613,11 +639,17 @@ instance (Datatype d) => GTypeName (D1 d f) where
 
 
 type family TConcat a b where
+  TConcat a (b, c, d, e, f) = (a, b, c, d, e, f)
+  TConcat (a, b) (c, d, e, f) = (a, b, c, d, e, f)
+  TConcat (a, b, c) (d, e, f) = (a, b, c, d, e, f)
+  TConcat (a, b, c, d) (e, f) = (a, b, c, d, e, f)
+  TConcat (a, b, c, d, e) f = (a, b, c, d, e, f)
+  TConcat (a, b) (c, d, e) = (a, b, c, d, e)
+  TConcat (a, b, c) (d, e) = (a, b, c, d, e)
   TConcat (a, b, c, d) e = (a, b, c, d, e)
-  TConcat a (b, c, d, e) = (a, b, c, d, e)
-  TConcat (a, b, c) d = (a, b, c, d)
   TConcat a (b, c, d) = (a, b, c, d)
   TConcat (a, b) (c, d) = (a, b, c, d)
-  TConcat (a, b) c = (a, b, c)
+  TConcat (a, b, c) d = (a, b, c, d)
   TConcat a (b, c) = (a, b, c)
+  TConcat (a, b) c = (a, b, c)
   TConcat a b = (a, b)

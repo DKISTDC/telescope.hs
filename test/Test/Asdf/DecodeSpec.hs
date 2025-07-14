@@ -63,7 +63,7 @@ exampleSpec = withMarkers ["focus"] $ do
 
     case lookup "intercept" o of
       Just (Node sch _ (Object q)) -> do
-        sch `shouldBe` "!unit/quantity-1.2.0"
+        sch `shouldBe` "!unit/quantity-1.1.0"
         case lookup "unit" q of
           Just (Node schq _ u) -> do
             schq `shouldBe` "!unit/unit-1.0.0"
@@ -74,7 +74,7 @@ exampleSpec = withMarkers ["focus"] $ do
   it "parses quantity schema from Generic" $ do
     inp <- BS.readFile "samples/example.asdf"
     ex2 <- decodeM @Example2 inp
-    ex2.intercept.schema `shouldBe` "!unit/quantity-1.2.0"
+    ex2.intercept.schema `shouldBe` "!unit/quantity-1.1.0"
 
     let q = Quantity Nanometers (Number 854.2)
     ex2.intercept.schema `shouldBe` (toNode q).schema

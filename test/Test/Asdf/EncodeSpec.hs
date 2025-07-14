@@ -48,7 +48,7 @@ schemaSpec = withMarkers ["focus"] $ do
   it "encoded quantity has correct schema" $ do
     let q :: Quantity = Quantity Nanometers (Number 854.2)
     (out, _) <- runAsdfM $ encodeNode $ toNode q
-    out `shouldBe` "!unit/quantity-1.2.0 {unit: !unit/unit-1.0.0 nm, value: 854.2}\n"
+    out `shouldBe` "!unit/quantity-1.1.0 {unit: !unit/unit-1.0.0 nm, value: 854.2}\n"
 
 
 anchorSpec :: Spec

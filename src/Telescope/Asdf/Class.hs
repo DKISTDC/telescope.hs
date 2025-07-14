@@ -10,6 +10,7 @@ import Data.Scientific (fromFloatDigits, toRealFloat)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601
+import Data.Time.LocalTime (LocalTime)
 import Effectful
 import Effectful.Fail
 import GHC.Generics
@@ -173,6 +174,8 @@ instance {-# OVERLAPPABLE #-} (ToAsdf a) => ToAsdf (NonEmpty a) where
   toValue as = toValue $ NE.toList as
 
 
+instance {-# OVERLAPS #-} ToAsdf Object where
+  toValue = Object
 instance {-# OVERLAPS #-} FromAsdf Object where
   parseValue = \case
     Object o -> pure o
@@ -364,6 +367,16 @@ instance ToAsdf UTCTime where
   schema _ = "!time/time-1.1.0"
   toValue t = String $ pack $ iso8601Show t
 instance FromAsdf UTCTime where
+  parseValue v = do
+    ts <- parseValue @String v
+    res <- runFail $ iso8601ParseM ts
+    case res of
+      Left e -> parseFail e
+      Right a -> pure a
+instance ToAsdf LocalTime where
+  schema _ = "!time/time-1.1.0"
+  toValue t = String $ pack $ iso8601Show t
+instance FromAsdf LocalTime where
   parseValue v = do
     ts <- parseValue @String v
     res <- runFail $ iso8601ParseM ts

@@ -4,6 +4,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Text qualified as T
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
+import Data.Time.LocalTime (LocalTime)
 import Effectful
 import GHC.Generics
 import Telescope.Data.Axes (AxisOrder (..))
@@ -80,6 +81,17 @@ instance FromKeyword UTCTime where
         Nothing -> expected "UTCTime" t
         Just utc -> pure utc
     v -> expected "UTCTime" v
+
+
+instance ToKeyword LocalTime where
+  toKeywordValue utc = String $ pack $ iso8601Show utc
+instance FromKeyword LocalTime where
+  parseKeywordValue = \case
+    String t -> do
+      case iso8601ParseM $ unpack t of
+        Nothing -> expected "LocalTime" t
+        Just lt -> pure lt
+    v -> expected "LocalTime" v
 
 
 instance ToKeyword CUnit where
