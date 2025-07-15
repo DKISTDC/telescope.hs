@@ -652,4 +652,6 @@ type family TConcat a b where
   TConcat (a, b, c) d = (a, b, c, d)
   TConcat a (b, c) = (a, b, c)
   TConcat (a, b) c = (a, b, c)
+  TConcat a () = a
+  TConcat () b = b
   TConcat a b = (a, b)

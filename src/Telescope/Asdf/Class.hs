@@ -224,6 +224,35 @@ instance (FromAsdf a, FromAsdf b, FromAsdf c, FromAsdf d) => FromAsdf (a, b, c, 
     node -> expected "[a, b, c, d]" node
 
 
+instance (ToAsdf a, ToAsdf b, ToAsdf c, ToAsdf d, ToAsdf e) => ToAsdf (a, b, c, d, e) where
+  toValue (a, b, c, d, e) = Array [toNode a, toNode b, toNode c, toNode d, toNode e]
+instance (FromAsdf a, FromAsdf b, FromAsdf c, FromAsdf d, FromAsdf e) => FromAsdf (a, b, c, d, e) where
+  parseValue = \case
+    Array [na, nb, nc, nd] -> do
+      a <- parseValue na.value
+      b <- parseValue nb.value
+      c <- parseValue nc.value
+      d <- parseValue nd.value
+      e <- parseValue nd.value
+      pure (a, b, c, d, e)
+    node -> expected "[a, b, c, d, e]" node
+
+
+instance (ToAsdf a, ToAsdf b, ToAsdf c, ToAsdf d, ToAsdf e, ToAsdf f) => ToAsdf (a, b, c, d, e, f) where
+  toValue (a, b, c, d, e, f) = Array [toNode a, toNode b, toNode c, toNode d, toNode e, toNode f]
+instance (FromAsdf a, FromAsdf b, FromAsdf c, FromAsdf d, FromAsdf e, FromAsdf f) => FromAsdf (a, b, c, d, e, f) where
+  parseValue = \case
+    Array [na, nb, nc, nd] -> do
+      a <- parseValue na.value
+      b <- parseValue nb.value
+      c <- parseValue nc.value
+      d <- parseValue nd.value
+      e <- parseValue nd.value
+      f <- parseValue nd.value
+      pure (a, b, c, d, e, f)
+    node -> expected "[a, b, c, d, e, f]" node
+
+
 -- they will always serialize to Array
 instance FromAsdf [Text] where
   parseValue = parseAnyList
