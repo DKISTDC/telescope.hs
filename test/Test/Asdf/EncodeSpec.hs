@@ -37,7 +37,7 @@ spec = do
 
 
 schemaSpec :: Spec
-schemaSpec = withMarkers ["focus"] $ do
+schemaSpec = do
   it "unit nodes have correct schema" $ do
     toNode Nanometers `shouldBe` Node "!unit/unit-1.0.0" Nothing (String "nm")
 

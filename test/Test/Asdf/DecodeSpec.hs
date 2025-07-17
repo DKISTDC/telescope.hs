@@ -48,7 +48,7 @@ basicSpec = do
 
 
 exampleSpec :: Spec
-exampleSpec = withMarkers ["focus"] $ do
+exampleSpec = do
   it "should parse example.asdf" $ do
     inp <- BS.readFile "samples/example.asdf"
     e <- decodeM @Example inp

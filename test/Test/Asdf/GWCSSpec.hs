@@ -46,7 +46,7 @@ toAsdfSpec = do
 
   describe "Transformation" $ do
     it "encodes direct transformation" $ do
-      let t = Transformation ["one", "two"] ["x", "y"] (Direct "!schema" (Object [("key", fromValue (String "hello"))]))
+      let t = Transformation ["one", "two"] ["x", "y"] (Direct $ Node "!schema" Nothing (Object [("key", fromValue (String "hello"))]))
       let Node sch _ val = toNode t
       sch `shouldBe` "!schema"
 
@@ -56,21 +56,21 @@ toAsdfSpec = do
       lookup "key" o `shouldBe` Just (fromValue (String "hello"))
 
     it "decodes direct transformation" $ do
-      let t = Transformation ["one", "two"] ["x", "y"] (Direct "!schema" (Object [("key", fromValue (String "hello"))]))
-      let val = toValue t
-      let res :: Either ParseError Transformation = runParserPure $ parseValue val
+      let t = Transformation ["one", "two"] ["x", "y"] (Direct $ Node "!schema" Nothing (Object [("key", fromValue (String "hello"))]))
+      let node = toNode t
+      let res :: Either ParseError Transformation = runParserPure $ parseNode node
       case res of
         Left e -> failTest (show e)
         Right a -> do
           a.inputs `shouldBe` t.inputs
           a.outputs `shouldBe` t.outputs
-          a.forward.fields `shouldBe` t.forward.fields
+          a.forward `shouldBe` t.forward
 
     it "encodes compose" $ do
-      let d = Direct "!basic" (Object [])
+      let d = Direct $ Node "!basic" Nothing (Object [])
       toValue d `shouldBe` Object []
 
-      let basic = Transformation ["a"] ["b"] (Direct "!basic" (Object []))
+      let basic = Transformation ["a"] ["b"] (Direct $ Node "!basic" Nothing (Object []))
       let t = Transformation ["one"] ["x"] (Compose basic basic)
       let Node sch _ val = toNode t
       sch `shouldBe` "!transform/compose-1.2.0"
@@ -86,7 +86,7 @@ toAsdfSpec = do
         _ -> failTest ".forward == [a, b]"
 
     it "decodes compose" $ do
-      let basic = Transformation ["a"] ["b"] (Direct "!basic" (Object []))
+      let basic = Transformation ["a"] ["b"] (Direct $ Node "!basic" Nothing (Object []))
       let comp = Transformation ["one"] ["x"] (Compose basic basic)
       let node = toNode comp
       let res = runParserPure $ parseNode node

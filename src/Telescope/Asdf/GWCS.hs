@@ -135,20 +135,20 @@ instance FromAsdf Transformation where
 data Forward
   = Compose Transformation Transformation
   | Concat Transformation Transformation
-  | Direct {schemaTag :: SchemaTag, fields :: Value}
+  | Direct Node
   deriving (Show, Eq)
 
 
 instance ToAsdf Forward where
   schema (Compose _ _) = "!transform/compose-1.2.0"
   schema (Concat _ _) = "!transform/concatenate-1.2.0"
-  schema (Direct sch _) = sch
+  schema (Direct node) = node.schema
 
 
   toValue = \case
     Compose a b -> Object [("forward", toNode [a, b])]
     Concat a b -> Object [("forward", toNode [a, b])]
-    Direct{fields} -> fields
+    Direct node -> node.value
 
 
 instance FromAsdf Forward where
@@ -186,11 +186,7 @@ parseConcat = \case
 
 
 parseDirect :: (Parser :> es) => SchemaTag -> Value -> Eff es Forward
-parseDirect sch = \case
-  Object o -> do
-    a <- parseValue (Object o)
-    pure $ Direct sch a
-  val -> expected "Direct a" val
+parseDirect sch val = pure $ Direct $ Node sch Nothing val
 
 
 {- | A Transform specifies how we manipulate a type in a pipeline
@@ -216,7 +212,7 @@ transform a =
     $ Transformation
       (toAxes @bs)
       (toAxes @cs)
-    $ Direct (schema a) (toValue a)
+    $ Direct (toNode a)
 
 
 -- | Compose two transforms
@@ -404,7 +400,7 @@ frameAxesObject as =
   [ ("naxes", toNode $ NE.length as)
   , ("axes_names", toNode axesNames)
   , ("axes_order", toNode axesOrders)
-  , ("axes_physical_types", toNode axesPhysicalTypes)
+  , ("axis_physical_types", toNode axesPhysicalTypes)
   , ("unit", toNode units)
   ]
  where
@@ -412,7 +408,7 @@ frameAxesObject as =
   axesOrders = fmap (.axisOrder) as
   axesPhysicalTypes = fmap (physicalType . (.axisType)) as
   units = fmap (.unit) as
-  physicalType t = String "custom:" <> toValue t
+  physicalType = toValue
 
 
 -- numAxes = NE.length as
