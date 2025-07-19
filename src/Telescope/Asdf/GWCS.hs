@@ -267,6 +267,7 @@ data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi 
 data Linear a = Linear1d {intercept :: Double, slope :: Double}
   deriving (Generic)
 data Mapping = Mapping {mapping :: [Int]}
+data Const1D = Const1D Quantity
 
 
 instance ToAsdf Identity where
@@ -314,6 +315,19 @@ instance ToAsdf Mapping where
   schema _ = "!transform/remap_axes-1.3.0"
   toValue m =
     Object [("mapping", toNode $ toList m.mapping)]
+
+
+instance ToAsdf Const1D where
+  schema _ = "!transform/constant-1.2.0"
+  toValue (Const1D q) =
+    Object
+      [ ("dimensions", toNode $ Integer 1)
+      , ("value", toNode q)
+      ]
+instance FromAsdf Const1D where
+  parseValue val = do
+    o <- parseValue @Object val
+    Const1D <$> o .: "value"
 
 
 -- Frames -----------------------------------------------
