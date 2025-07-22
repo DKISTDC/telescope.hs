@@ -1,16 +1,19 @@
 module Test.Asdf.GWCSSpec where
 
+import Data.ByteString.Char8 qualified as C8
 import Data.List.NonEmpty qualified as NE
 import GHC.Generics (Generic)
 import Skeletest
 import Skeletest.Predicate qualified as P
 import Telescope.Asdf.Class
 import Telescope.Asdf.Core
+import Telescope.Asdf.Encoding (decodeM)
 import Telescope.Asdf.GWCS
 import Telescope.Asdf.Node
 import Telescope.Data.Parser
 import Telescope.Data.WCS
 import Test.Asdf.ClassSpec (expectObject)
+import Test.Asdf.DecodeSpec (parseIO)
 
 
 data X deriving (Generic, ToAxes)
@@ -21,7 +24,43 @@ data Z deriving (Generic, ToAxes)
 spec :: Spec
 spec = do
   describe "toAsdf" toAsdfSpec
+  describe "fromAsdf" fromAsdfSpec
   describe "transforms" transformSpec
+
+
+fromAsdfSpec :: Spec
+fromAsdfSpec = withMarkers ["focus"] $ do
+  describe "GWCS" $ do
+    it "parses Compose gwcsstep" $ do
+      let input =
+            C8.intercalate
+              "\n"
+              [ "!<tag:stsci.edu:gwcs/step-1.1.0>"
+              , "frame: []"
+              , "transform: !transform/compose-1.2.0"
+              , "  inputs: [x0, x1, x2, x3]"
+              , "  outputs: [x0, x1, x2, x3, x4]"
+              , "  forward:"
+              , "  - !transform/compose-1.2.0"
+              , "    inputs: [x, x0, x1, x1]"
+              , "    outputs: [y, lon, lat, y0, y1]"
+              , "    forward:"
+              , "    - !transform/woop-1.3.0"
+              , "      inputs: [x0, x1, x2, x3]"
+              , "      outputs: [x0, x1, x2, x3]"
+              , "      mapping: [1, 0, 2, 3]"
+              , "    - !transform/boop-1.2.0"
+              , "      inputs: [x, x0, x1, x1]"
+              , "      outputs: [y, lon, lat, y0, y1]"
+              , "  - !transform/scoop-1.2.0"
+              , "    inputs: [x, x0, x1, x1]"
+              , "    outputs: [y, lon, lat, y0, y1]"
+              ]
+      o <- decodeM @Object input
+      t :: Maybe Transformation <- parseIO $ o .: "transform"
+      case (.forward) <$> t of
+        Just (Compose _ _) -> pure ()
+        other -> failTest $ "Expected Compose but got: " <> show other
 
 
 toAsdfSpec :: Spec

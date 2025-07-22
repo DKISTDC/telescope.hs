@@ -279,6 +279,10 @@ parseAnyList = \case
 
 
 instance (FromAsdf a) => FromAsdf (Maybe a) where
+  parseNode node =
+    case node.value of
+      Null -> pure Nothing
+      _ -> Just <$> parseNode @a node
   parseValue = \case
     Null -> pure Nothing
     val -> Just <$> parseValue @a val

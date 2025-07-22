@@ -17,7 +17,7 @@ newtype SchemaTag = SchemaTag (Maybe Text)
 
 instance Show SchemaTag where
   show (SchemaTag Nothing) = ""
-  show (SchemaTag (Just t)) = unpack t ++ ":"
+  show (SchemaTag (Just t)) = unpack t
 
 
 schemaTag :: String -> SchemaTag

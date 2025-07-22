@@ -152,7 +152,7 @@ instance ToAsdf Forward where
 
 
 instance FromAsdf Forward where
-  parseNode (Node sch _ val) =
+  parseNode (Node sch _ val) = do
     case sch of
       "!transform/compose-1.2.0" -> parseCompose val
       "!transform/concatenate-1.2.0" -> parseConcat val
@@ -170,7 +170,7 @@ parseCompose = \case
   Object o -> do
     res <- o .: "forward"
     case res of
-      Just [a, b] -> pure $ Compose a b
+      [a, b] -> pure $ Compose a b
       fwd -> expected "Compose a b" fwd
   val -> expected "Compose a b" val
 
@@ -180,7 +180,7 @@ parseConcat = \case
   Object o -> do
     res <- o .: "forward"
     case res of
-      Just [a, b] -> pure $ Concat a b
+      [a, b] -> pure $ Concat a b
       fwd -> expected "Concat a b" fwd
   val -> expected "Concat a b" val
 

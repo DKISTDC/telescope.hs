@@ -60,7 +60,7 @@ fromAsdfSpec = do
 
 
 nullSpec :: Spec
-nullSpec = withMarkers ["focus"] $ do
+nullSpec = do
   it "parses 'key: null'" $ do
     let Encoded out = encodeTree "{key: null, key2: ~, key3: value}"
     ex <- decodeM @Object out
