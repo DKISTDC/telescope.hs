@@ -314,8 +314,15 @@ parseScalar ma inp tg = byTag tg
 
   parseFloat s = Number <$> parseRead s
 
-  parseMulti s =
-    parseInt s <|> parseFloat s <|> parseBool s <|> parseStr s
+  parseNull s = do
+    case s of
+      "~" -> pure Null
+      "null" -> pure Null
+      _ -> empty
+
+  parseMulti :: (NonDet :> es) => ByteString -> Eff es Value
+  parseMulti s = do
+    parseInt s <|> parseFloat s <|> parseBool s <|> parseNull s <|> parseStr s
 
   throwEmpty :: (Error YamlError :> es) => String -> Eff (NonDet : es) a -> Eff es a
   throwEmpty expt eff = do

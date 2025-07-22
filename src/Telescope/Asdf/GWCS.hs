@@ -53,7 +53,7 @@ data GWCSStep frame = GWCSStep
   { frame :: frame
   , transform :: Maybe Transformation
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 
 
 instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where

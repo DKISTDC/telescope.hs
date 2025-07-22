@@ -80,6 +80,14 @@ exampleSpec = do
     ex2.intercept.schema `shouldBe` (toNode q).schema
 
 
+-- let Encoded out = encodeTree "{key: null, key2: value}"
+-- ex <- decodeM @NullFields out
+-- ex.key `shouldBe` Nothing
+-- ex.key2 `shouldBe` Just "value"
+
+-- ex2 <- decodeM @ExampleNullMaybe inp
+-- ex2.nullable `shouldBe` Nothing
+
 data Example = Example
   { foo :: Int
   , name :: Text
@@ -92,6 +100,13 @@ data Example2 = Example2
   { intercept :: Node
   }
   deriving (Generic, FromAsdf, ToAsdf)
+
+
+data NullFields = NullFields
+  { key :: Maybe Text
+  , key2 :: Maybe Text
+  }
+  deriving (Generic, FromAsdf)
 
 
 anchorSpec :: Spec

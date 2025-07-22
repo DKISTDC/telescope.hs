@@ -24,6 +24,9 @@ import Text.Libyaml qualified as Yaml
 
 spec :: Spec
 spec = do
+  describe "FromAsdf" $ do
+    fromAsdfSpec
+    describe "nulls" nullSpec
   describe "FromAsdf" fromAsdfSpec
   describe "ToAsdf" toAsdfSpec
   describe "GObject" gObjectSpec
@@ -56,6 +59,37 @@ fromAsdfSpec = do
     ex2.alias `shouldBe` "world"
 
 
+nullSpec :: Spec
+nullSpec = withMarkers ["focus"] $ do
+  it "parses 'key: null'" $ do
+    let Encoded out = encodeTree "{key: null, key2: ~, key3: value}"
+    ex <- decodeM @Object out
+    lookup "key" ex `shouldBe` Just (toNode Null)
+    lookup "key2" ex `shouldBe` Just (toNode Null)
+    lookup "key3" ex `shouldBe` Just (toNode (String "value"))
+
+  it "parses Null as Maybe" $ do
+    val <- parseIO $ parseValue @(Maybe Text) Null
+    val `shouldBe` Nothing
+
+    val2 <- parseIO $ parseNode @(Maybe Text) (Node mempty Nothing Null)
+    val2 `shouldBe` Nothing
+
+  it "parses null fields as Maybe" $ do
+    let input = [("key", fromValue Null)]
+    val <- parseIO $ do
+      res :: Maybe Text <- input .: "key"
+      pure res
+    val `shouldBe` Nothing
+
+  it "parses null fields as Maybe with (.:?)" $ do
+    let input = [("key", fromValue Null)]
+    val <- parseIO $ do
+      res :: Maybe Text <- input .:? "key"
+      pure res
+    val `shouldBe` Nothing
+
+
 toAsdfSpec :: Spec
 toAsdfSpec = do
   it "should serialize Example" $ do
@@ -80,7 +114,6 @@ toAsdfSpec = do
   it "should forward schema to maybes" $ do
     schema @(Maybe Example) Nothing `shouldBe` mempty
     schema @(Maybe Example) (Just undefined) `shouldBe` schema @Example undefined
-
 
 
 -- it "should produce similar example.asdf" $ do

@@ -19,7 +19,8 @@ where
 
 import Control.Monad.Catch (Exception)
 import Data.List (intercalate)
-import Data.Text (Text, unpack)
+import Data.String (IsString (..))
+import Data.Text (Text, pack, unpack)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static
@@ -94,6 +95,8 @@ data Ref
   deriving (Eq)
 
 
+instance IsString Ref where
+  fromString = Child . pack
 instance Show Ref where
   show (Child c) = unpack c
   show (Index n) = show n

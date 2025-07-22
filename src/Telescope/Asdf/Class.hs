@@ -310,7 +310,7 @@ instance ToAsdf String where
 instance FromAsdf String where
   parseValue = \case
     String t -> pure $ unpack t
-    node -> expected "Text" node
+    node -> expected "String" node
 
 
 instance ToAsdf Bool where
@@ -436,9 +436,8 @@ o .: k = do
 o .:? k = do
   case lookup k o of
     Nothing -> pure Nothing
-    Just a ->
-      Just <$> do
-        parseAt (Child k) $ parseNode a
+    Just a -> do
+      parseAt (Child k) $ parseNode a
 
 
 {- | Parse a child at the given array index
