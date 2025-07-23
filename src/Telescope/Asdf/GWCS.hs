@@ -264,6 +264,8 @@ data Affine = Affine {matrix :: Array M.D Ix2 Double, translation :: (Double, Do
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
   deriving (Generic)
+
+-- TODO: this should be a quantity!
 data Linear a = Linear1d {intercept :: Double, slope :: Double}
   deriving (Generic)
 data Mapping = Mapping {mapping :: [Int]}
@@ -654,6 +656,7 @@ type family TConcat a b where
   TConcat (a, b, c) (d, e, f) = (a, b, c, d, e, f)
   TConcat (a, b, c, d) (e, f) = (a, b, c, d, e, f)
   TConcat (a, b, c, d, e) f = (a, b, c, d, e, f)
+  TConcat a (b, c, d, e) = (a, b, c, d, e)
   TConcat (a, b) (c, d, e) = (a, b, c, d, e)
   TConcat (a, b, c) (d, e) = (a, b, c, d, e)
   TConcat (a, b, c, d) e = (a, b, c, d, e)
