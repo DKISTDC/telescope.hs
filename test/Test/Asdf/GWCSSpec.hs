@@ -59,7 +59,11 @@ fromAsdfSpec = withMarkers ["focus"] $ do
       o <- decodeM @Object input
       t :: Maybe Transformation <- parseIO $ o .: "transform"
       case (.forward) <$> t of
-        Just (Compose _ _) -> pure ()
+        Just (Compose _ t2) -> do
+          case t2.forward of
+            Direct n -> do
+              n.schema `shouldBe` "!transform/scoop-1.2.0"
+            other -> failTest $ "Expected scoop, but got: " <> show other
         other -> failTest $ "Expected Compose but got: " <> show other
 
 

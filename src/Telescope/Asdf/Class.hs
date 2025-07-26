@@ -332,6 +332,8 @@ instance FromAsdf Value where
 
 
 instance ToAsdf Node where
+  schema n = n.schema
+  anchor n = n.anchor
   toNode n = n
   toValue (Node _ _ val) = val
 instance FromAsdf Node where

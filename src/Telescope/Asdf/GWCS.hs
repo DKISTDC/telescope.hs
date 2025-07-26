@@ -107,11 +107,11 @@ data Transformation = Transformation
 instance ToAsdf Transformation where
   schema t = schema t.forward
   toValue t =
-    Object
-      [ ("inputs", toNode t.inputs)
-      , ("outputs", toNode t.outputs)
-      ]
-      <> toValue t.forward
+    toValue t.forward
+      <> Object
+        [ ("inputs", toNode t.inputs)
+        , ("outputs", toNode t.outputs)
+        ]
 
 
 instance FromAsdf Transformation where
@@ -264,6 +264,7 @@ data Affine = Affine {matrix :: Array M.D Ix2 Double, translation :: (Double, Do
 data Projection = Projection Direction
 data Rotate3d = Rotate3d {direction :: Direction, phi :: Lon, theta :: Lat, psi :: LonPole}
   deriving (Generic)
+
 
 -- TODO: this should be a quantity!
 data Linear a = Linear1d {intercept :: Double, slope :: Double}
