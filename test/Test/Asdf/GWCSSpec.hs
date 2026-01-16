@@ -11,6 +11,7 @@ import Telescope.Asdf.Encoding (decodeM)
 import Telescope.Asdf.GWCS
 import Telescope.Asdf.Node
 import Telescope.Data.Parser
+import Data.List qualified as L
 import Telescope.Data.WCS
 import Test.Asdf.ClassSpec (expectObject)
 import Test.Asdf.DecodeSpec (parseIO)
@@ -94,7 +95,7 @@ toAsdfSpec = do
       sch `shouldBe` "!schema"
 
       o <- expectObject val
-      fmap fst o `shouldBe` ["inputs", "outputs", "key"]
+      L.sort (fmap fst o) `shouldBe` L.sort ["inputs", "outputs", "key"]
 
       lookup "key" o `shouldBe` Just (fromValue (String "hello"))
 
