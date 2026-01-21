@@ -2,6 +2,7 @@ module Telescope.Asdf.Encoding.Stream where
 
 import Conduit
 import Data.ByteString (ByteString)
+import Data.Char (isAlphaNum)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
 import Data.String (fromString)
@@ -68,7 +69,12 @@ yieldNode node@(Node st anc val) = do
   anchor =
     case anc of
       Nothing -> Nothing
-      (Just (Anchor a)) -> pure (unpack a)
+      (Just (Anchor a)) -> pure $ unpack $ T.map cleanNonAllowable a
+
+  cleanNonAllowable c
+    | isAlphaNum c = c
+    | '_' <- c = c
+    | otherwise = '-'
 
   tag = case st of
     SchemaTag Nothing -> NoTag

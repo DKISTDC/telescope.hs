@@ -30,7 +30,7 @@ spec = do
 
 
 fromAsdfSpec :: Spec
-fromAsdfSpec = withMarkers ["focus"] $ do
+fromAsdfSpec = do
   describe "GWCS" $ do
     it "parses Compose gwcsstep" $ do
       let input =

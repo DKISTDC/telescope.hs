@@ -79,6 +79,11 @@ anchorSpec = do
     let vals = [toNode $ Alias "two", Node mempty (Just "two") "two"]
     runAsdfM (encodeNode $ toNode (Array vals)) `shouldSatisfy` P.throws @AsdfError P.anything
 
+  it "should not encode anchors with spaces as empty strings" $ do
+    let node = Node mempty (Just "anchor 2") (toValue ("woot" :: String))
+    (out, _) <- runAsdfM $ encodeNode node
+    out `shouldBe` "&anchor-2 'woot'\n"
+
 
 referenceSpec :: Spec
 referenceSpec = do

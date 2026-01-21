@@ -40,7 +40,7 @@ data Node = Node
 
 
 instance Show Node where
-  show (Node st _ v) = show st ++ show v
+  show (Node st a v) = unwords ["Node", "(" ++ show st ++ ")", "(" ++ show a ++ ")", "(" ++ show v ++ ")"]
 instance IsString Node where
   fromString s = Node mempty Nothing $ String $ pack s
 
