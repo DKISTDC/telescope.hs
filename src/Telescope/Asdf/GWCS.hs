@@ -9,6 +9,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array (Array, Ix2)
 import Data.Massiv.Array qualified as M
+import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text qualified as T
@@ -23,15 +24,20 @@ import Text.Casing (quietSnake)
 
 
 -- | GWCS pipelines consist of an input and output 'GWCSStep'
-data GWCS inp out = GWCS (GWCSStep inp) (GWCSStep out)
+data GWCS inp out = GWCS
+  { name :: Maybe Text
+  , input :: GWCSStep inp
+  , output :: GWCSStep out
+  }
 
 
 instance (ToAsdf inp, ToAsdf out) => ToAsdf (GWCS inp out) where
   schema _ = "tag:stsci.edu:gwcs/wcs-1.2.0"
-  toValue (GWCS inp out) =
+  toValue gwcs =
     Object
-      [ ("name", toNode $ String "")
-      , ("steps", toNode $ Array [toNode inp, toNode out])
+      [ ("name", toNode $ String $ fromMaybe "" $ gwcs.name)
+      , -- , ("pixel_shape", toNode gwcs.pixelShape)
+        ("steps", toNode $ Array [toNode gwcs.input, toNode gwcs.output])
       ]
 
 
@@ -39,11 +45,13 @@ instance (FromAsdf inp, FromAsdf out) => FromAsdf (GWCS inp out) where
   parseValue = \case
     Object o -> do
       steps :: [Value] <- o .: "steps"
+      name <- o .:? "name"
+      -- pixelShape <- fromMaybe [] <$> o .:? "pixel_shape"
       case steps of
         [inpv, outv] -> do
-          inp <- parseValue inpv
-          out <- parseValue outv
-          pure $ GWCS inp out
+          input <- parseValue inpv
+          output <- parseValue outv
+          pure $ GWCS{name, input, output}
         other -> expected "GWCS steps: [input,output]" other
     val -> expected "GWCS" val
 
@@ -336,7 +344,7 @@ instance FromAsdf Const1D where
 -- Frames -----------------------------------------------
 
 data CoordinateFrame = CoordinateFrame
-  { name :: Text
+  { name :: AxisName
   , axes :: NonEmpty FrameAxis
   }
 instance ToAsdf CoordinateFrame where
@@ -350,7 +358,7 @@ instance ToAsdf CoordinateFrame where
 
 
 data StokesFrame = StokesFrame
-  { name :: Text
+  { name :: AxisName
   , axisOrder :: Int
   }
 instance ToAsdf StokesFrame where
@@ -363,7 +371,7 @@ instance ToAsdf StokesFrame where
 
 
 data SpectralFrame = SpectralFrame
-  { name :: Text
+  { name :: AxisName
   , axisOrder :: Int
   }
 instance ToAsdf SpectralFrame where
@@ -379,7 +387,7 @@ instance ToAsdf SpectralFrame where
 
 
 data TemporalFrame = TemporalFrame
-  { name :: Text
+  { name :: AxisName
   , time :: LocalTime
   , axisOrder :: Int
   }
@@ -397,7 +405,7 @@ instance ToAsdf TemporalFrame where
 
 
 data CelestialFrame ref = CelestialFrame
-  { name :: Text
+  { name :: AxisName
   , axes :: NonEmpty FrameAxis
   , referenceFrame :: ref
   }
