@@ -60,6 +60,7 @@ runParserAlts err eff = do
     Right a -> pure a
 
 
+-- | run a parser, upon failure, set to empty
 tryParserEmpty :: (NonDet :> es, Parser :> es) => Eff (Parser : Error ParseError : es) a -> Eff es a
 tryParserEmpty eff = do
   res <- runErrorNoCallStack @ParseError $ runParser eff
