@@ -5,6 +5,7 @@ import Data.ByteString (ByteString)
 import Data.Char (isAlphaNum)
 import Data.Conduit.Combinators (peek)
 import Data.Conduit.Combinators qualified as C
+import Data.Scientific (Scientific)
 import Data.String (fromString)
 import Data.Text (pack, unpack)
 import Data.Text qualified as T
@@ -21,6 +22,7 @@ import Telescope.Asdf.Encoding.File
 import Telescope.Asdf.NDArray (NDArrayData (..))
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
+import Telescope.Data.Numeric (showScientific)
 import Telescope.Data.Parser (runParserPure)
 import Text.Libyaml (Event (..), MappingStyle (..), SequenceStyle (..), Style (..), Tag (..))
 import Text.Libyaml qualified as Yaml
@@ -60,7 +62,7 @@ yieldNode node@(Node st anc val) = do
     Integer n -> yieldNum n
     NDArray nd -> yieldNDArray nd
     Bool b -> yieldBool b
-    Number n -> yieldNum n
+    Number n -> yieldScientific n
     Null -> yieldScalar "~"
     Reference r -> yieldObject [("$ref", toNode $ String (pack $ show r))]
     Alias a -> yieldAlias a
@@ -89,6 +91,9 @@ yieldNode node@(Node st anc val) = do
 
   yieldNum :: (Num n, Show n) => n -> ConduitT a Event (Eff es) ()
   yieldNum n = yieldScalar (T.encodeUtf8 $ pack $ show n)
+
+  yieldScientific :: Scientific -> ConduitT a Event (Eff es) ()
+  yieldScientific n = yieldScalar (T.encodeUtf8 $ pack $ showScientific n)
 
   yieldBool = \case
     True -> yieldScalar "true"

@@ -26,6 +26,7 @@ import Test.Asdf.ClassSpec (expectObject)
 spec :: Spec
 spec = do
   describe "basic" basicSpec
+  describe "nodes" nodeSpec
   describe "document" documentSpec
   describe "blocks" blocksSpec
   describe "roundtrip" roundSpec
@@ -34,6 +35,24 @@ spec = do
   describe "references" referenceSpec
   describe "anchors" anchorSpec
   describe "schemas" schemaSpec
+
+
+nodeSpec :: Spec
+nodeSpec = do
+  it "integers short render" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty Nothing (Integer 12)
+    out `shouldBe` "12\n"
+
+  it "small floats short render" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty Nothing (Number 12.0)
+    out `shouldBe` "12.0\n"
+
+  it "large floats render with exponent" $ do
+    (out, _) <- runAsdfM . encodeNode $ Node mempty Nothing (Number 12.01e+11)
+    out `shouldBe` "1.201E+12\n"
+
+    (out2, _) <- runAsdfM . encodeNode $ Node mempty Nothing (Number 12.34e-13)
+    out2 `shouldBe` "1.234E-12\n"
 
 
 schemaSpec :: Spec

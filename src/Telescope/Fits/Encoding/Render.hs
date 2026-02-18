@@ -13,6 +13,7 @@ import Data.String (IsString (..))
 import Data.Text (Text, isPrefixOf, pack, unpack)
 import Data.Text qualified as T
 import Telescope.Data.Axes
+import Telescope.Data.Numeric (showFloat)
 import Telescope.Fits.BitPix
 import Telescope.Fits.Checksum
 import Telescope.Fits.DataArray
@@ -169,7 +170,7 @@ renderComment mx c = string $ take mx $ " / " <> unpack c
 renderValue :: Value -> BuilderBlock
 renderValue (Logic T) = justify 20 "T"
 renderValue (Logic F) = justify 20 "F"
-renderValue (Float f) = justify 20 $ string $ map toUpper $ show f
+renderValue (Float f) = justify 20 $ string $ showFloat f
 renderValue (Integer n) = justify 20 $ string $ show n
 renderValue (String s) = string $ "'" <> unpack s <> "'"
 

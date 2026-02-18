@@ -82,8 +82,9 @@ testRenderHeader = do
     it "negative float" $ do
       runValue (Float (-32.32)) `shouldBe` justify 20 "-32.32"
 
-    it "float should exponent uppercase" $ do
+    it "floats should exponent" $ do
       runValue (Float 6.0001e-16) `shouldBe` justify 20 "6.0001E-16"
+      runValue (Float 6.0001e+16) `shouldBe` justify 20 "6.0001E+16"
 
     it "logic should right justify" $ do
       runValue (Logic T) `shouldBe` justify 20 "T"
