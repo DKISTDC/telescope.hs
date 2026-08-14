@@ -269,27 +269,22 @@ data MetaHeaders = MetaHeaders
 
 
 instance FromAsdf MetaHeaders where
-  parseValue = \case
-    Object o -> do
-      ns <- o .: "columns"
-      naxis <- parseColumn "NAXIS" ns
-      naxis2 <- parseColumn "NAXIS2" ns
-      bitpix <- parseColumn "BITPIX" ns
-      bunit <- parseColumn "BUNIT" ns
-      pure MetaHeaders{naxis, naxis2, bitpix, bunit}
-    val -> expected "Columns" val
+  parseValue val = do
+    Table _ columns <- parseValue val
+    naxis <- parseColumn "NAXIS" columns
+    naxis2 <- parseColumn "NAXIS2" columns
+    bitpix <- parseColumn "BITPIX" columns
+    bunit <- parseColumn "BUNIT" columns
+    pure MetaHeaders{naxis, naxis2, bitpix, bunit}
    where
-    parseColumn :: forall a es. (FromAsdf a, Parser :> es) => Text -> [Node] -> Eff es a
+    parseColumn :: forall a es. (FromAsdf a, Parser :> es) => Text -> [Column] -> Eff es a
     parseColumn name ns = do
       case find (isColumnName name) ns of
-        Just (Node _ _ (Object o)) ->
-          o .: "data"
+        Just (Column _ dat) ->
+          parseValue @a $ NDArray dat
         _ -> parseFail $ "Column " ++ unpack name ++ " not found"
 
-    isColumnName n = \case
-      Node _ _ (Object o) -> do
-        lookup "name" o == Just (Node mempty Nothing (String n))
-      _ -> False
+    isColumnName n c = c.name == n
 
 
 newtype ExampleTreeFix = ExampleTreeFix Tree

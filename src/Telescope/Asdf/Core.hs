@@ -13,6 +13,7 @@ import GHC.Generics (Generic)
 import Paths_telescope (version)
 import Telescope.Asdf.Class
 import Telescope.Asdf.Error (AsdfError (..))
+import Telescope.Asdf.NDArray.Types
 import Telescope.Asdf.Node
 import Telescope.Data.Parser (expected, runParserAlts, tryParserEmpty)
 import Text.Read (readMaybe)
@@ -215,3 +216,32 @@ data ExtensionMetadata = ExtensionMetadata
   deriving (Show, Generic, FromAsdf)
 instance ToAsdf ExtensionMetadata where
   schema _ = "!core/extension_metadata-1.0.0"
+
+
+data Column = Column
+  { name :: Text
+  , data_ :: NDArrayData
+  }
+instance FromAsdf Column where
+  parseValue = \case
+    Object o -> do
+      d <- o .: "data"
+      n <- o .: "name"
+      pure $ Column n d
+    node -> expected "Column{data, name}" node
+instance ToAsdf Column where
+  schema _ = "!core/asdf-1.1.0"
+  toValue c =
+    Object $
+      [ ("data", toNode c.data_)
+      , ("name", toNode c.name)
+      ]
+
+
+data Table = Table
+  { colnames :: [Text]
+  , columns :: [Column]
+  }
+  deriving (Generic, FromAsdf)
+instance ToAsdf Table where
+  schema _ = "tag:astropy.org:astropy/table/table-1.1.0"
