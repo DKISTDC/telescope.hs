@@ -1,6 +1,9 @@
 module Telescope.Fits.Header.Value where
 
 import Data.Text (Text)
+import Effectful
+import Telescope.Asdf.NDArray
+import Telescope.Data.Parser (expected, runParserAlts, tryParserEmpty, (<|>))
 
 
 -- | `Value` datatype for discriminating valid FITS KEYWORD=VALUE types in an HDU.
@@ -10,6 +13,16 @@ data Value
   | String Text
   | Logic LogicalConstant
   deriving (Show, Eq)
+
+
+instance FromNDArray [Value] where
+  fromNDArray :: (Parser :> es) => NDArrayData -> Eff es [Value]
+  fromNDArray dat = runParserAlts (expected "Fits Value" dat) $ do
+    (fmap Integer <$> ints) <|> (fmap Float <$> floats) <|> (fmap String <$> strings)
+   where
+    ints = tryParserEmpty $ fromNDArray @[Int] dat
+    floats = tryParserEmpty $ fromNDArray @[Double] dat
+    strings = tryParserEmpty $ fromNDArray @[Text] dat
 
 
 -- | Direct encoding of a `Bool` for parsing `Value`

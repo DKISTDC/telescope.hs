@@ -24,12 +24,16 @@ import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Lazy.Char8 qualified as BLC
 import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
-import Data.Text (Text)
+import Data.Scientific (fromFloatDigits)
+import Data.Text (Text, unpack)
 import Data.Text.Encoding qualified as T
 import Effectful
+import GHC.Int
 import Telescope.Asdf.NDArray.Types
 import Telescope.Asdf.Node
 import Telescope.Data.Array
@@ -87,6 +91,31 @@ instance FromNDArray [Text] where
     ucs4Size = \case
       Ucs4 n -> pure n
       dt -> expected "Ucs4" dt
+
+
+instance FromNDArray [Value] where
+  fromNDArray arr = do
+    case arr.datatype of
+      Float64 -> fmap (Number . fromFloatDigits) <$> fromNDArray @[Double] arr
+      Float32 -> fmap (Number . fromFloatDigits) <$> fromNDArray @[Float] arr
+      Bool8 -> fmap Bool <$> fromNDArray @[Bool] arr
+      Ucs4 _ -> fmap String <$> fromNDArray @[Text] arr
+      _int -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int64] arr
+
+
+instance {-# OVERLAPS #-} FromNDArray [String] where
+  fromNDArray arr = do
+    fmap unpack <$> fromNDArray @[Text] arr
+
+
+instance FromNDArray [BS.ByteString] where
+  fromNDArray arr = do
+    fmap BSC.pack <$> fromNDArray @[String] arr
+
+
+instance FromNDArray [BL.ByteString] where
+  fromNDArray arr = do
+    fmap BLC.pack <$> fromNDArray @[String] arr
 
 
 -- decode LittleEndian = T.decodeUtf32LE

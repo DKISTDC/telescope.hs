@@ -26,6 +26,7 @@ instance Show NDArrayData where
   show nd = unwords ["NDArrayData", show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
 
 
+
 data DataType
   = Float64
   | Float32
@@ -54,5 +55,7 @@ instance IsDataType Int16 where
   dataType = Int16
 instance IsDataType Int8 where
   dataType = Int8
+instance IsDataType Bool where
+  dataType = Bool8
 instance (IsDataType a) => IsDataType [a] where
   dataType = dataType @a

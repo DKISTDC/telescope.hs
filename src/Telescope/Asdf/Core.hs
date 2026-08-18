@@ -2,6 +2,7 @@
 
 module Telescope.Asdf.Core where
 
+import Data.List qualified as L
 import Data.String (fromString)
 import Data.Text (Text, pack, unpack)
 import Data.Text qualified as T
@@ -13,9 +14,10 @@ import GHC.Generics (Generic)
 import Paths_telescope (version)
 import Telescope.Asdf.Class
 import Telescope.Asdf.Error (AsdfError (..))
+import Telescope.Asdf.NDArray (FromNDArray (..))
 import Telescope.Asdf.NDArray.Types
 import Telescope.Asdf.Node
-import Telescope.Data.Parser (expected, runParserAlts, tryParserEmpty)
+import Telescope.Data.Parser (Parser, expected, parseFail, runParserAlts, tryParserEmpty)
 import Text.Read (readMaybe)
 
 
@@ -218,18 +220,19 @@ instance ToAsdf ExtensionMetadata where
   schema _ = "!core/extension_metadata-1.0.0"
 
 
-data Column = Column
+data Column a = Column
   { name :: Text
-  , data_ :: NDArrayData
+  , data_ :: a
   }
-instance FromAsdf Column where
+  deriving (Generic, Functor)
+instance FromAsdf (Column NDArrayData) where
   parseValue = \case
     Object o -> do
       d <- o .: "data"
       n <- o .: "name"
       pure $ Column n d
     node -> expected "Column{data, name}" node
-instance ToAsdf Column where
+instance ToAsdf (Column NDArrayData) where
   schema _ = "!core/asdf-1.1.0"
   toValue c =
     Object $
@@ -238,10 +241,46 @@ instance ToAsdf Column where
       ]
 
 
+-- | Find a Column in a list and parse as a specific type
+parseColumn :: forall a es. (FromNDArray a, Parser :> es) => Text -> [Column NDArrayData] -> Eff es a
+parseColumn name ns = do
+  case L.find (isColumnName name) ns of
+    Just (Column _ dat) ->
+      fromNDArray @a dat
+    _ -> parseFail $ "Column " ++ unpack name ++ " not found"
+ where
+  isColumnName n c = c.name == n
+
+
 data Table = Table
   { colnames :: [Text]
-  , columns :: [Column]
+  , columns :: [Column NDArrayData]
   }
   deriving (Generic, FromAsdf)
 instance ToAsdf Table where
   schema _ = "tag:astropy.org:astropy/table/table-1.1.0"
+
+
+-- | convert each column into a list of Values then parse them
+fromTable :: (FromAsdf a, Parser :> es) => Table -> Eff es [a]
+fromTable (Table _ cols) = do
+  -- each [Value] really has all the same type
+  values :: [Column [Value]] <- mapM fromColumn cols
+  let objects :: [Object] = toObjects . labeledValues $ values
+  mapM (parseValue . Object) objects
+ where
+  labeledValues :: [Column [Value]] -> [[(Key, Value)]]
+  labeledValues =
+    fmap (\(Column k vals) -> fmap (\v -> (k, v)) vals)
+
+  toObjects :: [[(Key, Value)]] -> [Object]
+  toObjects vals =
+    rowToObject <$> L.transpose vals
+
+  rowToObject :: [(Key, Value)] -> Object
+  rowToObject =
+    fmap (\(k, v) -> (T.toLower k, fromValue v))
+
+  fromColumn (Column n d) = do
+    v <- fromNDArray d
+    pure $ Column n v

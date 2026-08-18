@@ -2,14 +2,14 @@ module Test.Asdf.DecodeSpec where
 
 import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
-import Data.List (find)
-import Data.Massiv.Array (Array, D, Ix1)
-import Data.Massiv.Array qualified as M
-import Data.Text (Text, unpack)
+import Data.String (IsString (..))
+import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format.ISO8601 (iso8601ParseM)
 import Effectful
 import Effectful.Error.Static
 import GHC.Generics (Generic)
-import GHC.Int (Int64)
 import Skeletest
 import Skeletest.Predicate qualified as P
 import Telescope.Asdf.Class
@@ -226,10 +226,11 @@ dkistSpec = do
     d.dataset.unit `shouldBe` Count
     d.dataset.meta.inventory.datasetId `shouldBe` "AVORO"
 
-    let us = d.dataset.meta.headers.bunit
-    take 3 us `shouldBe` ["ct", "ct", "ct"]
+    let ds = take 3 d.dataset.meta.headers.rows
 
-    take 3 (M.toLists d.dataset.meta.headers.naxis2) `shouldBe` [998, 998, 998]
+    fmap (.bunit) ds `shouldBe` [BUnitCount, BUnitCount, BUnitCount]
+    fmap (.naxis2) ds `shouldBe` [998, 998, 998]
+    fmap (.date) ds `shouldBe` ["2023-04-22T09:16:27.274", "2023-04-22T09:16:40.623", "2023-04-22T09:10:05.121"]
 
 
 data DKISTAsdf = DKISTAsdf
@@ -246,7 +247,7 @@ data Dataset = Dataset
 
 
 data Meta = Meta
-  { headers :: MetaHeaders
+  { headers :: HeadersTable
   , inventory :: MetaInventory
   }
   deriving (Generic, FromAsdf)
@@ -259,32 +260,52 @@ data MetaInventory = MetaInventory
   deriving (Generic, FromAsdf)
 
 
--- can we make this work with a generic?
-data MetaHeaders = MetaHeaders
-  { naxis :: Array D Ix1 Int64
-  , naxis2 :: Array D Ix1 Int64
-  , bitpix :: [Int64]
-  , bunit :: [Text]
-  }
+newtype HeadersTable = HeadersTable {rows :: [DatasetMeta]}
 
 
-instance FromAsdf MetaHeaders where
+instance FromAsdf HeadersTable where
   parseValue val = do
-    Table _ columns <- parseValue val
-    naxis <- parseColumn "NAXIS" columns
-    naxis2 <- parseColumn "NAXIS2" columns
-    bitpix <- parseColumn "BITPIX" columns
-    bunit <- parseColumn "BUNIT" columns
-    pure MetaHeaders{naxis, naxis2, bitpix, bunit}
-   where
-    parseColumn :: forall a es. (FromAsdf a, Parser :> es) => Text -> [Column] -> Eff es a
-    parseColumn name ns = do
-      case find (isColumnName name) ns of
-        Just (Column _ dat) ->
-          parseValue @a $ NDArray dat
-        _ -> parseFail $ "Column " ++ unpack name ++ " not found"
+    table <- parseValue @Table val
+    dms <- fromTable table
+    pure $ HeadersTable dms
 
-    isColumnName n c = c.name == n
+
+data DatasetMeta = DatasetMeta
+  { naxis :: Int
+  , naxis2 :: Int
+  , bitpix :: Int
+  , bunit :: BUnit
+  , date :: DateTime
+  }
+  deriving (Generic, FromAsdf)
+
+
+-- can I go from column -> Value? For each column?
+-- maybe!
+
+data BUnit = BUnitCount
+  deriving (Eq, Show)
+instance FromAsdf BUnit where
+  parseValue (String t) =
+    case T.take 2 t of
+      "ct" -> pure BUnitCount
+      _ -> expected "BUnit" t
+  parseValue other = expected "BUnit" other
+
+
+-- UTCTime missing the trailing Z
+newtype DateTime = DateTime UTCTime
+  deriving (Eq, Show)
+instance FromAsdf DateTime where
+  parseValue (String t) = do
+    DateTime <$> parseValue @UTCTime (String (t <> "Z"))
+  parseValue other = do
+    expected "DateTime" other
+instance IsString DateTime where
+  fromString s =
+    case iso8601ParseM (s <> "Z") of
+      Nothing -> error $ "Could not parse DateTime (" <> s <> ")"
+      Just u -> DateTime u
 
 
 newtype ExampleTreeFix = ExampleTreeFix Tree

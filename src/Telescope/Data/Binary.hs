@@ -48,6 +48,7 @@ instance BinaryValue Int64 where
   get LittleEndian = getInt64le
 
 
+-- Int size is platform dependent. Up to 64 bits
 instance BinaryValue Int where
   byteSize = byteSize @Int64
   put bo a = put @Int64 bo (fromIntegral a)
@@ -68,3 +69,15 @@ instance BinaryValue Double where
   put LittleEndian = putDoublele
   get BigEndian = getDoublebe
   get LittleEndian = getDoublele
+
+
+instance BinaryValue Bool where
+  byteSize = 1
+  put enc b = do
+    let n = if b then 1 else 0
+    put @Int8 enc n
+  get enc = do
+    n <- get @Int8 enc
+    case n of
+      0 -> pure False
+      _ -> pure True

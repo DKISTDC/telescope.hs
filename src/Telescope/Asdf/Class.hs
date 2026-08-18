@@ -37,32 +37,35 @@ import Telescope.Data.Parser
 >   schema _ = "tag:example.org/schemas/example-1.0.0"
 -}
 class ToAsdf a where
-  -- | Specify how an object encodes to a 'Value'
-  --
-  -- > instance User ToAsdf where
-  -- >   toValue user =
-  -- >     Object
-  -- >       [ ("name", toNode user.name)
-  -- >       , ("age", toNode user.age)
-  -- >       ]
+  {- | Specify how an object encodes to a 'Value'
+
+  > instance User ToAsdf where
+  >   toValue user =
+  >     Object
+  >       [ ("name", toNode user.name)
+  >       , ("age", toNode user.age)
+  >       ]
+  -}
   toValue :: a -> Value
   default toValue :: (Generic a, GToObject (Rep a)) => a -> Value
   toValue a = Object $ gToObject (from a)
 
 
-  -- | Specify the schema for a type
-  --
-  -- > instance ToAsdf Unit where
-  -- >   schema _ = "!unit/unit-1.0.0"
+  {- | Specify the schema for a type
+
+  > instance ToAsdf Unit where
+  >   schema _ = "!unit/unit-1.0.0"
+  -}
   schema :: a -> SchemaTag
   default schema :: a -> SchemaTag
   schema _ = mempty
 
 
-  -- | Specify that this node be saved as an anchor
-  --
-  -- > instance ToAsdf Config where
-  -- >   anchor _ = Just "globalConfig"
+  {- | Specify that this node be saved as an anchor
+
+  > instance ToAsdf Config where
+  >   anchor _ = Just "globalConfig"
+  -}
   anchor :: a -> Maybe Anchor
   default anchor :: a -> Maybe Anchor
   anchor _ = Nothing
@@ -84,12 +87,13 @@ class ToAsdf a where
 >   deriving (Generic, FromAsdf)
 -}
 class FromAsdf a where
-  -- | Specify how a type is parsed from a 'Value'
-  --
-  -- > instance FromAsdf Integer where
-  -- >   parseValue = \case
-  -- >     Integer n -> pure $ fromIntegral n
-  -- >     node -> expected "Integer" node
+  {- | Specify how a type is parsed from a 'Value'
+
+  > instance FromAsdf Integer where
+  >   parseValue = \case
+  >     Integer n -> pure $ fromIntegral n
+  >     node -> expected "Integer" node
+  -}
   parseValue :: (Parser :> es) => Value -> Eff es a
   default parseValue :: (Generic a, GParseObject (Rep a), Parser :> es) => Value -> Eff es a
   parseValue (Object o) = to <$> gParseObject o
