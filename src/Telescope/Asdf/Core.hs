@@ -17,7 +17,7 @@ import Telescope.Asdf.Error (AsdfError (..))
 import Telescope.Asdf.NDArray (FromNDArray (..))
 import Telescope.Asdf.NDArray.Types
 import Telescope.Asdf.Node
-import Telescope.Data.Parser (Parser, expected, parseFail, runParserAlts, tryParserEmpty)
+import Telescope.Data.Parser
 import Text.Read (readMaybe)
 
 
@@ -252,18 +252,18 @@ parseColumn name ns = do
   isColumnName n c = c.name == n
 
 
-data Table = Table
+data TableRaw = TableRaw
   { colnames :: [Text]
   , columns :: [Column NDArrayData]
   }
   deriving (Generic, FromAsdf)
-instance ToAsdf Table where
+instance ToAsdf TableRaw where
   schema _ = "tag:astropy.org:astropy/table/table-1.1.0"
 
 
 -- | convert each column into a list of Values then parse them
-fromTable :: (FromAsdf a, Parser :> es) => Table -> Eff es [a]
-fromTable (Table _ cols) = do
+fromTable :: (FromAsdf a, Parser :> es) => TableRaw -> Eff es [a]
+fromTable (TableRaw _ cols) = do
   -- each [Value] really has all the same type
   values :: [Column [Value]] <- mapM fromColumn cols
   let objects :: [Object] = toObjects . labeledValues $ values
@@ -281,6 +281,15 @@ fromTable (Table _ cols) = do
   rowToObject =
     fmap (\(k, v) -> (T.toLower k, fromValue v))
 
-  fromColumn (Column n d) = do
+  fromColumn (Column n d) = parseAt (Child n) $ do
     v <- fromNDArray d
     pure $ Column n v
+
+
+data Table a = Table { colnames :: [Text], rows :: [a] }
+instance FromAsdf a => FromAsdf (Table a) where
+  parseValue val = do
+    table <- parseValue @TableRaw val
+    rows <- fromTable table
+    pure $ Table table.colnames rows
+

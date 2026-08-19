@@ -15,6 +15,7 @@ data Value
   deriving (Show, Eq)
 
 
+-- We can' go from Asdf.Value -> Fits.Value, it doesn't fit
 instance FromNDArray [Value] where
   fromNDArray :: (Parser :> es) => NDArrayData -> Eff es [Value]
   fromNDArray dat = runParserAlts (expected "Fits Value" dat) $ do

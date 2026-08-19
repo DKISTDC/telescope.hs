@@ -23,7 +23,7 @@ data NDArrayData = NDArrayData
 
 
 instance Show NDArrayData where
-  show nd = unwords ["NDArrayData", show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
+  show nd = unwords ["NDArrayData", show nd.datatype, show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
 
 
 

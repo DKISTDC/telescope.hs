@@ -31,6 +31,7 @@ import Data.Massiv.Array (Array, D, Prim, Sz (..))
 import Data.Massiv.Array qualified as M
 import Data.Scientific (fromFloatDigits)
 import Data.Text (Text, unpack)
+import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Effectful
 import GHC.Int
@@ -81,6 +82,17 @@ instance {-# OVERLAPPABLE #-} (BinaryValue a) => FromNDArray [a] where
     getBytes bo axes = do
       let num = totalItems axes
       replicateM num (get bo)
+
+
+instance ToNDArray [Text] where
+  toNDArray ts =
+    let len = maxLength ts
+        bytes = BL.toStrict $ runPut $ mapM_ (putUcs4 len) ts
+        shape = Axes [length ts]
+     in NDArrayData{bytes, byteorder = BigEndian, datatype = Ucs4 len, shape}
+   where
+    maxLength [] = 0
+    maxLength _ = maximum $ fmap T.length ts
 
 
 instance FromNDArray [Text] where

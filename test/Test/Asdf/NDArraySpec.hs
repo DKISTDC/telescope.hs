@@ -4,23 +4,40 @@ import Control.Monad (replicateM)
 import Data.Binary.Get (runGet)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.Text (Text)
+import Effectful
 import GHC.Int
 import Skeletest
 import System.ByteOrder
-import Telescope.Asdf.NDArray (DataType (..), NDArrayData (..))
+import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
 import Telescope.Data.Binary
-import Test.Asdf.DecodeSpec (ExampleTreeFix (..))
+import Telescope.Data.Parser
+import Test.Asdf.DecodeSpec (ExampleTreeFix (..), parseIO)
 
 
 spec :: Spec
 spec = do
   -- can we correctly decode an array?
   describe "DataType" $ do
-    -- TEST: parse bool8
-    -- TEST: parse uc4
-    pure ()
+    it "parses Bools" $ do
+      let input = [True, False, False, True]
+      let arr = toNDArray input
+      arr.shape `shouldBe` Axes [length input]
+      arr.datatype `shouldBe` Bool8
+
+      res <- parseIO $ fromNDArray arr
+      res `shouldBe` [True, False, False, True]
+
+    it "parses ucs4" $ do
+      let input :: [Text] = ["one", "two", "three", "four!", "1234567"]
+      let arr = toNDArray input
+      arr.shape `shouldBe` Axes [length input]
+      arr.datatype `shouldBe` Ucs4 7
+
+      res <- parseIO $ fromNDArray arr
+      res `shouldBe` input
 
   it "should parse NDArrayData" $ do
     ExampleTreeFix (Tree tree) <- getFixture

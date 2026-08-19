@@ -247,7 +247,7 @@ data Dataset = Dataset
 
 
 data Meta = Meta
-  { headers :: HeadersTable
+  { headers :: Table DatasetMeta
   , inventory :: MetaInventory
   }
   deriving (Generic, FromAsdf)
@@ -258,16 +258,6 @@ data MetaInventory = MetaInventory
   , datasetId :: Text
   }
   deriving (Generic, FromAsdf)
-
-
-newtype HeadersTable = HeadersTable {rows :: [DatasetMeta]}
-
-
-instance FromAsdf HeadersTable where
-  parseValue val = do
-    table <- parseValue @Table val
-    dms <- fromTable table
-    pure $ HeadersTable dms
 
 
 data DatasetMeta = DatasetMeta
