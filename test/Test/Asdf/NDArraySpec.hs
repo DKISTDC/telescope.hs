@@ -5,7 +5,6 @@ import Data.Binary.Get (runGet)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
-import Effectful
 import GHC.Int
 import Skeletest
 import System.ByteOrder
@@ -13,7 +12,7 @@ import Telescope.Asdf.NDArray
 import Telescope.Asdf.Node
 import Telescope.Data.Axes
 import Telescope.Data.Binary
-import Telescope.Data.Parser
+import Telescope.Fits.Header.Value qualified as Fits
 import Test.Asdf.DecodeSpec (ExampleTreeFix (..), parseIO)
 
 
@@ -21,6 +20,18 @@ spec :: Spec
 spec = do
   -- can we correctly decode an array?
   describe "DataType" $ do
+    it "parses Ints" $ do
+      let input :: [Int64] = [1, 99999, 0, -234]
+      let arr = toNDArray input
+      arr.shape `shouldBe` Axes [length input]
+      arr.datatype `shouldBe` Int64
+
+      res <- parseIO $ fromNDArray arr
+      res `shouldBe` input
+
+      res2 <- parseIO $ fromNDArray @[Int] arr
+      res2 `shouldBe` [1, 99999, 0, -234]
+
     it "parses Bools" $ do
       let input = [True, False, False, True]
       let arr = toNDArray input
@@ -38,6 +49,17 @@ spec = do
 
       res <- parseIO $ fromNDArray arr
       res `shouldBe` input
+
+    it "parses FITS strings" $ do
+      let strings :: [Text] = ["one", "two", "three"]
+      res1 <- parseIO $ fromNDArray @[Fits.Value] $ toNDArray strings
+      print res1
+      res1 `shouldBe` fmap Fits.String strings
+
+    it "parses FITS bools" $ do
+      let bools :: [Bool] = [False, True, False]
+      res2 <- parseIO $ fromNDArray @[Fits.Value] $ toNDArray bools
+      res2 `shouldBe` fmap Fits.Logic [Fits.F, Fits.T, Fits.F]
 
   it "should parse NDArrayData" $ do
     ExampleTreeFix (Tree tree) <- getFixture
