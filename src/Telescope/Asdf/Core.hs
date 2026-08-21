@@ -225,6 +225,7 @@ data Column a = Column
   , data_ :: a
   }
   deriving (Generic, Functor)
+deriving instance (Show a) => Show (Column a)
 instance FromAsdf (Column NDArrayData) where
   parseValue = \case
     Object o -> do
@@ -286,10 +287,9 @@ fromTable (TableRaw _ cols) = do
     pure $ Column n v
 
 
-data Table a = Table { colnames :: [Text], rows :: [a] }
-instance FromAsdf a => FromAsdf (Table a) where
+data Table a = Table {colnames :: [Text], rows :: [a]}
+instance (FromAsdf a) => FromAsdf (Table a) where
   parseValue val = do
     table <- parseValue @TableRaw val
     rows <- fromTable table
     pure $ Table table.colnames rows
-
