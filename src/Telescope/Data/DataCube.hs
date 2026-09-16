@@ -8,7 +8,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array as M hiding (Dim1, Dimension, Dimensions, mapM, tail)
 import Data.Massiv.Array qualified as M
 import Data.Proxy
-import GHC.TypeLits (natVal)
+import GHC.TypeLits (ErrorMessage (..), TypeError, natVal)
 import Telescope.Data.Array (AxesIndex (..))
 import Telescope.Data.Axes (Axes, Major (Row))
 import Prelude hiding (head, tail)
@@ -156,6 +156,7 @@ data Dimension (axis :: Type) = Dimension Int
 type family Sizes (axes :: [Type]) :: Type where
   Sizes '[a] = (Int)
   Sizes (x ': xs) = (Int, Sizes xs)
+  Sizes '[] = TypeError ('Text "Type not found in axis list")
 
 
 class DimensionSize (axis :: Type) (axes :: [Type]) where
@@ -173,25 +174,29 @@ instance {-# OVERLAPS #-} (DimensionSize a xs, sizes ~ Sizes (x : xs), sizes ~ (
 instance {-# OVERLAPS #-} DimensionSize a '[a] where
   dimensionSize (Dimensions n) = Dimension n
 
+-- instance DimensionSize a '[] where
+--   dimensionSize (Dimensions n) = Dimension _
+--
 
-data X
-data Y
-data Z
-
-
-test :: IO ()
-test = do
-  let dxyz :: Dimensions [X, Y, Z] = undefined
-  let dxy :: Dimensions [X, Y] = undefined
-  let dx :: Dimensions '[X] = undefined
-  let d0 :: Dimensions '[] = undefined
-  let x = dimensionSize @X dxyz
-  let y = dimensionSize @Y dxyz
-  let z = dimensionSize @Z dxyz
-  let x2 = dimensionSize @X dxy
-  let y2 = dimensionSize @Y dxy
-  let x3 = dimensionSize @X dx
-  let x4 = dimensionSize @X d0
-  let zz = dimensionSize @Z dxy
-  print (x, y, z)
-  pure ()
+-- data X
+-- data Y
+-- data Z
+-- data A
+--
+--
+-- test :: IO ()
+-- test = do
+--   let dxyz :: Dimensions [X, Y, Z] = undefined
+--   let dxy :: Dimensions [X, Y] = undefined
+--   let dx :: Dimensions '[X] = undefined
+--   let d0 :: Dimensions '[] = undefined
+--   let a = dimensionSize @A dxyz
+--   let x = dimensionSize @X dxyz
+--   let y = dimensionSize @Y dxyz
+--   let z = dimensionSize @Z dxyz
+--   let x2 = dimensionSize @X dxy
+--   let y2 = dimensionSize @Y dxy
+--   let x3 = dimensionSize @X dx
+--   let x4 = dimensionSize @X d0
+--   let zz = dimensionSize @Z dxy
+--   pure ()
