@@ -148,62 +148,29 @@ dataCubeAxes (DataCube arr) =
 
 --------------------------------------------------------------------------------------
 
-data Dimensions (axes :: [Type]) = Dimensions (AxesFor axes)
+data Dimensions (axes :: [Type]) = Dimensions (Sizes axes)
 data Dimension (axis :: Type) = Dimension Int
   deriving (Show, Eq)
 
 
-type family AxesFor (axes :: [Type]) :: Type where
-  AxesFor [a, b, c, d, e] = (Int, Int, Int, Int, Int)
-  AxesFor [a, b, c, d] = (Int, Int, Int, Int)
-  AxesFor [a, b, c] = (Int, Int, Int)
-  AxesFor [a, b] = (Int, Int)
-  AxesFor '[a] = (Int)
+type family Sizes (axes :: [Type]) :: Type where
+  Sizes '[a] = (Int)
+  Sizes (x ': xs) = (Int, Sizes xs)
 
 
-class Uncons as where
-  type Head as :: Type
-  type Tail as :: Type
-  uncons :: as -> (Head as, Tail as)
-  head :: as -> Head as
-  head as = let (h, _) = uncons as in h
-  tail :: as -> Tail as
-  tail as = let (_, t) = uncons as in t
-
-
-instance Uncons (a, b) where
-  type Head (a, b) = a
-  type Tail (a, b) = b
-  uncons (a, b) = (a, b)
-
-
-instance Uncons (a, b, c) where
-  type Head (a, b, c) = a
-  type Tail (a, b, c) = (b, c)
-  uncons (a, b, c) = (a, (b, c))
-
-
-instance Uncons (a, b, c, d) where
-  type Head (a, b, c, d) = a
-  type Tail (a, b, c, d) = (b, c, d)
-  uncons (a, b, c, d) = (a, (b, c, d))
-
-
-class DimensionSize (axis :: Type) axes where
+class DimensionSize (axis :: Type) (axes :: [Type]) where
   dimensionSize :: Dimensions axes -> Dimension axis
 
 
-instance {-# OVERLAPPABLE #-} (axes ~ AxesFor (a : xs), Head axes ~ Int, Uncons axes) => DimensionSize a (a : xs) where
-  dimensionSize (Dimensions ds) = Dimension $ head ds
+instance {-# OVERLAPPABLE #-} (sizes ~ Sizes (a : xs), sizes ~ (Int, rest)) => DimensionSize a (a : xs) where
+  dimensionSize (Dimensions (n, _)) = Dimension n
 
 
-instance {-# OVERLAPS #-} (axes ~ AxesFor (x : xs), AxesFor xs ~ Tail axes, Uncons axes, DimensionSize a xs) => DimensionSize a (x : xs) where
-  dimensionSize (Dimensions ds) =
-    let ax :: Tail (AxesFor (x : xs)) = tail ds
-     in dimensionSize @a @xs $ Dimensions ax
+instance {-# OVERLAPS #-} (DimensionSize a xs, sizes ~ Sizes (x : xs), sizes ~ (Int, Sizes xs)) => DimensionSize a (x : xs) where
+  dimensionSize (Dimensions (_, ds)) = dimensionSize @a @xs $ Dimensions ds
 
 
-instance DimensionSize a '[a] where
+instance {-# OVERLAPS #-} DimensionSize a '[a] where
   dimensionSize (Dimensions n) = Dimension n
 
 
@@ -214,10 +181,10 @@ data Z
 
 test :: IO ()
 test = do
-  let dxyz :: Dimensions [X, Y, Z] = _
-  let dxy :: Dimensions [X, Y] = _
-  let dx :: Dimensions '[X] = _
-  let d0 :: Dimensions '[] = _
+  let dxyz :: Dimensions [X, Y, Z] = undefined
+  let dxy :: Dimensions [X, Y] = undefined
+  let dx :: Dimensions '[X] = undefined
+  let d0 :: Dimensions '[] = undefined
   let x = dimensionSize @X dxyz
   let y = dimensionSize @Y dxyz
   let z = dimensionSize @Z dxyz
@@ -225,5 +192,6 @@ test = do
   let y2 = dimensionSize @Y dxy
   let x3 = dimensionSize @X dx
   let x4 = dimensionSize @X d0
+  let zz = dimensionSize @Z dxy
   print (x, y, z)
   pure ()
