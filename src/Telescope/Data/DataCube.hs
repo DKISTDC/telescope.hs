@@ -8,7 +8,8 @@ import Data.List.NonEmpty qualified as NE
 import Data.Massiv.Array as M hiding (Dim1, Dimension, Dimensions, mapM, tail)
 import Data.Massiv.Array qualified as M
 import Data.Proxy
-import GHC.TypeLits (ErrorMessage (..), TypeError, natVal)
+import GHC.TypeLits (ErrorMessage (..), TypeError)
+import GHC.TypeNats
 import Telescope.Data.Array (AxesIndex (..))
 import Telescope.Data.Axes (Axes, Major (Row))
 import Prelude hiding (head, tail)
@@ -148,55 +149,79 @@ dataCubeAxes (DataCube arr) =
 
 --------------------------------------------------------------------------------------
 
-data Dimensions (axes :: [Type]) = Dimensions (Sizes axes)
+data Dimensions (axes :: [Type]) = Dimensions (IndexOf axes)
 data Dimension (axis :: Type) = Dimension Int
   deriving (Show, Eq)
 
 
-type family Sizes (axes :: [Type]) :: Type where
-  Sizes '[a] = (Int)
-  Sizes (x ': xs) = (Int, Sizes xs)
-  Sizes '[] = TypeError ('Text "Type not found in axis list")
-
+-- type family Sizes (axes :: [Type]) :: Type where
+--   Sizes '[a] = (Int)
+--   Sizes (x ': xs) = (Int, Sizes xs)
+--   Sizes '[] = TypeError ('Text "Type not found in axis list")
 
 class DimensionSize (axis :: Type) (axes :: [Type]) where
   dimensionSize :: Dimensions axes -> Dimension axis
 
 
-instance {-# OVERLAPPABLE #-} (sizes ~ Sizes (a : xs), sizes ~ (Int, rest)) => DimensionSize a (a : xs) where
-  dimensionSize (Dimensions (n, _)) = Dimension n
+instance DimensionSize a '[a, b, c, d] where
+  dimensionSize (Dimensions (a :> _)) = Dimension a
 
 
-instance {-# OVERLAPS #-} (DimensionSize a xs, sizes ~ Sizes (x : xs), sizes ~ (Int, Sizes xs)) => DimensionSize a (x : xs) where
-  dimensionSize (Dimensions (_, ds)) = dimensionSize @a @xs $ Dimensions ds
+instance DimensionSize b '[a, b, c, d] where
+  dimensionSize (Dimensions (_ :> b :> _)) = Dimension b
 
 
-instance {-# OVERLAPS #-} DimensionSize a '[a] where
+instance DimensionSize c '[a, b, c, d] where
+  dimensionSize (Dimensions (_ :> _ :> c :. _)) = Dimension c
+
+
+instance DimensionSize d '[a, b, c, d] where
+  dimensionSize (Dimensions (_ :> _ :> _ :. d)) = Dimension d
+
+
+instance DimensionSize a '[a, b, c] where
+  dimensionSize (Dimensions (a :> _ :. _)) = Dimension a
+
+
+instance DimensionSize b '[a, b, c] where
+  dimensionSize (Dimensions (_ :> b :. _)) = Dimension b
+
+
+instance DimensionSize c '[a, b, c] where
+  dimensionSize (Dimensions (_ :> _ :. c)) = Dimension c
+
+
+instance DimensionSize a '[a, b] where
+  dimensionSize (Dimensions (a :. _)) = Dimension a
+
+
+instance DimensionSize a '[b, a] where
+  dimensionSize (Dimensions (_ :. b)) = Dimension b
+
+
+instance DimensionSize a '[a] where
   dimensionSize (Dimensions n) = Dimension n
 
--- instance DimensionSize a '[] where
---   dimensionSize (Dimensions n) = Dimension _
---
 
--- data X
--- data Y
--- data Z
--- data A
---
---
--- test :: IO ()
--- test = do
---   let dxyz :: Dimensions [X, Y, Z] = undefined
---   let dxy :: Dimensions [X, Y] = undefined
---   let dx :: Dimensions '[X] = undefined
---   let d0 :: Dimensions '[] = undefined
---   let a = dimensionSize @A dxyz
---   let x = dimensionSize @X dxyz
---   let y = dimensionSize @Y dxyz
---   let z = dimensionSize @Z dxyz
---   let x2 = dimensionSize @X dxy
---   let y2 = dimensionSize @Y dxy
---   let x3 = dimensionSize @X dx
---   let x4 = dimensionSize @X d0
---   let zz = dimensionSize @Z dxy
---   pure ()
+data X
+data Y
+data Z
+data A
+
+
+test :: IO ()
+test = do
+  let dxyz :: Dimensions [X, Y, Z] = undefined
+  let dxy :: Dimensions [X, Y] = undefined
+  let dx :: Dimensions '[X] = undefined
+  let d0 :: Dimensions '[] = undefined
+  let a = dimensionSize @A dxyz
+  let x = dimensionSize @X dxyz
+  let y = dimensionSize @Y dxyz
+  let z = dimensionSize @Z dxyz
+  let x2 = dimensionSize @X dxy
+  let y2 = dimensionSize @Y dxy
+  let x3 = dimensionSize @X dx
+  let x4 = dimensionSize @X d0
+  let zz = dimensionSize @Z dxy
+  pure ()
