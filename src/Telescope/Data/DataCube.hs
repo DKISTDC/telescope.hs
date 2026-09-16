@@ -5,12 +5,13 @@ module Telescope.Data.DataCube where
 import Data.Kind
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
-import Data.Massiv.Array as M hiding (Dim1, Dimension, Dimensions, mapM)
+import Data.Massiv.Array as M hiding (Dim1, Dimension, Dimensions, mapM, tail)
 import Data.Massiv.Array qualified as M
 import Data.Proxy
 import GHC.TypeLits (natVal)
 import Telescope.Data.Array (AxesIndex (..))
 import Telescope.Data.Axes (Axes, Major (Row))
+import Prelude hiding (head, tail)
 
 
 newtype DataCube (as :: [Type]) f = DataCube
@@ -147,58 +148,64 @@ dataCubeAxes (DataCube arr) =
 
 --------------------------------------------------------------------------------------
 
-data Dimensions (axes :: [Type]) = Dimensions Dims
-  deriving (Show, Eq)
+data Dimensions (axes :: [Type]) = Dimensions (AxesFor axes)
 data Dimension (axis :: Type) = Dimension Int
   deriving (Show, Eq)
-data Dims = Int :^: Dims | Dim1 Int
-  deriving (Show, Eq)
 
 
--- type family AxesFor (axes :: [Type]) :: Type where
---   -- AxesFor [a, b, c, d] = (Int, Int, Int, Int)
---   -- AxesFor [a, b, c] = (Int, Int, Int)
---   -- AxesFor [a, b] = (Int, Int)
---   AxesFor '[a] = Int
---   AxesFor (a : xs) = [Int]
+type family AxesFor (axes :: [Type]) :: Type where
+  AxesFor [a, b, c, d, e] = (Int, Int, Int, Int, Int)
+  AxesFor [a, b, c, d] = (Int, Int, Int, Int)
+  AxesFor [a, b, c] = (Int, Int, Int)
+  AxesFor [a, b] = (Int, Int)
+  AxesFor '[a] = (Int)
+
+
+class Uncons as where
+  type Head as :: Type
+  type Tail as :: Type
+  uncons :: as -> (Head as, Tail as)
+  head :: as -> Head as
+  head as = let (h, _) = uncons as in h
+  tail :: as -> Tail as
+  tail as = let (_, t) = uncons as in t
+
+
+instance Uncons (a, b) where
+  type Head (a, b) = a
+  type Tail (a, b) = b
+  uncons (a, b) = (a, b)
+
+
+instance Uncons (a, b, c) where
+  type Head (a, b, c) = a
+  type Tail (a, b, c) = (b, c)
+  uncons (a, b, c) = (a, (b, c))
+
+
+instance Uncons (a, b, c, d) where
+  type Head (a, b, c, d) = a
+  type Tail (a, b, c, d) = (b, c, d)
+  uncons (a, b, c, d) = (a, (b, c, d))
+
 
 class DimensionSize (axis :: Type) axes where
   dimensionSize :: Dimensions axes -> Dimension axis
 
 
-instance {-# OVERLAPPABLE #-} DimensionSize a (a : xs) where
-  dimensionSize (Dimensions (Dim1 n)) = Dimension n
-  dimensionSize (Dimensions (n :^: _)) = Dimension n
+instance {-# OVERLAPPABLE #-} (axes ~ AxesFor (a : xs), Head axes ~ Int, Uncons axes) => DimensionSize a (a : xs) where
+  dimensionSize (Dimensions ds) = Dimension $ head ds
 
 
-instance {-# OVERLAPS #-} (DimensionSize a xs) => DimensionSize a (x : xs) where
-  dimensionSize (Dimensions (Dim1 n)) = Dimension n
-  dimensionSize (Dimensions (_ :^: ds)) = dimensionSize @a @xs $ Dimensions ds
+instance {-# OVERLAPS #-} (axes ~ AxesFor (x : xs), AxesFor xs ~ Tail axes, Uncons axes, DimensionSize a xs) => DimensionSize a (x : xs) where
+  dimensionSize (Dimensions ds) =
+    let ax :: Tail (AxesFor (x : xs)) = tail ds
+     in dimensionSize @a @xs $ Dimensions ax
 
 
 instance DimensionSize a '[a] where
-  dimensionSize (Dimensions (Dim1 n)) = Dimension n
-  dimensionSize (Dimensions (_ :^: ds)) = dimensionSize @a @'[a] $ Dimensions ds
+  dimensionSize (Dimensions n) = Dimension n
 
-
--- instance DimensionSize a [b, a] where
---   dimensionSize (Dimensions (_, a)) = Dimension a
---
---
--- instance DimensionSize a [a, b] where
---   dimensionSize (Dimensions (a, _)) = Dimension a
---
-
--- instance DimensionSize a [a, b, c] where
---   dimensionSize (Dimensions (a, _, _)) = Dimension a
---
---
--- instance DimensionSize b [a, b, c] where
---   dimensionSize (Dimensions (_, b, _)) = Dimension b
---
---
--- instance DimensionSize c [a, b, c] where
---   dimensionSize (Dimensions (_, _, c)) = Dimension c
 
 data X
 data Y
