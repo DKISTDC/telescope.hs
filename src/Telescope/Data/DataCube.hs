@@ -3,26 +3,21 @@
 module Telescope.Data.DataCube where
 
 import Data.Kind
-import Data.Massiv.Array as M hiding (mapM)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
+import Data.Massiv.Array as M hiding (Dim1, Dimension, Dimensions, mapM)
+import Data.Massiv.Array qualified as M
 import Data.Proxy
 import GHC.TypeLits (natVal)
 import Telescope.Data.Array (AxesIndex (..))
 import Telescope.Data.Axes (Axes, Major (Row))
 
 
--- Results ------------------------------------------------------------------------------
-
 newtype DataCube (as :: [Type]) f = DataCube
   { array :: Array D (IndexOf as) f
   }
-
-
-instance (Index (IndexOf as), Eq f) => Eq (DataCube as f) where
-  DataCube arr == DataCube arr2 = arr == arr2
-
-
-instance (Ragged L (IndexOf as) f, Show f) => Show (DataCube as f) where
-  show (DataCube a) = show a
+deriving instance (Index (IndexOf as), Eq f) => Eq (DataCube as f)
+deriving instance (Ragged L (IndexOf as) f, Show f) => Show (DataCube as f)
 
 
 class HasIndex (as :: [Type]) where
@@ -96,7 +91,7 @@ sliceM1
   -> DataCube (a : b : xs) f
   -> DataCube (a : xs) f
 sliceM1 b (DataCube arr) =
-  let dims = fromIntegral $ natVal @(Dimensions (IndexOf (a : b : xs))) Proxy
+  let dims = fromIntegral $ natVal @(M.Dimensions (IndexOf (a : b : xs))) Proxy
    in DataCube $ arr <!> (Dim (dims - 1), b)
 
 
@@ -111,7 +106,7 @@ sliceM2
   -> DataCube (a : b : c : xs) f
   -> DataCube (a : b : xs) f
 sliceM2 c (DataCube arr) =
-  let dims = fromIntegral $ natVal @(Dimensions (IndexOf (a : b : c : xs))) Proxy
+  let dims = fromIntegral $ natVal @(M.Dimensions (IndexOf (a : b : c : xs))) Proxy
    in DataCube $ arr <!> (Dim (dims - 2), c)
 
 
@@ -124,7 +119,7 @@ splitM0
   -> DataCube (a : xs) f
   -> m (DataCube (a : xs) f, DataCube (a : xs) f)
 splitM0 a (DataCube arr) = do
-  let dims = fromIntegral $ natVal @(Dimensions (IndexOf (a : xs))) Proxy
+  let dims = fromIntegral $ natVal @(M.Dimensions (IndexOf (a : xs))) Proxy
   (arr1, arr2) <- M.splitAtM (Dim dims) a arr
   pure (DataCube arr1, DataCube arr2)
 
@@ -139,7 +134,7 @@ splitM1
   -> DataCube (a : b : xs) f
   -> m (DataCube (a : b : xs) f, DataCube (a : b : xs) f)
 splitM1 b (DataCube arr) = do
-  let dims = fromIntegral $ natVal @(Dimensions (IndexOf (a : xs))) Proxy
+  let dims = fromIntegral $ natVal @(M.Dimensions (IndexOf (a : xs))) Proxy
   (arr1, arr2) <- M.splitAtM (Dim dims) b arr
   pure (DataCube arr1, DataCube arr2)
 
@@ -148,3 +143,80 @@ dataCubeAxes :: (Index (IndexOf as), AxesIndex (IndexOf as)) => DataCube as f ->
 dataCubeAxes (DataCube arr) =
   let Sz ix = M.size arr
    in indexAxes ix
+
+
+--------------------------------------------------------------------------------------
+
+data Dimensions (axes :: [Type]) = Dimensions Dims
+  deriving (Show, Eq)
+data Dimension (axis :: Type) = Dimension Int
+  deriving (Show, Eq)
+data Dims = Int :^: Dims | Dim1 Int
+  deriving (Show, Eq)
+
+
+-- type family AxesFor (axes :: [Type]) :: Type where
+--   -- AxesFor [a, b, c, d] = (Int, Int, Int, Int)
+--   -- AxesFor [a, b, c] = (Int, Int, Int)
+--   -- AxesFor [a, b] = (Int, Int)
+--   AxesFor '[a] = Int
+--   AxesFor (a : xs) = [Int]
+
+class DimensionSize (axis :: Type) axes where
+  dimensionSize :: Dimensions axes -> Dimension axis
+
+
+instance {-# OVERLAPPABLE #-} DimensionSize a (a : xs) where
+  dimensionSize (Dimensions (Dim1 n)) = Dimension n
+  dimensionSize (Dimensions (n :^: _)) = Dimension n
+
+
+instance {-# OVERLAPS #-} (DimensionSize a xs) => DimensionSize a (x : xs) where
+  dimensionSize (Dimensions (Dim1 n)) = Dimension n
+  dimensionSize (Dimensions (_ :^: ds)) = dimensionSize @a @xs $ Dimensions ds
+
+
+instance DimensionSize a '[a] where
+  dimensionSize (Dimensions (Dim1 n)) = Dimension n
+  dimensionSize (Dimensions (_ :^: ds)) = dimensionSize @a @'[a] $ Dimensions ds
+
+
+-- instance DimensionSize a [b, a] where
+--   dimensionSize (Dimensions (_, a)) = Dimension a
+--
+--
+-- instance DimensionSize a [a, b] where
+--   dimensionSize (Dimensions (a, _)) = Dimension a
+--
+
+-- instance DimensionSize a [a, b, c] where
+--   dimensionSize (Dimensions (a, _, _)) = Dimension a
+--
+--
+-- instance DimensionSize b [a, b, c] where
+--   dimensionSize (Dimensions (_, b, _)) = Dimension b
+--
+--
+-- instance DimensionSize c [a, b, c] where
+--   dimensionSize (Dimensions (_, _, c)) = Dimension c
+
+data X
+data Y
+data Z
+
+
+test :: IO ()
+test = do
+  let dxyz :: Dimensions [X, Y, Z] = _
+  let dxy :: Dimensions [X, Y] = _
+  let dx :: Dimensions '[X] = _
+  let d0 :: Dimensions '[] = _
+  let x = dimensionSize @X dxyz
+  let y = dimensionSize @Y dxyz
+  let z = dimensionSize @Z dxyz
+  let x2 = dimensionSize @X dxy
+  let y2 = dimensionSize @Y dxy
+  let x3 = dimensionSize @X dx
+  let x4 = dimensionSize @X d0
+  print (x, y, z)
+  pure ()
