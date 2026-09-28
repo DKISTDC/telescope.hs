@@ -51,6 +51,7 @@ dependencies:
   - libyaml >= 0.1.4 && < 0.2
   - conduit >= 1.3 && < 1.4
   - resourcet-effectful >= 1.0.1 && < 1.1
+  - zlib >= 0.7 && < 0.8
 
 library:
   source-dirs: src

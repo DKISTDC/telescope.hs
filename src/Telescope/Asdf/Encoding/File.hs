@@ -18,6 +18,7 @@ import Effectful.NonDet
 import Effectful.State.Static.Local
 import Telescope.Asdf.Error
 import Telescope.Asdf.Node (Tree)
+import Codec.Compression.Zlib qualified as Zlib
 
 
 -- | Split an encoded 'ByteString' into a 'Tree', '[Encoded Block]' and 'Encoded Index'
@@ -189,8 +190,8 @@ newtype BlockIndex = BlockIndex [Int]
 
 data Compression
   = NoCompression -- "\0\0\0\0"
-  | ZLib -- "zlib"
-  | BZip2 -- "bzp2"
+  | Zlib -- "zlib"
+  -- | BZip2 -- "bzp2"
   deriving (Show, Eq)
 
 
@@ -253,7 +254,7 @@ getBlockHeader = do
     val <- getByteString 4
     case val of
       "\0\0\0\0" -> pure NoCompression
-      -- "zlib" -> pure ZLib
+      "zlib" -> pure Zlib
       -- "bzp2" -> pure BZip2
       _ -> fail $ "BlockHeader compression invalid, found " <> show val
 
@@ -322,7 +323,11 @@ getBlockData h = do
   -- LATER: handle compression
   bytes <- getByteString $ fromIntegral h.usedSize
   _empty <- getByteString $ fromIntegral $ h.allocatedSize - h.usedSize
-  pure $ BlockData bytes
+
+  case h.compression of
+    NoCompression -> pure $ BlockData bytes
+    Zlib -> do
+      pure $ BlockData $ BL.toStrict $ Zlib.decompress $ BL.fromStrict bytes
 
 
 blockMagicToken :: ByteString

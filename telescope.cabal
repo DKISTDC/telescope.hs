@@ -75,7 +75,8 @@ library
         resourcet-effectful >=1.0.1 && <1.1,
         scientific ==0.3.*,
         text >=2.0 && <3,
-        time >=1.12 && <2
+        time >=1.12 && <2,
+        zlib ==0.7.*
     hs-source-dirs:
         src
     default-extensions:
@@ -155,5 +156,6 @@ test-suite test
         skeletest,
         telescope,
         text >=2.0 && <3,
-        time >=1.12 && <2
+        time >=1.12 && <2,
+        zlib ==0.7.*
     default-language: GHC2021

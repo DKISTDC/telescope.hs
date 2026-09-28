@@ -30,6 +30,7 @@ spec = do
   describe "dkist" dkistSpec
   describe "references" referenceSpec
   describe "anchors" anchorSpec
+  describe "compression" compressionSpec
 
 
 basicSpec :: Spec
@@ -174,6 +175,15 @@ referenceSpec = do
 
     n1 <- parseIO $ findPointer (jsonPointer "/users/1/name") tree
     n1 `shouldBe` "Harold"
+
+
+compressionSpec :: Spec
+compressionSpec = do
+  it "should parse asdf with zlib compression blocks" $ do
+    inp <- BS.readFile "/Users/seanhess/Downloads/VISP_KNAQTD_zlib.asdf"
+    e <- decodeM @Asdf inp
+    print e.tree
+    pure ()
 
 
 -- I don't think we should automatically resolve any internal references. Assume all references are external

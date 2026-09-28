@@ -370,6 +370,7 @@ instance ToAsdf DataType where
   toValue Int8 = "int8"
   toValue Bool8 = "bool8"
   toValue (Ucs4 n) = Array ["ucs4", fromValue $ Integer $ fromIntegral n]
+  toValue (Ascii n) = Array ["ascii", fromValue $ Integer $ fromIntegral n]
 instance FromAsdf DataType where
   parseValue = \case
     String "float64" -> pure Float64
@@ -380,6 +381,7 @@ instance FromAsdf DataType where
     String "int8" -> pure Int8
     String "bool8" -> pure Bool8
     Array ["ucs4", Node _ _ (Integer n)] -> pure $ Ucs4 $ fromIntegral n
+    Array ["ascii", Node _ _ (Integer n)] -> pure $ Ascii $ fromIntegral n
     val -> expected "DataType" val
 
 

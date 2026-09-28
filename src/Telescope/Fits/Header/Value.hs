@@ -3,7 +3,6 @@ module Telescope.Fits.Header.Value where
 import Data.Text (Text)
 import Effectful
 import Telescope.Asdf.NDArray
-import Telescope.Data.Parser (expected, runParserAlts)
 
 
 -- | `Value` datatype for discriminating valid FITS KEYWORD=VALUE types in an HDU.
@@ -22,6 +21,7 @@ instance FromNDArray [Value] where
     case arr.datatype of
       Bool8 -> fmap logical <$> fromNDArray @[Bool] arr
       Ucs4 _ -> fmap String <$> fromNDArray @[Text] arr
+      Ascii _ -> fmap String <$> fromNDArray @[Text] arr
       Float32 -> fmap (Float . realToFrac) <$> fromNDArray @[Float] arr
       Float64 -> fmap Float <$> fromNDArray @[Double] arr
       _ -> fmap Integer <$> fromNDArray @[Int] arr

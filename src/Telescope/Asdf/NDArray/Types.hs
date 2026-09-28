@@ -26,7 +26,6 @@ instance Show NDArrayData where
   show nd = unwords ["NDArrayData", show nd.datatype, show (BS.length nd.bytes), show nd.byteorder, show nd.shape]
 
 
-
 data DataType
   = Float64
   | Float32
@@ -36,6 +35,7 @@ data DataType
   | Int8
   | Bool8
   | Ucs4 Int
+  | Ascii Int
   deriving (Show, Eq)
 
 

@@ -97,12 +97,16 @@ instance ToNDArray [Text] where
 
 instance FromNDArray [Text] where
   fromNDArray arr = do
-    n <- fromIntegral <$> ucs4Size arr.datatype
-    parseGet (replicateM (totalItems arr.shape) (getUcs4 arr.byteorder n)) arr.bytes
+    case arr.datatype of
+      Ucs4 n -> fromUcs4 n
+      Ascii n -> fromAscii n
+      t -> parseFail $ "FromNDArray from non-text datatype: " <> show t
    where
-    ucs4Size = \case
-      Ucs4 n -> pure n
-      dt -> expected "Ucs4" dt
+    fromUcs4 n = do
+      parseGet (replicateM (totalItems arr.shape) (getUcs4 arr.byteorder n)) arr.bytes
+
+    fromAscii _n = do
+      parseFail "TODO FromNDArray Text ascii"
 
 
 instance FromNDArray [Value] where
@@ -112,6 +116,7 @@ instance FromNDArray [Value] where
       Float32 -> fmap (Number . fromFloatDigits) <$> fromNDArray @[Float] arr
       Bool8 -> fmap Bool <$> fromNDArray @[Bool] arr
       Ucs4 _ -> fmap String <$> fromNDArray @[Text] arr
+      Ascii _ -> fmap String <$> fromNDArray @[Text] arr
       _int -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int64] arr
 
 
