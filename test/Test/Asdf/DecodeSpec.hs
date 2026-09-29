@@ -2,6 +2,7 @@ module Test.Asdf.DecodeSpec where
 
 import Control.Monad.Catch (throwM)
 import Data.ByteString qualified as BS
+import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -30,7 +31,6 @@ spec = do
   describe "dkist" dkistSpec
   describe "references" referenceSpec
   describe "anchors" anchorSpec
-  describe "compression" compressionSpec
 
 
 basicSpec :: Spec
@@ -177,15 +177,6 @@ referenceSpec = do
     n1 `shouldBe` "Harold"
 
 
-compressionSpec :: Spec
-compressionSpec = do
-  it "should parse asdf with zlib compression blocks" $ do
-    inp <- BS.readFile "/Users/seanhess/Downloads/VISP_KNAQTD_zlib.asdf"
-    e <- decodeM @Asdf inp
-    print e.tree
-    pure ()
-
-
 -- I don't think we should automatically resolve any internal references. Assume all references are external
 -- it "parses Internal Ref to CurrentUsername with tree" $ do
 --   RefTreeFix (Tree tree) <- getFixture
@@ -242,6 +233,15 @@ dkistSpec = do
     fmap (.naxis2) ds `shouldBe` [998, 998, 998]
     fmap (.date) ds `shouldBe` ["2023-04-22T09:16:27.274", "2023-04-22T09:16:40.623", "2023-04-22T09:10:05.121"]
 
+  it "should parse asdf with zlib compression blocks and ascii" $ do
+    inp <- BS.readFile "samples/VISP_KNAQTD_zlib.asdf"
+    d <- decodeM @DKISTAsdf inp
+    let ds = take 3 d.dataset.meta.headers.rows
+    fmap (.naxis2) ds `shouldBe` [4096, 4096, 4096]
+
+    let frames :: [ObservationInputFrame] = fromMaybe [] d.dataset.meta.observation_input_frames
+    fmap (.object_keys) frames `shouldBe` [["dummy/input/key.fits"]]
+
 
 data DKISTAsdf = DKISTAsdf
   { dataset :: Dataset
@@ -259,6 +259,7 @@ data Dataset = Dataset
 data Meta = Meta
   { headers :: Table DatasetMeta
   , inventory :: MetaInventory
+  , observation_input_frames :: Maybe [ObservationInputFrame]
   }
   deriving (Generic, FromAsdf)
 
@@ -276,6 +277,13 @@ data DatasetMeta = DatasetMeta
   , bitpix :: Int
   , bunit :: BUnit
   , date :: DateTime
+  }
+  deriving (Generic, FromAsdf)
+
+
+data ObservationInputFrame = ObservationInputFrame
+  { bucket :: Text
+  , object_keys :: [Text]
   }
   deriving (Generic, FromAsdf)
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Telescope.Asdf.NDArray
   ( NDArrayData (..)
@@ -14,11 +15,12 @@ module Telescope.Asdf.NDArray
   , ByteOrder (..)
   , getUcs4
   , putUcs4
+  , getAscii
   , Parser
   )
 where
 
-import Control.Monad (replicateM)
+import Control.Monad (forM, replicateM)
 import Control.Monad.Catch (try)
 import Data.Binary.Get hiding (getBytes)
 import Data.Binary.Put
@@ -33,6 +35,7 @@ import Data.Scientific (fromFloatDigits)
 import Data.Text (Text, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Debug.Trace (traceM)
 import Effectful
 import GHC.Int
 import Telescope.Asdf.NDArray.Types
@@ -105,9 +108,17 @@ instance FromNDArray [Text] where
     fromUcs4 n = do
       parseGet (replicateM (totalItems arr.shape) (getUcs4 arr.byteorder n)) arr.bytes
 
-    fromAscii _n = do
-      parseFail "TODO FromNDArray Text ascii"
+    fromAscii n = do
+      values <- parseGet (replicateM (totalItems arr.shape) (getAscii arr.byteorder n)) arr.bytes
+      forM values $ \res -> do
+        case res of
+          (ascii, "") -> pure ascii
+          (ascii, bytes) -> parseFail $ "Ascii has (" <> show (BS.length bytes) <> ") remaining bytes after prefix: " <> show ascii
 
+
+-- case T.decodeASCIIPrefix arr.bytes of
+--   (ascii, "") -> pure ascii
+--   (prefix, bytes) ->
 
 instance FromNDArray [Value] where
   fromNDArray arr = do
@@ -182,6 +193,16 @@ parseMassiv nda = do
   case ea of
     Left (e :: ArrayError) -> parseFail $ show e
     Right a -> pure a
+
+
+getAscii :: ByteOrder -> Int -> Get (Text, ByteString)
+getAscii bo n = do
+  decodeAscii <$> getByteString n
+ where
+  decodeAscii bs =
+    case bo of
+      BigEndian -> T.decodeASCIIPrefix . BS.dropWhileEnd (== 0x0) $ bs
+      LittleEndian -> T.decodeASCIIPrefix . BS.dropWhile (== 0x0) $ bs
 
 
 putUcs4 :: Int -> Text -> Put
