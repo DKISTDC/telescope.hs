@@ -57,16 +57,19 @@ instance (FromAsdf inp, FromAsdf out) => FromAsdf (GWCS inp out) where
 
 
 -- | A step contains a frame (like 'CelestialFrame') and a 'Transform a b'
-data GWCSStep frame = GWCSStep
+type GWCSStep frame = GWCSStep' frame Transformation
+
+
+data GWCSStep' frame trans = GWCSStep
   { frame :: frame
-  , transform :: Maybe Transformation
+  , transform :: Maybe trans
   }
   deriving (Generic, Show)
 
 
-instance (ToAsdf frame) => ToAsdf (GWCSStep frame) where
+instance (ToAsdf frame, ToAsdf trans) => ToAsdf (GWCSStep' frame trans) where
   schema _ = "tag:stsci.edu:gwcs/step-1.1.0"
-instance (FromAsdf frame) => FromAsdf (GWCSStep frame)
+instance (FromAsdf frame, FromAsdf trans) => FromAsdf (GWCSStep' frame trans)
 
 
 newtype AxisName = AxisName Text
@@ -115,11 +118,14 @@ data Transformation = Transformation
 instance ToAsdf Transformation where
   schema t = schema t.forward
   toValue t =
-    toValue t.forward
-      <> Object
-        [ ("inputs", toNode t.inputs)
-        , ("outputs", toNode t.outputs)
-        ]
+    let io =
+          [ ("inputs", toNode t.inputs)
+          , ("outputs", toNode t.outputs)
+          ]
+     in case toValue t.forward of
+          Object o ->
+            Object $ (filter (\(k, _) -> k /= "inputs" && k /= "outputs") o) <> io
+          _ -> Object io
 
 
 instance FromAsdf Transformation where
@@ -211,6 +217,10 @@ data Transform b c = Transform
   { transformation :: Transformation
   }
   deriving (Show)
+
+
+instance ToAsdf (Transform b c) where
+  toValue t = toValue t.transformation
 
 
 -- | Convert a type into a 'Transform' via 'ToAsdf' and 'ToAxes'
