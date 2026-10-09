@@ -44,6 +44,7 @@ instance ToKeyword Float where
 instance FromKeyword Float where
   parseKeywordValue = \case
     Float n -> pure $ realToFrac n
+    Integer n -> pure $ fromIntegral n
     v -> expected "Float" v
 
 
@@ -52,6 +53,7 @@ instance ToKeyword Double where
 instance FromKeyword Double where
   parseKeywordValue = \case
     Float n -> pure n
+    Integer n -> pure $ fromIntegral n
     v -> expected "Double" v
 
 

@@ -144,6 +144,7 @@ instance ToAsdf Double where
   toValue n = Number $ fromFloatDigits n
 instance FromAsdf Double where
   parseValue = \case
+    Integer n -> pure $ fromIntegral n
     Number n -> pure $ toRealFloat n
     node -> expected "Double" node
 
@@ -152,6 +153,7 @@ instance ToAsdf Float where
   toValue n = Number $ fromFloatDigits n
 instance FromAsdf Float where
   parseValue = \case
+    Integer n -> pure $ fromIntegral n
     Number n -> pure $ toRealFloat n
     node -> expected "Float" node
 
