@@ -17,6 +17,7 @@ module Telescope.Asdf.NDArray
   , putUcs4
   , getAscii
   , Parser
+  , justifyUcs4
   )
 where
 
@@ -35,7 +36,6 @@ import Data.Scientific (fromFloatDigits)
 import Data.Text (Text, unpack)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Debug.Trace (traceM)
 import Effectful
 import GHC.Int
 import Telescope.Asdf.NDArray.Types
@@ -128,7 +128,10 @@ instance FromNDArray [Value] where
       Bool8 -> fmap Bool <$> fromNDArray @[Bool] arr
       Ucs4 _ -> fmap String <$> fromNDArray @[Text] arr
       Ascii _ -> fmap String <$> fromNDArray @[Text] arr
-      _int -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int64] arr
+      Int8 -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int8] arr
+      Int16 -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int16] arr
+      Int32 -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int32] arr
+      Int64 -> fmap (Integer . fromIntegral) <$> fromNDArray @[Int64] arr
 
 
 instance {-# OVERLAPS #-} FromNDArray [String] where
@@ -211,12 +214,14 @@ putUcs4 n t = putByteString $ justifyUcs4 n $ T.encodeUtf32BE t
 
 getUcs4 :: ByteOrder -> Int -> Get Text
 getUcs4 bo n =
-  decodeUcs4 <$> getByteString (n * 4)
+  dropPadding . decodeUcs4 <$> getByteString (n * 4)
  where
+  dropPadding = T.dropWhileEnd (== '\0')
+
   decodeUcs4 bs =
     case bo of
-      BigEndian -> T.decodeUtf32BE . BS.dropWhileEnd (== 0x0) $ bs
-      LittleEndian -> T.decodeUtf32LE . BS.dropWhile (== 0x0) $ bs
+      BigEndian -> T.decodeUtf32BE bs
+      LittleEndian -> T.decodeUtf32LE bs
 
 
 justifyUcs4 :: Int -> BS.ByteString -> BS.ByteString

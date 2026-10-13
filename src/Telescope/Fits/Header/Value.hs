@@ -24,8 +24,13 @@ instance FromNDArray [Value] where
       Ascii _ -> fmap String <$> fromNDArray @[Text] arr
       Float32 -> fmap (Float . realToFrac) <$> fromNDArray @[Float] arr
       Float64 -> fmap Float <$> fromNDArray @[Double] arr
-      _ -> fmap Integer <$> fromNDArray @[Int] arr
+      Int8 -> integer
+      Int16 -> integer
+      Int32 -> integer
+      Int64 -> integer
    where
+    integer = fmap Integer <$> fromNDArray @[Int] arr
+
     logical = \case
       True -> Logic T
       False -> Logic F
