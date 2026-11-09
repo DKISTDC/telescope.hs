@@ -2,7 +2,6 @@ module Test.Asdf.NDArraySpec where
 
 import Control.Monad (replicateM)
 import Data.Binary.Get (runGet)
-import Data.Binary.Put (runPut)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
@@ -57,7 +56,6 @@ spec = do
       axesRowMajor [length res] `shouldBe` arr.shape
       res `shouldBe` ["pore", "quietsun", "unknown", "plages", "activecorona", "quietcorona", "spicules", "quietsun"]
 
-
     it "parses FITS strings" $ do
       let strings :: [Text] = ["one", "two", "three"]
       res1 <- parseIO $ fromNDArray @[Fits.Value] $ toNDArray strings
@@ -96,10 +94,12 @@ data ObjectNDArrayFix = ObjectNDArrayFix {input :: NDArrayData}
 instance Fixture ObjectNDArrayFix where
   fixtureAction = do
     inp <- BS.readFile "samples/object.ndarray"
-    pure $ noCleanup $ ObjectNDArrayFix $
-      NDArrayData
-        { bytes = inp
-        , byteorder = LittleEndian
-        , shape = axesRowMajor [8]
-        , datatype = Ucs4 12
-        }
+    pure $
+      noCleanup $
+        ObjectNDArrayFix $
+          NDArrayData
+            { bytes = inp
+            , byteorder = LittleEndian
+            , shape = axesRowMajor [8]
+            , datatype = Ucs4 12
+            }

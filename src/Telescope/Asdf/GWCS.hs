@@ -125,7 +125,8 @@ instance ToAsdf Transformation where
      in case toValue t.forward of
           Object o ->
             Object $ (filter (\(k, _) -> k /= "inputs" && k /= "outputs") o) <> io
-          _ -> Object io
+          other ->
+            other <> Object io
 
 
 instance FromAsdf Transformation where
